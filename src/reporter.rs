@@ -38,6 +38,25 @@ pub fn print_report(result: &AnalysisResult) {
     println!();
     print_header();
 
+    // ── Summary ───────────────────────────────────────────────────────────────
+    section("Summary");
+    kv("Total LOC", &format_loc(result.total_loc));
+    kv("Languages", &result.languages.len().to_string());
+    kv("Frameworks", &result.frameworks.len().to_string());
+    kv("Databases", &result.databases.len().to_string());
+    kv("Infrastructure", &result.infrastructure.len().to_string());
+    kv("Files scanned", &result.file_breakdown.len().to_string());
+    kv("Dead files", &result.dead_code.len().to_string());
+    kv(
+        "Dependency links",
+        &result
+            .dependency_graph
+            .values()
+            .map(|v| v.len())
+            .sum::<usize>()
+            .to_string(),
+    );
+
     // ── Project Type ─────────────────────────────────────────────────────────
     section("Project Type");
     println!("  {}", result.project_type);
@@ -121,25 +140,6 @@ pub fn print_report(result: &AnalysisResult) {
             println!("  \x1b[33m{}\x1b[0m", file.display());
         }
     }
-
-    // ── Summary ───────────────────────────────────────────────────────────────
-    section("Summary");
-    kv("Total LOC", &format_loc(result.total_loc));
-    kv("Languages", &result.languages.len().to_string());
-    kv("Frameworks", &result.frameworks.len().to_string());
-    kv("Databases", &result.databases.len().to_string());
-    kv("Infrastructure", &result.infrastructure.len().to_string());
-    kv("Files scanned", &result.file_breakdown.len().to_string());
-    kv("Dead files", &result.dead_code.len().to_string());
-    kv(
-        "Dependency links",
-        &result
-            .dependency_graph
-            .values()
-            .map(|v| v.len())
-            .sum::<usize>()
-            .to_string(),
-    );
 
     println!();
 }
