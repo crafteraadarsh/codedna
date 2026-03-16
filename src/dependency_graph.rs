@@ -293,7 +293,7 @@ fn resolve_python_relative(file_parent: &Path, line: &str) -> Option<PathBuf> {
 ///
 /// Patterns matched:
 /// - `mod module_name;`          → resolves to `module_name.rs` or
-///                                  `module_name/mod.rs`
+///   `module_name/mod.rs`
 /// - `use crate::a::b;`          → resolves relative to src/
 /// - `use super::module;`        → resolves relative to parent
 fn parse_rust_imports(file: &Path) -> Vec<PathBuf> {

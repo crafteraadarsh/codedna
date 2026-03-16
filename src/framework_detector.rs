@@ -515,7 +515,7 @@ fn parse_requirements_txt(path: &Path) -> (Vec<String>, Vec<String>) {
 
         // Strip version specifiers: `fastapi==0.95.0` → `fastapi`
         let package_name = line
-            .split(|c: char| c == '=' || c == '>' || c == '<' || c == '!' || c == '[' || c == ';')
+            .split(['=', '>', '<', '!', '[', ';'])
             .next()
             .unwrap_or(line)
             .trim()

@@ -203,7 +203,7 @@ pub fn print_files(result: &AnalysisResult) {
     }
 
     let col_w = longest_path_len(result) + 2;
-    println!("  {:<col_w$} {:>8}   {}", "File", "LOC", "Language");
+    println!("  {:<col_w$} {:>8}   Language", "File", "LOC");
     println!("  {}", "─".repeat(col_w + 22));
 
     for info in &result.file_breakdown {
@@ -490,7 +490,7 @@ fn format_loc(n: usize) -> String {
     let mut result = String::new();
     let chars: Vec<char> = s.chars().collect();
     for (i, c) in chars.iter().enumerate() {
-        if i > 0 && (chars.len() - i) % 3 == 0 {
+        if i > 0 && (chars.len() - i).is_multiple_of(3) {
             result.push(',');
         }
         result.push(*c);
