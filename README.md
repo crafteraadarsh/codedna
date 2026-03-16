@@ -315,8 +315,158 @@ codedna json . --compact | jq -c \
   '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
 ```
 
-See [`../Skill.md`](../Skill.md) for the complete agent integration guide including
-Claude Code, OpenCode, Codex CLI, Cursor, and Gemini CLI workflows.
+The full skill specification is in [`SKILL.md`](SKILL.md).
+
+---
+
+### Supported Agents
+
+| Agent | Config file | Status |
+|---|---|---|
+| Claude Code | `CLAUDE.md` | ✅ |
+| OpenCode | `AGENTS.md` | ✅ |
+| Codex CLI | `AGENTS.md` | ✅ |
+| Cursor | `.cursorrules` | ✅ |
+| Gemini CLI | `GEMINI.md` | ✅ |
+
+---
+
+### Claude Code
+
+Create a `CLAUDE.md` in your project root:
+
+```markdown
+## Before starting any task
+
+Run this first and read the output before writing any code:
+
+```bash
+codedna json . --compact
+```
+
+Use the output to understand:
+- `project_type` — what kind of project this is
+- `frameworks` — frameworks already in use (do not add duplicates)
+- `databases` — databases connected (match existing patterns)
+- `architecture` — how the layers communicate
+- `dead_code` — files to avoid or safely delete
+```
+
+Or add to your **global** Claude Code config (`~/.claude/CLAUDE.md`) so it applies to every project automatically.
+
+---
+
+### OpenCode
+
+Create an `AGENTS.md` in your project root:
+
+```markdown
+## Codebase Analysis — run first on every task
+
+Before starting any task, run:
+
+```bash
+codedna json . --compact
+```
+
+Use `project_type`, `frameworks`, `databases`, `architecture`, and `dead_code`
+to understand the codebase before generating any code.
+```
+
+OpenCode reads `AGENTS.md` automatically at the start of every session.
+
+---
+
+### Codex CLI
+
+Same `AGENTS.md` format as OpenCode, or inject context inline:
+
+```bash
+# Inject CodeDna context into a Codex CLI prompt
+CONTEXT=$(codedna json . --compact)
+codex "Codebase context: $CONTEXT. Now add a user authentication endpoint."
+```
+
+---
+
+### Cursor
+
+Add to your `.cursorrules` file in the project root:
+
+```
+## Project Analysis
+Before suggesting any code, run `codedna json . --compact` in the terminal
+and use the output to understand the project stack, architecture, and dead code.
+
+## Rules derived from CodeDna
+- Match detected frameworks — do not introduce new ones without asking
+- Follow the detected architecture pattern
+- Do not import from files listed in dead_code
+- Match the dominant language (highest LOC %) for new files
+```
+
+---
+
+### Gemini CLI
+
+Create a `GEMINI.md` in your project root:
+
+```markdown
+## Project context
+
+Run the following before starting any task:
+
+```bash
+codedna json . --compact
+```
+
+Use `project_type`, `frameworks`, `databases`, `architecture`, and `dead_code`
+to understand the codebase before generating code.
+```
+
+---
+
+### Any Agent — Universal One-Liner
+
+```bash
+# macOS — copy context to clipboard
+codedna json . --compact | pbcopy
+
+# Linux — copy context to clipboard
+codedna json . --compact | xclip -selection clipboard
+
+# Or just print a human-readable summary
+codedna analyze .
+```
+
+Paste into your agent's chat as the first message before any task.
+
+---
+
+### Useful jq Recipes
+
+```bash
+# Project type and architecture
+codedna json . | jq '{project_type, architecture}'
+
+# All frameworks
+codedna json . | jq '.frameworks[]'
+
+# Languages sorted by LOC
+codedna json . | jq '.languages | to_entries | sort_by(-.value)'
+
+# Dead code files
+codedna json . | jq '.dead_code[]'
+
+# Top 5 files by LOC
+codedna json . | jq '.file_breakdown[:5]'
+
+# Check if Docker is used
+codedna json . | jq '.infrastructure | contains(["Docker"])'
+
+# Minimal one-line agent context
+codedna json . --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
+```
 
 ---
 
