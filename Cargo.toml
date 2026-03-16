@@ -1,0 +1,28 @@
+[package]
+name = "codedna"
+version = "0.1.0"
+edition = "2021"
+description = "Rust-powered codebase intelligence engine and agent skill — reveals tech stack, architecture, LOC distribution, dead code, and more."
+license = "MIT"
+repository = "https://github.com/YOUR_USERNAME/codedna"
+homepage = "https://github.com/YOUR_USERNAME/codedna"
+documentation = "https://github.com/YOUR_USERNAME/codedna#readme"
+readme = "README.md"
+keywords = ["codebase", "analysis", "cli", "agent", "intelligence"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["CodeDna Contributors"]
+exclude = [
+    ".github/",
+    "target/",
+]
+
+[[bin]]
+name = "codedna"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rayon = "1"

@@ -1,0 +1,24 @@
+# Rust build artifacts
+/target
+
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+/tmp/
+codedna_*_test*/
+
+# OS files
+Thumbs.db
+ehthumbs.db
