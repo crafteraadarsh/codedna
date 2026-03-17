@@ -706,3 +706,47 @@
   - ✅ Build release binary (macOS x86_64) — passed
   - ✅ Build release binary (macOS arm64) — passed
   - ✅ Build release binary (Windows x86_64) — passed
+
+---
+
+### README v1.1 Update
+
+- Updated README.md with all v1.1 changes: Git repository support documentation
+- Changes: badges (140→155 tests, real CI badge), tagline ("local or remote"), install URL fix, Quick Start split (local/remote sections), commands table ([path]→[path or url]), new "Supported URL Formats" subsection, How It Works diagram (added Git Handler + Cleanup steps), Performance table (shallow clone, temp dir cleanup), new "New in v1.1" section, AI Agent Integration (remote examples), framework example with URL
+- Commit: `5d70929` — pushed to GitHub, all 9 CI jobs green
+
+---
+
+## Skill Transformation (Agent Skill System)
+
+Transformed CodeDna into a portable Agent Skill system compatible with Codex, Claude, OpenCode, Cursor, and Gemini CLI.
+
+### Architecture: Approach A — Flat Skills Directory
+
+Created `skills/codedna-analyzer/` directory with full portable skill definition, plus agent config files at repo root.
+
+### Files Created
+
+| File | Purpose |
+|---|---|
+| `skills/codedna-analyzer/SKILL.md` | Full portable skill definition (v1.1) — commands, JSON schema, detection coverage, architecture inference, jq recipes, Git URL support |
+| `skills/codedna-analyzer/examples/local-analysis.md` | Example: analyzing a local repository with annotated output |
+| `skills/codedna-analyzer/examples/remote-analysis.md` | Example: analyzing a remote Git URL with error handling |
+| `AGENTS.md` | OpenCode / Codex CLI integration — run `codedna json . --compact` before any task |
+| `CLAUDE.md` | Claude Code integration — same pattern, Claude conventions |
+| `GEMINI.md` | Gemini CLI integration — same pattern, Gemini conventions |
+| `.cursorrules` | Cursor integration — rules derived from CodeDna output |
+
+### Files Updated
+
+| File | Change |
+|---|---|
+| `SKILL.md` (root) | Trimmed from 417 lines to ~70 lines — concise overview + pointer to `skills/codedna-analyzer/SKILL.md` |
+
+### Key Decisions
+
+- YAML frontmatter includes `name`, `version`, `description`, `tools`, `repository`, `compatibility`
+- All skill files document v1.1 Git URL support (`[path or url]`)
+- Agent configs are real files (not templates) — agents auto-detect them at repo root
+- No code changes — documentation/config only
+- Commit: `7bdc956` — pushed to GitHub, all 9 CI jobs green (run 23184125496)
