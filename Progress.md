@@ -750,3 +750,31 @@ Created `skills/codedna-analyzer/` directory with full portable skill definition
 - Agent configs are real files (not templates) — agents auto-detect them at repo root
 - No code changes — documentation/config only
 - Commit: `7bdc956` — pushed to GitHub, all 9 CI jobs green (run 23184125496)
+
+---
+
+## Full README Rewrite
+
+Comprehensive README rewrite reflecting the complete current state of CodeDna: CLI tool + Agent Skill system.
+
+### Changes
+
+- Complete rewrite from scratch (497 lines) replacing the v1.1 incremental update
+- Tagline updated: "Codebase intelligence engine and AI agent skill"
+- Added full Table of Contents with 12 sections
+- Install section: from GitHub (`cargo install --git`) and from source
+- Quick Start with 7 example commands (local + remote)
+- Commands table: all 12 command variants with descriptions
+- Full example output: formatted CLI intelligence report (verbatim box-drawing)
+- JSON Output section: example JSON, field reference table (10 fields), 6 `jq` recipes
+- How It Works: complete ASCII pipeline diagram (Git Handler → Scanner → 5 parallel analyzers → output → cleanup)
+- Git URL Support: supported formats, what happens during clone, error handling categories
+- Detection Coverage: Languages (22), Frameworks (46 across 4 ecosystems), Databases (26 across 3 manifest types), Infrastructure (5 signals), Architecture inference table, Ignored directories
+- Performance table with benchmark data
+- AI Agent Skill section: skill architecture tree, supported agents table (5 agents), one-liner recipes, pointer to full SKILL.md
+- Project Structure: source file descriptions, dependency table, CI overview
+- Contributing and License sections
+
+### Commit
+
+- Commit: `d00a28dc` — pushed to GitHub, all 9 CI jobs green
