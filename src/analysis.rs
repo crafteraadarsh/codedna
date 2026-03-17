@@ -141,6 +141,35 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     );
     let architecture = infer_architecture(&fw_result.frameworks, &fw_result.databases);
 
+    // ── 8. Normalise paths ──────────────────────────────────────────────────
+    // Strip the `root` prefix so output is always relative, regardless of
+    // whether the root was a local `.` or an absolute temp-dir path.
+    let make_relative = |p: &Path| -> PathBuf {
+        p.strip_prefix(root)
+            .map(|rel| PathBuf::from(".").join(rel))
+            .unwrap_or_else(|_| p.to_path_buf())
+    };
+
+    let dead_code = dead_code.into_iter().map(|p| make_relative(&p)).collect();
+
+    let dependency_graph: HashMap<PathBuf, Vec<PathBuf>> = dep_graph
+        .into_iter()
+        .map(|(k, vs)| {
+            let key = make_relative(&k);
+            let vals = vs.iter().map(|v| make_relative(v)).collect();
+            (key, vals)
+        })
+        .collect();
+
+    let file_breakdown = file_breakdown
+        .into_iter()
+        .map(|fi| FileInfo {
+            file: make_relative(&fi.file),
+            loc: fi.loc,
+            language: fi.language,
+        })
+        .collect();
+
     AnalysisResult {
         project_type,
         total_loc,
@@ -150,7 +179,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         infrastructure,
         architecture,
         dead_code,
-        dependency_graph: dep_graph,
+        dependency_graph,
         file_breakdown,
     }
 }
