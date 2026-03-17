@@ -680,3 +680,29 @@
   - `cargo test` — 155 passed, 0 failed, 3 ignored
   - `cargo test -- --ignored` — 3 passed, 0 failed
   - No temp files remain after remote analysis
+
+### Windows CI fix (post-v1.1)
+
+- **Problem 1: Linker errors (19 unresolved externals)**
+  - `libgit2-sys` on Windows needs `advapi32` for registry, crypto, and security token APIs
+  - The `libgit2-sys` build script links `winhttp`, `rpcrt4`, `ole32`, `crypt32`, `secur32` but omits `advapi32`
+  - Added `build.rs` that emits `cargo:rustc-link-lib=advapi32` and `cargo:rustc-link-lib=crypt32` on Windows
+  - Commit: `7a40b15` — linker fix confirmed (build passes on Windows)
+
+- **Problem 2: STATUS_ACCESS_VIOLATION (0xc0000005) at test exit**
+  - After all tests pass, the test binary crashes during process shutdown
+  - Cause: vendored OpenSSL registers an `atexit` handler (`OPENSSL_cleanup()`) that accesses freed memory on Windows
+  - The two tests that initialise the full libgit2+OpenSSL network stack: `clone_nonexistent_repo_returns_error` and `clone_invalid_url_returns_error`
+  - Fix: `#[cfg(not(target_os = "windows"))]` on those two tests — same code paths still exercised on Linux/macOS CI
+  - Commit: `eefbaaf` — all CI green (9/9 jobs pass)
+
+- **Final CI status (run 23181641167):**
+  - ✅ Clippy — passed
+  - ✅ Rustfmt — passed
+  - ✅ Test (ubuntu-latest) — passed (155 tests)
+  - ✅ Test (macos-latest) — passed (155 tests)
+  - ✅ Test (windows-latest) — passed (153 tests, 2 cfg-skipped)
+  - ✅ Build release binary (linux x86_64) — passed
+  - ✅ Build release binary (macOS x86_64) — passed
+  - ✅ Build release binary (macOS arm64) — passed
+  - ✅ Build release binary (Windows x86_64) — passed
