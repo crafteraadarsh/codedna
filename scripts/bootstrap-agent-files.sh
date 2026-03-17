@@ -44,7 +44,10 @@ for agent in "${agents[@]}"; do
       echo "Installed Codex skill to ${CODEX_HOME:-$HOME/.codex}/skills/codedna"
       ;;
     opencode)
-      copy_file "$repo_root/templates/AGENTS.md" "$target_repo/AGENTS.md"
+      mkdir -p "$target_repo/.opencode/skills"
+      rm -rf "$target_repo/.opencode/skills/codedna"
+      cp -R "$repo_root/.opencode/skills/codedna" "$target_repo/.opencode/skills/codedna"
+      echo "Installed OpenCode skill to $target_repo/.opencode/skills/codedna"
       ;;
     claude)
       copy_file "$repo_root/templates/CLAUDE.md" "$target_repo/CLAUDE.md"

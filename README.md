@@ -67,11 +67,11 @@ codedna --version
 
 ## Agent Support
 
-CodeDna integrates with agents in two different ways:
+CodeDna integrates with agents using their native distribution paths:
 
-- `Codex`: install the packaged skill in `skill/codedna/`
-- `OpenCode`: add an `AGENTS.md` bootstrap file to the target repository
-- `Claude`: add a `CLAUDE.md` bootstrap file to the target repository
+- `Codex`: packaged skill in `skill/codedna/`
+- `OpenCode`: native skill in `.opencode/skills/codedna/`
+- `Claude`: plugin marketplace at `.claude-plugin/marketplace.json`
 
 ## Install Codex Skill
 
@@ -94,7 +94,7 @@ Package it as a distributable tarball with:
 
 ## Bootstrap OpenCode And Claude
 
-To copy portable bootstrap files into another repository:
+To copy the OpenCode skill into another repository and add Claude bootstrap guidance:
 
 ```bash
 ./scripts/bootstrap-agent-files.sh /path/to/target-repo opencode claude
@@ -104,6 +104,36 @@ To install the Codex skill and bootstrap OpenCode plus Claude in one go:
 
 ```bash
 ./scripts/bootstrap-agent-files.sh /path/to/target-repo codex opencode claude
+```
+
+## Install OpenCode Skill
+
+Install the OpenCode skill globally with:
+
+```bash
+./scripts/install-opencode-skill.sh
+```
+
+OpenCode also discovers project-local skills from:
+
+```text
+.opencode/skills/codedna/SKILL.md
+```
+
+## Install Claude Plugin
+
+This repository now includes an official Claude plugin marketplace:
+
+```text
+.claude-plugin/marketplace.json
+plugins/codedna/.claude-plugin/plugin.json
+```
+
+In Claude Code, install it with:
+
+```text
+/plugin marketplace add crafteraadarsh/codedna
+/plugin install codedna@codedna-marketplace
 ```
 
 ---
@@ -431,6 +461,12 @@ CodeDna is designed as the **first command any AI agent runs on a new codebase**
 
 ```
 codedna/
+├── .claude-plugin/
+│   └── marketplace.json         ← Claude plugin marketplace definition
+├── .opencode/
+│   └── skills/
+│       └── codedna/
+│           └── SKILL.md         ← native OpenCode skill
 ├── skills/
 │   └── codedna-analyzer/
 │       ├── SKILL.md              ← full portable skill specification
@@ -441,11 +477,15 @@ codedna/
 │   └── codedna/
 │       ├── SKILL.md              ← valid Codex skill package
 │       └── agents/openai.yaml    ← Codex skill metadata
+├── plugins/
+│   └── codedna/
+│       ├── .claude-plugin/plugin.json
+│       └── skills/codedna/SKILL.md
 ├── templates/
-│   ├── AGENTS.md                 ← portable OpenCode template
 │   └── CLAUDE.md                 ← portable Claude template
 ├── scripts/
 │   ├── install-codex-skill.sh
+│   ├── install-opencode-skill.sh
 │   ├── package-codex-skill.sh
 │   └── bootstrap-agent-files.sh
 ├── AGENTS.md                     ← OpenCode / Codex CLI
@@ -464,11 +504,15 @@ The detailed, portable reference lives in [`skills/codedna-analyzer/SKILL.md`](s
 | `CLAUDE.md` | Claude Code bootstrap for this repository |
 | `GEMINI.md` | Gemini CLI bootstrap for this repository |
 | `.cursorrules` | Cursor guidance for this repository |
+| `.opencode/skills/codedna/SKILL.md` | Native OpenCode skill |
+| `.claude-plugin/marketplace.json` | Claude marketplace definition |
+| `plugins/codedna/.claude-plugin/plugin.json` | Claude plugin manifest |
+| `plugins/codedna/skills/codedna/SKILL.md` | Claude-packaged CodeDna skill |
 | `skill/codedna/SKILL.md` | Codex skill trigger and workflow |
 | `skill/codedna/agents/openai.yaml` | Codex UI metadata for the skill |
-| `templates/AGENTS.md` | Portable OpenCode bootstrap template |
 | `templates/CLAUDE.md` | Portable Claude bootstrap template |
-| `scripts/bootstrap-agent-files.sh` | Copies templates into a target repository |
+| `scripts/install-opencode-skill.sh` | Installs the OpenCode skill globally |
+| `scripts/bootstrap-agent-files.sh` | Copies/install skills into a target repository |
 
 Each config file instructs the agent to run `codedna json . --compact` before any task and use the output to understand the project.
 

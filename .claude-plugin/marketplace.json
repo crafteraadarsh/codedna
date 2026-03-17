@@ -1,0 +1,16 @@
+{
+  "name": "codedna-marketplace",
+  "owner": {
+    "name": "Aadarsh"
+  },
+  "plugins": [
+    {
+      "name": "codedna",
+      "source": "./plugins/codedna",
+      "description": "Repository intelligence skill and commands for CodeDna users",
+      "version": "0.1.0",
+      "repository": "https://github.com/crafteraadarsh/codedna",
+      "license": "MIT"
+    }
+  ]
+}

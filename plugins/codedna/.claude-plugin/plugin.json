@@ -1,0 +1,8 @@
+{
+  "name": "codedna",
+  "description": "Analyze repositories with CodeDna before manual code review",
+  "version": "0.1.0",
+  "author": {
+    "name": "Aadarsh"
+  }
+}
