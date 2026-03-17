@@ -3,6 +3,8 @@
 **Codebase intelligence engine and AI agent skill.**
 
 [![CI](https://github.com/crafteraadarsh/codedna/workflows/CI/badge.svg)](https://github.com/crafteraadarsh/codedna/actions)
+[![crates.io](https://img.shields.io/crates/v/codedna.svg)](https://crates.io/crates/codedna)
+[![docs.rs](https://img.shields.io/docsrs/codedna)](https://docs.rs/codedna)
 [![Tests](https://img.shields.io/badge/tests-155%20passing-brightgreen)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 [![Rust](https://img.shields.io/badge/rust-stable-orange)](#)
