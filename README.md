@@ -1,34 +1,48 @@
 # CodeDna 🧬
 
-> Rust-powered codebase intelligence engine and agent skill.
+**Codebase intelligence engine and AI agent skill.**
 
 [![CI](https://github.com/crafteraadarsh/codedna/workflows/CI/badge.svg)](https://github.com/crafteraadarsh/codedna/actions)
 [![Tests](https://img.shields.io/badge/tests-155%20passing-brightgreen)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 [![Rust](https://img.shields.io/badge/rust-stable-orange)](#)
+[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](#)
 
-CodeDna analyzes any **local or remote** repository and reveals its **DNA** — the tech stack, architecture, LOC distribution, framework usage, infrastructure, and dead code — in milliseconds.
+Point CodeDna at any local directory or remote Git URL. It scans the repository and produces a complete intelligence report — tech stack, architecture, LOC distribution, framework usage, infrastructure, dead code — in milliseconds. Output is both human-readable and machine-readable (JSON), making it the ideal first command for any AI coding agent.
+
+```bash
+codedna analyze .
+codedna analyze https://github.com/vercel/next.js
+codedna json . --compact
+```
 
 ---
 
-## What It Does
+## Table of Contents
 
-Given any repository (local path or Git URL), CodeDna produces a complete intelligence report:
-
-| Area | Details |
-|---|---|
-| **Tech Stack** | Languages, frameworks, databases, tooling |
-| **LOC Distribution** | Lines of code per language with visual bar chart |
-| **Framework Usage** | Which files import which frameworks |
-| **Architecture** | Frontend → API → Database pattern detection |
-| **Infrastructure** | Docker, GitHub Actions, Kubernetes detection |
-| **Dead Code** | Unused files unreachable from entry points |
-| **Directory Map** | Tree-style repository structure |
-| **JSON Output** | Structured output for AI agent consumption |
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Commands](#commands)
+- [Example Output](#example-output)
+- [JSON Output](#json-output)
+- [How It Works](#how-it-works)
+- [Git URL Support](#git-url-support)
+- [Detection Coverage](#detection-coverage)
+- [Performance](#performance)
+- [AI Agent Skill](#ai-agent-skill)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
 ## Install
+
+### From GitHub
+
+```bash
+cargo install --git https://github.com/crafteraadarsh/codedna
+```
 
 ### From Source
 
@@ -38,50 +52,61 @@ cd codedna
 cargo install --path .
 ```
 
-### Via Cargo (once published)
+Requires **Rust stable**. Install Rust at [rustup.rs](https://rustup.rs).
+
+Verify installation:
 
 ```bash
-cargo install codedna
+codedna --version
 ```
-
-Requires **Rust stable**. Install Rust at [rustup.rs](https://rustup.rs).
 
 ---
 
 ## Quick Start
 
-### Local Repository
-
 ```bash
-# Full intelligence report
+# Full intelligence report (local)
 codedna analyze .
 
-# Machine-readable JSON (for AI agents)
-codedna json .
+# Full intelligence report (remote — auto-clones)
+codedna analyze https://github.com/vercel/next.js
+
+# JSON for AI agents
+codedna json . --compact
 
 # Tech stack only
 codedna stack .
 
+# Dead code detection
+codedna deadcode https://github.com/user/repo
+
 # Directory tree
 codedna map . --depth 3
+
+# Find files using a specific framework
+codedna framework react .
 ```
 
-### Remote Git Repository (v1.1)
+---
 
-```bash
-# Analyze any public GitHub repo
-codedna analyze https://github.com/vercel/next.js
+## Commands
 
-# Works with all commands
-codedna stack https://github.com/tokio-rs/tokio
-codedna json https://github.com/denoland/deno --compact
-codedna deadcode git@github.com:user/repo.git
+All commands accept a **local path** or a **Git URL**.
 
-# SSH URLs work too
-codedna analyze git@github.com:user/repo.git
-```
-
-CodeDna automatically detects Git URLs, performs a shallow clone into a temp directory, runs the full analysis, and cleans up — no manual `git clone` needed.
+| Command | Description |
+|---|---|
+| `codedna analyze [path\|url]` | Full intelligence report |
+| `codedna analyze [path\|url] --time` | Report with elapsed time |
+| `codedna stack [path\|url]` | Languages, frameworks, databases |
+| `codedna files [path\|url]` | Per-file LOC breakdown |
+| `codedna framework <name> [path\|url]` | Files importing a given framework |
+| `codedna deadcode [path\|url]` | Unreachable / unused files |
+| `codedna map [path\|url]` | Directory tree |
+| `codedna map [path\|url] --depth N` | Directory tree limited to N levels |
+| `codedna scan [path\|url]` | Raw scanned file list |
+| `codedna json [path\|url]` | Full analysis as JSON |
+| `codedna json [path\|url] --compact` | Single-line JSON |
+| `codedna json [path\|url] --time` | JSON with elapsed time |
 
 ---
 
@@ -148,60 +173,9 @@ CodeDna automatically detects Git URLs, performs a shallow clone into a temp dir
 
 ---
 
-## Commands
-
-All commands accept either a **local path** or a **Git URL**.
-
-| Command | Description |
-|---|---|
-| `codedna analyze [path or url]` | Full intelligence report |
-| `codedna analyze [path or url] --time` | Report + elapsed time |
-| `codedna stack [path or url]` | Languages, frameworks, databases |
-| `codedna files [path or url]` | Per-file LOC breakdown |
-| `codedna framework <name> [path or url]` | Files that import the given framework |
-| `codedna deadcode [path or url]` | Unused / unreachable files |
-| `codedna map [path or url]` | Directory tree |
-| `codedna map [path or url] --depth N` | Directory tree limited to N levels |
-| `codedna scan [path or url]` | Raw scanned file list |
-| `codedna json [path or url]` | Full analysis as JSON |
-| `codedna json [path or url] --compact` | Single-line JSON |
-| `codedna json [path or url] --time` | JSON + elapsed time |
-
-### Supported URL Formats
-
-Any input starting with `http://`, `https://`, or `git@` is treated as a Git URL. Everything else is treated as a local path.
-
-```
-https://github.com/user/repo
-https://gitlab.com/user/repo
-http://github.com/user/repo
-git@github.com:user/repo.git
-git@gitlab.com:user/repo.git
-```
-
-### Framework Detection
-
-The `framework` command supports per-file import scanning for:
-
-**JavaScript / TypeScript:** React, Next.js, Express, Vite, Vue, Svelte, NestJS, Fastify, Koa, Remix, Gatsby, Nuxt, Astro
-
-**Python:** FastAPI, Django, Flask, Starlette, aiohttp
-
-**Rust:** Tokio, Axum, Actix-web, Rocket, Warp, Leptos, Dioxus, Yew, Tauri
-
-**Go:** Gin, Echo, Fiber, Chi
-
-```bash
-codedna framework react .
-codedna framework fastapi ./backend
-codedna framework axum https://github.com/user/rust-project
-```
-
----
-
 ## JSON Output
 
-`codedna json .` outputs structured JSON for AI agent consumption:
+`codedna json .` produces structured JSON for programmatic consumption:
 
 ```json
 {
@@ -230,11 +204,26 @@ codedna framework axum https://github.com/user/rust-project
 }
 ```
 
-### Useful jq Recipes
+### JSON Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `project_type` | string | High-level project classification |
+| `total_loc` | number | Total non-empty lines of code |
+| `languages` | object | Language → LOC map |
+| `frameworks` | string[] | Detected frameworks |
+| `databases` | string[] | Detected databases / ORMs |
+| `infrastructure` | string[] | Detected DevOps tooling |
+| `architecture` | string | Inferred architecture pattern |
+| `dead_code` | string[] | Unreachable file paths |
+| `dependency_graph` | object | File → imported files map |
+| `file_breakdown` | object[] | Per-file `{ file, loc, language }` |
+
+### jq Recipes
 
 ```bash
-# Project type and architecture
-codedna json . | jq '{project_type, architecture}'
+# Compact agent context
+codedna json . --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
 
 # All frameworks
 codedna json . | jq '.frameworks[]'
@@ -245,11 +234,11 @@ codedna json . | jq '.languages | to_entries | sort_by(-.value)'
 # Dead code files
 codedna json . | jq '.dead_code[]'
 
-# Top 5 files
+# Top 5 largest files
 codedna json . | jq '.file_breakdown[:5]'
 
-# Compact agent summary
-codedna json . --compact | jq -c '{project_type,frameworks,databases,architecture,total_loc}'
+# Check if Docker is used
+codedna json . | jq '.infrastructure | contains(["Docker"])'
 ```
 
 ---
@@ -260,16 +249,16 @@ codedna json . --compact | jq -c '{project_type,frameworks,databases,architectur
 Input (local path or Git URL)
     │
     ▼
-Git Handler (git2)             — detect URL vs path, shallow-clone if remote
+Git Handler                    — detect URL vs path; shallow-clone if remote
     │
     ▼
-Scanner (walkdir)              — recursive walk, ignore node_modules/.git/
+Scanner                        — recursive file walk, skip ignored directories
     │
-    ├──► Language Detector     — file extension → Language enum
-    ├──► LOC Counter           — non-empty lines, skip binary/UTF-8 errors  (parallel)
-    ├──► Framework Detector    — parse package.json / requirements.txt / Cargo.toml / go.mod
-    ├──► Infra Detector        — detect Dockerfile / docker-compose / .github/workflows
-    ├──► Dependency Graph      — parse import/require/mod statements         (parallel)
+    ├──► Language Detector     — file extension → language classification
+    ├──► LOC Counter           — count non-empty lines per file            (parallel)
+    ├──► Framework Detector    — parse manifests + per-file import scanning
+    ├──► Infra Detector        — detect Docker, CI, Kubernetes, Makefile
+    ├──► Dependency Graph      — parse import/require/mod statements       (parallel)
     └──► Dead Code Detector    — BFS from entry points over dependency graph
                 │
                 ▼
@@ -283,42 +272,85 @@ Scanner (walkdir)              — recursive walk, ignore node_modules/.git/
                Cleanup (delete temp dir if remote)
 ```
 
-All file-level steps run in parallel via `rayon`.
+All file-level analysis runs in parallel via **rayon**.
+
+---
+
+## Git URL Support
+
+CodeDna accepts Git URLs directly. No manual cloning required.
+
+### Supported Formats
+
+```
+https://github.com/user/repo
+https://gitlab.com/user/repo
+http://github.com/user/repo
+git@github.com:user/repo.git
+git@gitlab.com:user/repo.git
+```
+
+Any input starting with `http://`, `https://`, or `git@` is treated as a Git URL. Everything else is a local path.
+
+### What Happens
+
+1. URL detected → shallow clone (`--depth 1`) into a temp directory
+2. Standard analysis pipeline runs on the cloned content
+3. Output paths are normalized (identical format to local analysis)
+4. Temp directory is deleted automatically
+
+### Error Handling
+
+- **Repository not found** — clear message for non-existent repos
+- **Network failure** — connectivity error with retry suggestion
+- **Invalid URL** — message indicating the URL is not a valid Git repository
+- **Auth required** — message for private repos needing authentication
 
 ---
 
 ## Detection Coverage
 
-### Languages
+### Languages (22)
 
 `.rs` `.ts` `.tsx` `.js` `.jsx` `.mjs` `.py` `.go` `.sol` `.css` `.scss` `.sass` `.html` `.htm` `.toml` `.json` `.yml` `.yaml` `.md` `.sh` `.bash` `.zsh`
 
-### Frameworks
+### Frameworks (46)
 
 | Ecosystem | Frameworks |
 |---|---|
-| JS / TS | React, Next.js, Vue, Nuxt, Svelte, Astro, Remix, Gatsby, Express, Vite, NestJS, Fastify, Koa, Hapi |
-| Python | FastAPI, Django, Flask, Starlette, Tornado, aiohttp, Pyramid, Sanic, Litestar |
-| Rust | Tokio, Axum, Actix-web, Rocket, Warp, Tonic, Poem, Hyper, Tauri, Leptos, Dioxus, Yew |
-| Go | Gin, Echo, Fiber, Gorilla Mux, Beego, Chi, Revel, Uber FX |
+| **JS / TS** | React, Next.js, Vue, Nuxt, Svelte, Astro, Remix, Gatsby, Express, Vite, NestJS, Fastify, Koa, Hapi |
+| **Python** | FastAPI, Django, Flask, Starlette, Tornado, aiohttp, Pyramid, Sanic, Litestar |
+| **Rust** | Tokio, Axum, Actix-web, Rocket, Warp, Tonic, Poem, Hyper, Tauri, Leptos, Dioxus, Yew |
+| **Go** | Gin, Echo, Fiber, Gorilla Mux, Beego, Chi, Revel, Uber FX |
 
-### Databases
+### Databases (26)
 
 | Source | Databases |
 |---|---|
-| `package.json` | PostgreSQL, MongoDB, MySQL, Redis, Prisma, SQLite, Sequelize, TypeORM, Drizzle ORM, Knex, Cassandra, Elasticsearch, DynamoDB |
-| `requirements.txt` | SQLAlchemy, PostgreSQL, MongoDB, Redis, MySQL, Tortoise ORM, Peewee |
-| `Cargo.toml` | SQLx, Diesel, SeaORM, PostgreSQL, MongoDB, Redis, SQLite, Sled, Elasticsearch |
+| **`package.json`** | PostgreSQL, MongoDB, MySQL, Redis, Prisma, SQLite, Sequelize, TypeORM, Drizzle ORM, Knex, Cassandra, Elasticsearch, DynamoDB |
+| **`requirements.txt`** | SQLAlchemy, PostgreSQL, MongoDB, Redis, MySQL, Tortoise ORM, Peewee |
+| **`Cargo.toml`** | SQLx, Diesel, SeaORM, PostgreSQL, MongoDB, Redis, SQLite, Sled, Elasticsearch |
 
 ### Infrastructure
 
 | Signal | Technology |
 |---|---|
-| `Dockerfile` exists | Docker |
-| `docker-compose.yml` / `.yaml` exists | Docker Compose |
-| Files inside `.github/workflows/` | GitHub Actions |
-| `.yaml` files in `k8s/` or `kubernetes/` | Kubernetes |
-| `Makefile` exists | Makefile |
+| `Dockerfile` | Docker |
+| `docker-compose.yml` / `.yaml` | Docker Compose |
+| `.github/workflows/*.yml` | GitHub Actions |
+| `k8s/` or `kubernetes/` YAML files | Kubernetes |
+| `Makefile` | Makefile |
+
+### Architecture Inference
+
+| Signals | Result |
+|---|---|
+| Frontend + Backend + Database | `Frontend → API → Database` |
+| Frontend + Backend | `Frontend → API` |
+| Backend + Database | `API → Database` |
+| Frontend only | `Frontend only` |
+| Backend only | `API only` |
+| None detected | `Monolithic / undetermined` |
 
 ### Ignored Directories
 
@@ -330,228 +362,127 @@ All file-level steps run in parallel via `rayon`.
 
 | Metric | Value |
 |---|---|
-| Local analysis (26 files, debug build) | ~2.6 ms |
-| Remote clone | Shallow (`--depth 1`) — only latest commit |
-| Parallelism | `rayon` thread pool — all CPU cores |
-| Target for 100 000+ file repos | < 5 seconds |
-| Memory model | Streaming per-file reads, no full-repo buffer |
-| Temp dir cleanup | Automatic — deleted immediately after analysis |
-
-Build in release mode for maximum performance:
+| Local analysis (26 files) | ~2.6 ms |
+| Remote repos | Shallow clone (`--depth 1`) |
+| Parallelism | rayon — all CPU cores |
+| 100k+ file repos | < 5 seconds target |
+| Memory | Streaming per-file reads |
+| Temp dir cleanup | Automatic after analysis |
 
 ```bash
+# Build in release mode for best performance
 cargo build --release
 ./target/release/codedna analyze .
 ```
 
 ---
 
-## New in v1.1: Git Repository Support
+## AI Agent Skill
 
-v1.1 introduces remote Git repository analysis. CodeDna can now accept Git URLs directly — no manual cloning required.
+CodeDna is designed as the **first command any AI agent runs on a new codebase**.
 
-### What Changed
+### Skill Architecture
 
-| Area | Change |
-|---|---|
-| **New module** | `git_handler.rs` — URL detection, shallow clone, temp dir management |
-| **CLI arguments** | All `[path]` args now accept `[path or url]` |
-| **Dependencies** | Added `git2` (with vendored OpenSSL) and `tempfile` crates |
-| **Path normalization** | Output paths are identical whether source is local or remote |
-| **Error handling** | User-friendly messages for bad URLs, network failures, auth errors |
-| **Cross-platform** | Tested on Linux, macOS, and Windows via CI |
-
-### Breaking Changes
-
-**None.** v1.1 is fully backward compatible with v1.0. All local path usage works exactly as before.
-
----
-
-## AI Agent Integration
-
-CodeDna is designed to be the **first thing any AI agent runs on a new codebase**.
-
-```bash
-# Give your agent instant context for a local project
-codedna json . --compact | jq -c \
-  '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
-
-# Or analyze any public repo directly
-codedna json https://github.com/user/repo --compact | jq -c \
-  '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
 ```
-
-The full skill specification is in [`SKILL.md`](SKILL.md).
-
----
+codedna/
+├── skills/
+│   └── codedna-analyzer/
+│       ├── SKILL.md              ← full portable skill specification
+│       └── examples/
+│           ├── local-analysis.md
+│           └── remote-analysis.md
+├── SKILL.md                      ← quick reference + pointer
+├── AGENTS.md                     ← OpenCode / Codex CLI
+├── CLAUDE.md                     ← Claude Code
+├── GEMINI.md                     ← Gemini CLI
+└── .cursorrules                  ← Cursor
+```
 
 ### Supported Agents
 
-| Agent | Config file | Status |
+| Agent | Config File | How It Works |
 |---|---|---|
-| Claude Code | `CLAUDE.md` | Supported |
-| OpenCode | `AGENTS.md` | Supported |
-| Codex CLI | `AGENTS.md` | Supported |
-| Cursor | `.cursorrules` | Supported |
-| Gemini CLI | `GEMINI.md` | Supported |
+| **Claude Code** | [`CLAUDE.md`](CLAUDE.md) | Auto-read at session start |
+| **OpenCode** | [`AGENTS.md`](AGENTS.md) | Auto-read at session start |
+| **Codex CLI** | [`AGENTS.md`](AGENTS.md) | Auto-read at session start |
+| **Cursor** | [`.cursorrules`](.cursorrules) | Loaded as project rules |
+| **Gemini CLI** | [`GEMINI.md`](GEMINI.md) | Auto-read at session start |
 
----
+Each config file instructs the agent to run `codedna json . --compact` before any task and use the output to understand the project.
 
-### Claude Code
-
-Create a `CLAUDE.md` in your project root:
-
-```markdown
-## Before starting any task
-
-Run this first and read the output before writing any code:
+### One-Liner for Any Agent
 
 ```bash
-codedna json . --compact
-```
+# Get compact context
+codedna json . --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
 
-Use the output to understand:
-- `project_type` — what kind of project this is
-- `frameworks` — frameworks already in use (do not add duplicates)
-- `databases` — databases connected (match existing patterns)
-- `architecture` — how the layers communicate
-- `dead_code` — files to avoid or safely delete
-```
+# Or for a remote repo
+codedna json https://github.com/user/repo --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
 
-Or add to your **global** Claude Code config (`~/.claude/CLAUDE.md`) so it applies to every project automatically.
-
----
-
-### OpenCode
-
-Create an `AGENTS.md` in your project root:
-
-```markdown
-## Codebase Analysis — run first on every task
-
-Before starting any task, run:
-
-```bash
-codedna json . --compact
-```
-
-Use `project_type`, `frameworks`, `databases`, `architecture`, and `dead_code`
-to understand the codebase before generating any code.
-```
-
-OpenCode reads `AGENTS.md` automatically at the start of every session.
-
----
-
-### Codex CLI
-
-Same `AGENTS.md` format as OpenCode, or inject context inline:
-
-```bash
-# Inject CodeDna context into a Codex CLI prompt
-CONTEXT=$(codedna json . --compact)
-codex "Codebase context: $CONTEXT. Now add a user authentication endpoint."
-```
-
----
-
-### Cursor
-
-Add to your `.cursorrules` file in the project root:
-
-```
-## Project Analysis
-Before suggesting any code, run `codedna json . --compact` in the terminal
-and use the output to understand the project stack, architecture, and dead code.
-
-## Rules derived from CodeDna
-- Match detected frameworks — do not introduce new ones without asking
-- Follow the detected architecture pattern
-- Do not import from files listed in dead_code
-- Match the dominant language (highest LOC %) for new files
-```
-
----
-
-### Gemini CLI
-
-Create a `GEMINI.md` in your project root:
-
-```markdown
-## Project context
-
-Run the following before starting any task:
-
-```bash
-codedna json . --compact
-```
-
-Use `project_type`, `frameworks`, `databases`, `architecture`, and `dead_code`
-to understand the codebase before generating code.
-```
-
----
-
-### Any Agent — Universal One-Liner
-
-```bash
-# macOS — copy context to clipboard
+# Copy to clipboard (macOS)
 codedna json . --compact | pbcopy
 
-# Linux — copy context to clipboard
+# Copy to clipboard (Linux)
 codedna json . --compact | xclip -selection clipboard
-
-# Analyze a remote repo without cloning it yourself
-codedna analyze https://github.com/vercel/next.js
-
-# Or just print a human-readable summary
-codedna analyze .
 ```
 
-Paste into your agent's chat as the first message before any task.
+### Full Skill Specification
+
+See [`skills/codedna-analyzer/SKILL.md`](skills/codedna-analyzer/SKILL.md) for the complete skill definition — JSON schema, field reference, detection tables, architecture inference, jq recipes, and annotated examples.
 
 ---
 
-### Useful jq Recipes
+## Project Structure
 
-```bash
-# Project type and architecture
-codedna json . | jq '{project_type, architecture}'
-
-# All frameworks
-codedna json . | jq '.frameworks[]'
-
-# Languages sorted by LOC
-codedna json . | jq '.languages | to_entries | sort_by(-.value)'
-
-# Dead code files
-codedna json . | jq '.dead_code[]'
-
-# Top 5 files by LOC
-codedna json . | jq '.file_breakdown[:5]'
-
-# Check if Docker is used
-codedna json . | jq '.infrastructure | contains(["Docker"])'
-
-# Minimal one-line agent context
-codedna json . --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
 ```
+src/
+├── main.rs                 — entry point, module declarations
+├── cli.rs                  — clap CLI definitions and command dispatch
+├── git_handler.rs          — Git URL detection, shallow clone, temp dir management
+├── analysis.rs             — analysis pipeline orchestration
+├── scanner.rs              — recursive file walker (walkdir)
+├── language_detector.rs    — file extension → language mapping
+├── loc_counter.rs          — line counting with binary detection
+├── framework_detector.rs   — manifest parsing + per-file import scanning
+├── dependency_graph.rs     — import/require/mod statement parsing
+├── dead_code_detector.rs   — BFS reachability from entry points
+├── reporter.rs             — CLI report + JSON output formatting
+└── repo_map.rs             — tree-style directory rendering
+```
+
+### Dependencies
+
+| Crate | Purpose |
+|---|---|
+| `clap` 4 | CLI argument parsing (derive) |
+| `walkdir` 2 | Recursive directory traversal |
+| `serde` + `serde_json` | JSON serialization |
+| `rayon` | Parallel file processing |
+| `git2` 0.19 | Git operations (vendored OpenSSL) |
+| `tempfile` 3 | Temp directory management |
+
+### CI
+
+Cross-platform CI via GitHub Actions — runs on every push to `main`:
+
+- **Clippy** — lint-free (`-D warnings`)
+- **Rustfmt** — format check
+- **Tests** — Ubuntu, macOS, Windows (155 tests)
+- **Release builds** — Linux x86_64, macOS x86_64, macOS ARM64, Windows x86_64
+
+Release binaries are uploaded as artifacts on every green build.
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ```bash
-# Quick contribution loop
-cargo test          # must pass
-cargo clippy        # must be clean
-cargo fmt           # apply formatting
+cargo test          # 155 tests must pass
+cargo clippy        # must be warning-free
+cargo fmt           # must be formatted
 ```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide on adding new frameworks,
-languages, databases, and infrastructure detection rules.
 
 ---
 
@@ -562,5 +493,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-  <strong>CodeDna</strong> — codebase intelligence for humans and AI agents 🧬
+  <strong>CodeDna</strong> — codebase intelligence for humans and AI agents
 </div>
