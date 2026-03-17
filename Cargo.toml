@@ -2,18 +2,27 @@
 name = "codedna"
 version = "0.1.0"
 edition = "2021"
-description = "Rust-powered codebase intelligence engine and agent skill — reveals tech stack, architecture, LOC distribution, dead code, and more."
+description = "Rust-powered CLI for codebase intelligence: stack detection, architecture hints, LOC breakdown, repo maps, and dead-code heuristics."
 license = "MIT"
 repository = "https://github.com/crafteraadarsh/codedna"
 homepage = "https://github.com/crafteraadarsh/codedna"
 documentation = "https://github.com/crafteraadarsh/codedna#readme"
 readme = "README.md"
-keywords = ["codebase", "analysis", "cli", "agent", "intelligence"]
+keywords = ["codebase", "analysis", "cli", "architecture", "loc"]
 categories = ["command-line-utilities", "development-tools"]
 authors = ["CodeDna Contributors"]
 exclude = [
     ".github/",
     "target/",
+    "skill/",
+    "skills/",
+    "scripts/",
+    "templates/",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".cursorrules",
+    "SKILL.md",
 ]
 
 [[bin]]

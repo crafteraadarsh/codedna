@@ -1,0 +1,4 @@
+interface:
+  display_name: "CodeDna"
+  short_description: "Analyze repository structure with CodeDna"
+  default_prompt: "Use $codedna to inspect this repository before manual code review."

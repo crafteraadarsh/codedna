@@ -1,8 +1,10 @@
 # AGENTS.md
 
-## Codebase Analysis — run first on every task
+## Repository Workflow
 
-Before starting any task in this repository, run the following command and read the output:
+Use `codedna` to inspect the repository before manual code review or architecture changes.
+
+Run:
 
 ```bash
 codedna json . --compact
@@ -14,38 +16,19 @@ For remote repositories, pass the URL directly:
 codedna json https://github.com/user/repo --compact
 ```
 
-## How to use the output
+Use the result to confirm:
 
-Extract and use these fields to inform your work:
+- `project_type` before making structural assumptions
+- `frameworks` and `databases` before introducing dependencies
+- `architecture` before adding new layers or entry points
+- `infrastructure` before changing CI, Docker, or deployment assumptions
+- `file_breakdown` to find central files quickly
+- `dead_code` as a heuristic only; verify before deleting anything
 
-- **`project_type`** — overall project classification (e.g., "Full-stack web application")
-- **`frameworks`** — active frameworks (do not introduce duplicates)
-- **`databases`** — databases in use (match existing patterns)
-- **`infrastructure`** — DevOps tooling detected (Docker, CI, etc.)
-- **`architecture`** — how layers communicate (e.g., "Frontend -> API -> Database")
-- **`dead_code`** — unreferenced files (do not import from these)
-- **`total_loc`** — scale of the codebase
+## Contribution Guardrails
 
-## Rules
-
-1. Do not introduce frameworks that are not already in `frameworks`
-2. Follow the detected `architecture` pattern for new code
-3. Do not import from files listed in `dead_code`
-4. Match the dominant language (highest LOC) for new files
-5. Match existing database patterns when adding data access code
-
-## Quick context one-liner
-
-```bash
-codedna json . --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
-```
-
-## Skill reference
-
-Full skill documentation: [skills/codedna-analyzer/SKILL.md](skills/codedna-analyzer/SKILL.md)
-
-## Installation
-
-```bash
-cargo install --git https://github.com/crafteraadarsh/codedna
-```
+- Keep the project tool-first. The Rust CLI is the product.
+- Keep `skill/codedna/` as the valid Codex skill package.
+- Keep `skills/codedna-analyzer/` as the detailed cross-agent reference docs.
+- Prefer updating tests with behavior changes.
+- Run `cargo test` after code changes.

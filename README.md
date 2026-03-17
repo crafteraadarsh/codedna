@@ -16,6 +16,8 @@ codedna analyze https://github.com/vercel/next.js
 codedna json . --compact
 ```
 
+This repository is primarily a **Rust CLI tool**. It also ships agent integration files so CodeDna can be used cleanly from **Codex, OpenCode, and Claude**.
+
 ---
 
 ## Table of Contents
@@ -36,7 +38,7 @@ codedna json . --compact
 
 ---
 
-## Install
+## Install CLI
 
 ### From GitHub
 
@@ -58,6 +60,48 @@ Verify installation:
 
 ```bash
 codedna --version
+```
+---
+
+## Agent Support
+
+CodeDna integrates with agents in two different ways:
+
+- `Codex`: install the packaged skill in `skill/codedna/`
+- `OpenCode`: add an `AGENTS.md` bootstrap file to the target repository
+- `Claude`: add a `CLAUDE.md` bootstrap file to the target repository
+
+## Install Codex Skill
+
+If you want Codex to use CodeDna as a real skill, use the dedicated package in `skill/codedna/`.
+
+- `skill/codedna/SKILL.md` contains the trigger description and workflow
+- `skill/codedna/agents/openai.yaml` contains Codex UI metadata
+
+Install it with:
+
+```bash
+./scripts/install-codex-skill.sh
+```
+
+Package it as a distributable tarball with:
+
+```bash
+./scripts/package-codex-skill.sh
+```
+
+## Bootstrap OpenCode And Claude
+
+To copy portable bootstrap files into another repository:
+
+```bash
+./scripts/bootstrap-agent-files.sh /path/to/target-repo opencode claude
+```
+
+To install the Codex skill and bootstrap OpenCode plus Claude in one go:
+
+```bash
+./scripts/bootstrap-agent-files.sh /path/to/target-repo codex opencode claude
 ```
 
 ---
@@ -391,22 +435,39 @@ codedna/
 │       └── examples/
 │           ├── local-analysis.md
 │           └── remote-analysis.md
-├── SKILL.md                      ← quick reference + pointer
+├── skill/
+│   └── codedna/
+│       ├── SKILL.md              ← valid Codex skill package
+│       └── agents/openai.yaml    ← Codex skill metadata
+├── templates/
+│   ├── AGENTS.md                 ← portable OpenCode template
+│   └── CLAUDE.md                 ← portable Claude template
+├── scripts/
+│   ├── install-codex-skill.sh
+│   ├── package-codex-skill.sh
+│   └── bootstrap-agent-files.sh
+├── SKILL.md                      ← quick reference + pointer doc
 ├── AGENTS.md                     ← OpenCode / Codex CLI
 ├── CLAUDE.md                     ← Claude Code
 ├── GEMINI.md                     ← Gemini CLI
 └── .cursorrules                  ← Cursor
 ```
 
-### Supported Agents
+The detailed, portable reference lives in [`skills/codedna-analyzer/SKILL.md`](skills/codedna-analyzer/SKILL.md). The valid Codex skill package lives in [`skill/codedna/`](skill/codedna/).
 
-| Agent | Config File | How It Works |
-|---|---|---|
-| **Claude Code** | [`CLAUDE.md`](CLAUDE.md) | Auto-read at session start |
-| **OpenCode** | [`AGENTS.md`](AGENTS.md) | Auto-read at session start |
-| **Codex CLI** | [`AGENTS.md`](AGENTS.md) | Auto-read at session start |
-| **Cursor** | [`.cursorrules`](.cursorrules) | Loaded as project rules |
-| **Gemini CLI** | [`GEMINI.md`](GEMINI.md) | Auto-read at session start |
+### Agent Files In This Repo
+
+| File | Purpose |
+|---|---|
+| `AGENTS.md` | Instructions for OpenCode and Codex-style repo guidance here |
+| `CLAUDE.md` | Claude Code bootstrap for this repository |
+| `GEMINI.md` | Gemini CLI bootstrap for this repository |
+| `.cursorrules` | Cursor guidance for this repository |
+| `skill/codedna/SKILL.md` | Codex skill trigger and workflow |
+| `skill/codedna/agents/openai.yaml` | Codex UI metadata for the skill |
+| `templates/AGENTS.md` | Portable OpenCode bootstrap template |
+| `templates/CLAUDE.md` | Portable Claude bootstrap template |
+| `scripts/bootstrap-agent-files.sh` | Copies templates into a target repository |
 
 Each config file instructs the agent to run `codedna json . --compact` before any task and use the output to understand the project.
 
@@ -493,5 +554,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-  <strong>CodeDna</strong> — codebase intelligence for humans and AI agents
+  <strong>CodeDna</strong> — codebase intelligence for humans and AI agents 🧬
 </div>
