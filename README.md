@@ -448,7 +448,6 @@ codedna/
 │   ├── install-codex-skill.sh
 │   ├── package-codex-skill.sh
 │   └── bootstrap-agent-files.sh
-├── SKILL.md                      ← quick reference + pointer doc
 ├── AGENTS.md                     ← OpenCode / Codex CLI
 ├── CLAUDE.md                     ← Claude Code
 ├── GEMINI.md                     ← Gemini CLI

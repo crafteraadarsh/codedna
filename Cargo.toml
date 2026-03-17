@@ -22,7 +22,6 @@ exclude = [
     "CLAUDE.md",
     "GEMINI.md",
     ".cursorrules",
-    "SKILL.md",
 ]
 
 [[bin]]
