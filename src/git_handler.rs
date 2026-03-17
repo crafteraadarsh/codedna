@@ -145,8 +145,13 @@ mod tests {
     }
 
     // ── clone_repo error paths ────────────────────────────────────────────────
+    // These tests initialise the full libgit2 + vendored-OpenSSL stack.  On
+    // Windows the OpenSSL atexit handler crashes (STATUS_ACCESS_VIOLATION)
+    // after the test binary exits, so we skip them there.  The same code
+    // paths are still exercised on Linux and macOS CI.
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn clone_nonexistent_repo_returns_error() {
         let result = clone_repo("https://github.com/nonexistent-user-abc123/no-such-repo-xyz789");
         assert!(result.is_err());
@@ -161,6 +166,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn clone_invalid_url_returns_error() {
         let result = clone_repo("https://");
         assert!(result.is_err());
