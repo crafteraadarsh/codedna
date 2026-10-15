@@ -162,6 +162,27 @@ fn classify(content: &str, syntax: Option<&Syntax>) -> LineCounts {
         return counts;
     };
 
+    // Bytes the loop below must look at one by one: whitespace, quotes and
+    // the first byte of each comment marker. Runs of other ASCII bytes are
+    // plain code and are skipped in one step.
+    let mut special = [false; 256];
+    for b in [b' ', b'\t', b'\r', b'\n', 0x0b, 0x0c] {
+        special[b as usize] = true;
+    }
+    for q in syntax.quotes {
+        let mut buf = [0; 4];
+        special[q.encode_utf8(&mut buf).as_bytes()[0] as usize] = true;
+    }
+    for marker in syntax
+        .line
+        .iter()
+        .chain(syntax.block.iter().map(|(open, _)| open))
+    {
+        if let Some(&b) = marker.as_bytes().first() {
+            special[b as usize] = true;
+        }
+    }
+
     // The closing marker of the block comment we are inside, if any.
     let mut in_block: Option<&str> = None;
     for line in content.lines() {
@@ -198,6 +219,15 @@ fn classify(content: &str, syntax: Option<&Syntax>) -> LineCounts {
                     }
                 }
                 rest = &rest[end..];
+                continue;
+            }
+            let plain = rest
+                .bytes()
+                .position(|b| b >= 0x80 || special[b as usize])
+                .unwrap_or(rest.len());
+            if plain > 0 {
+                has_code = true;
+                rest = &rest[plain..];
                 continue;
             }
             let c = rest.chars().next().unwrap_or(' ');
