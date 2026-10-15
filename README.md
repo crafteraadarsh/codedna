@@ -161,6 +161,10 @@ codedna audit https://github.com/user/repo
 # How to run it: scripts, env var names, API routes
 codedna runbook .
 
+# What changed: save a snapshot, work, then compare
+codedna json . > before.json
+codedna diff before.json .
+
 # Short briefing for AI agents
 codedna context .
 
@@ -195,6 +199,7 @@ All analysis commands accept a **local path** or a **Git URL**.
 | `codedna hotspots [path\|url] [--days N] [--limit N] [--json]` | Files ranked by Git commits × lines of code, plus files usually changed in the same commit |
 | `codedna audit [path\|url] [--json] [--fail-on LEVEL]` | Supply-chain red flags: secrets, risky install scripts, obfuscation, executables, hidden Unicode, typosquats |
 | `codedna runbook [path\|url] [--json]` | How to run it: scripts and targets, environment variable names (values are never read), API routes |
+| `codedna diff <before> [after] [--json]` | What changed between two versions: stack, languages, size, files added/removed/resized, new possibly unused files. Each side is a `codedna json` snapshot, a path or a URL |
 | `codedna analyze [path\|url] --time` | Report with elapsed time |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Per-file LOC breakdown |
@@ -587,6 +592,7 @@ src/
 ├── hotspots.rs             — Git churn × size ranking, co-change coupling
 ├── audit.rs                — supply-chain red-flag scan
 ├── runbook.rs              — commands, env var names and API routes
+├── diff.rs                 — compare two snapshots or versions
 ├── report.rs               — shareable Markdown / HTML reports
 ├── reporter.rs             — CLI report + JSON output formatting
 ├── rules.rs                — loads the detection rules (rules.toml)
