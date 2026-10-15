@@ -91,6 +91,37 @@ pub enum Commands {
         #[arg(long, default_value_t = crate::repo_map::DEFAULT_MAX_DEPTH)]
         depth: usize,
     },
+
+    /// Print a compact briefing on the codebase for AI coding agents
+    Context {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Approximate size limit in tokens
+        #[arg(long, default_value_t = crate::context::DEFAULT_MAX_TOKENS)]
+        max_tokens: usize,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = ContextFormat::Md)]
+        format: ContextFormat,
+    },
+
+    /// Run an MCP server on stdio so AI agents can call CodeDna as tools
+    Mcp {
+        /// Folder the server may read (repeatable; default: current folder)
+        #[arg(long = "root", value_name = "DIR")]
+        roots: Vec<PathBuf>,
+    },
+}
+
+/// Output formats for `codedna context`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum ContextFormat {
+    /// Markdown
+    Md,
+    /// JSON
+    Json,
 }
 
 // ── Helper: resolve input (path or URL) ───────────────────────────────────────
@@ -207,6 +238,33 @@ pub fn run() {
             print!("{tree}");
             println!();
         }
+
+        // ── context ───────────────────────────────────────────────────────────
+        Commands::Context {
+            path,
+            max_tokens,
+            format,
+        } => {
+            let (local_path, _guard) = resolve(&path);
+            let result = crate::analysis::analyze(&local_path);
+            let tree = crate::repo_map::render_tree(&local_path, crate::context::MAP_DEPTH);
+            let pack = crate::context::build(&result, &tree, max_tokens);
+            match format {
+                ContextFormat::Md => print!("{}", crate::context::render_markdown(&pack)),
+                ContextFormat::Json => match serde_json::to_string_pretty(&pack) {
+                    Ok(json) => println!("{json}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                },
+            }
+        }
+
+        // ── mcp ───────────────────────────────────────────────────────────────
+        Commands::Mcp { roots } => {
+            if let Err(e) = crate::mcp::serve(&roots) {
+                eprintln!("error: {}", crate::safe_text::sanitize(&e.to_string()));
+                std::process::exit(1);
+            }
+        }
     }
 }
 
@@ -269,6 +327,45 @@ mod tests {
                 assert_eq!(depth, crate::repo_map::DEFAULT_MAX_DEPTH);
             }
             _ => panic!("expected map command"),
+        }
+    }
+
+    #[test]
+    fn parses_context_with_options() {
+        let cli = Cli::try_parse_from([
+            "codedna",
+            "context",
+            ".",
+            "--max-tokens",
+            "800",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Commands::Context {
+                path,
+                max_tokens,
+                format,
+            } => {
+                assert_eq!(path, ".");
+                assert_eq!(max_tokens, 800);
+                assert_eq!(format, ContextFormat::Json);
+            }
+            _ => panic!("expected context command"),
+        }
+    }
+
+    #[test]
+    fn parses_mcp_with_roots() {
+        let cli = Cli::try_parse_from(["codedna", "mcp", "--root", "a", "--root", "b"]).unwrap();
+
+        match cli.command {
+            Commands::Mcp { roots } => {
+                assert_eq!(roots, vec![PathBuf::from("a"), PathBuf::from("b")]);
+            }
+            _ => panic!("expected mcp command"),
         }
     }
 
