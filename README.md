@@ -23,7 +23,7 @@
 
 <br>
 
-<img src="assets/demo.svg" alt="Terminal demo: codedna analyze and codedna audit on a sample Express app" width="860">
+<img src="assets/demo.svg" alt="Terminal demo: codedna analyze and codedna audit on a sample Express app" width="100%">
 
 </div>
 
