@@ -29,6 +29,7 @@ This prints a short Markdown briefing: project type, stack, architecture, entry 
 | Folder layout | `repo_map` | `codedna map . --depth 3` |
 | Risky files: large and changed often | `find_hotspots` | `codedna hotspots .` |
 | Supply-chain red flags | `audit_repo` | `codedna audit .` |
+| How to run it: scripts, env var names, API routes | `get_runbook` | `codedna runbook .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
 When the user wants something to share or keep, write a report: `codedna report . -o report.md`, or `codedna report . --format html -o report.html` (open it in a browser and print to PDF).
@@ -36,6 +37,8 @@ When the user wants something to share or keep, write a report: `codedna report 
 Before a refactor, or when asked where the risky code is, check hotspots: files that are large and changed often in Git history. Start with those, and expect them to need extra care and tests.
 
 Before installing or running an unfamiliar repository, run the audit. Report findings as red flags to check, not proof of malware, and never repeat a secret it points to.
+
+Before running, configuring or calling a project, check the runbook: its scripts and targets, the environment variables it reads (names only; values are never read) and the HTTP routes it declares. Nothing is run, and the route list can be incomplete.
 
 Every command also accepts a public `https://` Git URL instead of `.`.
 

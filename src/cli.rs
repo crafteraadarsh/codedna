@@ -156,6 +156,17 @@ pub enum Commands {
         fail_on: Option<String>,
     },
 
+    /// How to run a project: commands, environment variable names and API routes
+    Runbook {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output JSON instead of a list
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Run an MCP server on stdio so AI agents can call CodeDna as tools
     Mcp {
         /// Folder the server may read (repeatable; default: current folder)
@@ -413,6 +424,21 @@ pub fn run() {
             }
         }
 
+        // ── runbook ───────────────────────────────────────────────────────────
+        Commands::Runbook { path, json } => {
+            eprintln!("Reading {}…", shown(&path));
+            let (local_path, _guard) = resolve(&path);
+            let book = crate::runbook::runbook(&local_path);
+            if json {
+                match serde_json::to_string_pretty(&book) {
+                    Ok(text) => println!("{text}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                }
+            } else {
+                print!("{}", crate::runbook::render_text(&book));
+            }
+        }
+
         // ── mcp ───────────────────────────────────────────────────────────────
         Commands::Mcp { roots } => {
             if let Err(e) = crate::mcp::serve(&roots) {
@@ -505,6 +531,20 @@ mod tests {
             _ => panic!("expected audit command"),
         }
         assert!(Cli::try_parse_from(["codedna", "audit", "--fail-on", "severe"]).is_err());
+    }
+
+    #[test]
+    fn parses_runbook() {
+        let cli = Cli::try_parse_from(["codedna", "runbook"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Runbook { ref path, json: false } if path == "."
+        ));
+        let cli = Cli::try_parse_from(["codedna", "runbook", "x", "--json"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Runbook { ref path, json: true } if path == "x"
+        ));
     }
 
     #[test]
