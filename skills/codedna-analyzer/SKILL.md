@@ -33,6 +33,7 @@ It detects and reports:
 - Architecture patterns (Frontend -> API -> Database)
 - Per-file framework import usage
 - Unused / dead code via dependency graph traversal
+- Circular imports (files that import each other)
 - Directory tree structure
 
 Supports both **local directories** and **remote Git repositories** (GitHub, GitLab, Bitbucket, etc.).
@@ -72,6 +73,7 @@ Trigger this skill when the user asks any of the following:
 | "Show the architecture of this project" | `codedna analyze .` |
 | "How many lines of code?" | `codedna files .` |
 | "Find unused or dead code" | `codedna deadcode .` |
+| "Are there circular imports?" | `codedna cycles .` |
 | "Where is React used?" | `codedna framework react .` |
 | "Show me the directory structure" | `codedna map .` |
 | "Give me machine-readable output" | `codedna json .` |
@@ -172,7 +174,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 
@@ -222,6 +224,15 @@ codedna deadcode [path or url]
 ```
 
 Returns list of files unreachable from any entry point via dependency graph traversal.
+
+### Circular Imports
+
+```bash
+codedna cycles [path or url]
+codedna cycles [path or url] --json
+```
+
+Lists groups of files that import each other, each shown as the shortest loop, e.g. `src/a.ts → src/b.ts → src/a.ts`. Uses the same dependency graph as dead code detection, and type-only imports count, so treat each one as something to check rather than a confirmed runtime problem. `codedna diff` reports cycles that a change introduces.
 
 ### Repository Map
 
@@ -322,6 +333,9 @@ User-friendly messages for:
   "dead_code": [
     "src/utils/oldHelper.ts",
     "src/components/LegacyNavbar.tsx"
+  ],
+  "circular_imports": [
+    ["src/api/routes.ts", "src/controllers/user.ts"]
   ],
   "dependency_graph": {
     "src/server.ts": ["src/api/routes.ts"],

@@ -4,6 +4,7 @@
 //! that represents the complete intelligence report for a repository.
 
 use crate::architecture::{self, ArchitectureInsight};
+use crate::cycles;
 use crate::dead_code_detector::{self, DeadCodeCandidate};
 use crate::dependency_graph;
 use crate::framework_detector;
@@ -77,6 +78,11 @@ pub struct AnalysisResult {
     /// certain first.
     #[serde(default)]
     pub dead_code_details: Vec<DeadCodeCandidate>,
+
+    /// Groups of files that import each other, each as its shortest cycle
+    /// (the last file imports the first), shortest first.
+    #[serde(default)]
+    pub circular_imports: Vec<Vec<PathBuf>>,
 
     /// Directed import graph: `file → [files it imports]`.
     #[serde(serialize_with = "serialize_dep_graph")]
@@ -234,6 +240,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
             (key, vals)
         })
         .collect();
+    let circular_imports = cycles::find_cycles(&dependency_graph);
 
     let file_breakdown = file_breakdown
         .into_iter()
@@ -257,6 +264,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         architecture_details,
         dead_code,
         dead_code_details,
+        circular_imports,
         dependency_graph,
         file_breakdown,
     }

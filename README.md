@@ -150,7 +150,7 @@ CodeDna works with any agent that can run a shell command, and connects natively
 **2. MCP server.** `codedna mcp` serves read-only tools over stdio:
 
 <p>
-<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code>
+<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code>
 </p>
 
 | Agent | Setup |
@@ -230,6 +230,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna files [path\|url]` | Lines of code per file |
 | `codedna framework <name> [path\|url]` | Files that import a given framework |
 | `codedna deadcode [path\|url]` | Files nothing reaches from an entry point |
+| `codedna cycles [path\|url]` | Groups of files that import each other (`--json`) |
 | `codedna map [path\|url]` | Directory tree (`--depth N`) |
 | `codedna scan [path\|url]` | Raw scanned file list |
 | `codedna mcp [--root DIR]` | MCP server for AI agents (stdio) |
