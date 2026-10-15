@@ -41,6 +41,9 @@ pub fn print_report(result: &AnalysisResult) {
     // ── Summary ───────────────────────────────────────────────────────────────
     section("Summary");
     kv("Total LOC", &format_loc(result.total_loc));
+    if result.comment_lines > 0 {
+        kv("Comment lines", &format_loc(result.comment_lines));
+    }
     kv("Languages", &result.languages.len().to_string());
     kv("Frameworks", &result.frameworks.len().to_string());
     kv("Databases", &result.databases.len().to_string());
@@ -327,6 +330,8 @@ mod tests {
         AnalysisResult {
             project_type: "Full-stack web application".to_string(),
             total_loc: 14550,
+            comment_lines: 0,
+            blank_lines: 0,
             languages,
             frameworks: vec!["React".to_string(), "Express".to_string()],
             databases: vec!["PostgreSQL".to_string()],

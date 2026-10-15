@@ -424,7 +424,9 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
 | Field | Type | Description |
 |---|---|---|
 | `project_type` | string | High-level project classification |
-| `total_loc` | number | Total non-empty lines of code (lockfiles excluded) |
+| `total_loc` | number | Lines of code, excluding comments, blank lines and lockfiles |
+| `comment_lines` | number | Comment-only lines across detected source files |
+| `blank_lines` | number | Blank lines across detected source files |
 | `languages` | object | Language → lines of code |
 | `frameworks` | string[] | Detected frameworks |
 | `databases` | string[] | Detected databases and ORMs |
@@ -504,7 +506,7 @@ Everything CodeDna recognises is defined in [`rules.toml`](rules.toml), so addin
 | Backend only | `API only` |
 | None detected | `Monolithic / undetermined` |
 
-`node_modules/`, `.git/`, `target/`, `dist/`, `build/` and `coverage/` are skipped, as are files over 10 MiB and symbolic links.
+Paths matched by the repository's `.gitignore` files (root and nested) and `.ignore` files are skipped. `node_modules/`, `.git/`, `target/`, `dist/`, `build/` and `coverage/` are always skipped, as are files over 10 MiB and symbolic links.
 
 </details>
 
@@ -513,7 +515,7 @@ Everything CodeDna recognises is defined in [`rules.toml`](rules.toml), so addin
 
 <br>
 
-- **Lines of code** count non-empty lines. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
+- **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
 - **Dead code is a heuristic.** A file is listed when nothing reaches it through imports from an entry point. Tests, declaration files and common tool configs count as entry points, but dynamic imports, path aliases and framework conventions can still hide real usage. Check before deleting anything.
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.
 

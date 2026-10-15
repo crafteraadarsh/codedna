@@ -304,6 +304,8 @@ mod tests {
         AnalysisResult {
             project_type: "Rust library / CLI tool".to_string(),
             total_loc: 1000,
+            comment_lines: 0,
+            blank_lines: 0,
             languages,
             frameworks: vec![],
             databases: vec![],

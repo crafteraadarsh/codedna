@@ -537,6 +537,8 @@ mod tests {
         AnalysisResult {
             project_type: "CLI tool".to_string(),
             total_loc: 120,
+            comment_lines: 0,
+            blank_lines: 0,
             languages,
             frameworks: vec!["<b>Axum</b>".to_string()],
             databases: vec![],
