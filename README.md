@@ -102,7 +102,7 @@ codedna context .
 
 It prints a short Markdown briefing (project type, stack, architecture, entry points, key files, directory map) sized for an agent's context window. `--max-tokens N` changes the budget; `--format json` gives the same data as JSON.
 
-**2. MCP server.** `codedna mcp` serves read-only tools over stdio: `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map` and `find_hotspots`.
+**2. MCP server.** `codedna mcp` serves read-only tools over stdio: `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`, `find_hotspots` and `audit_repo`.
 
 | Agent | Setup |
 |---|---|
@@ -155,6 +155,9 @@ codedna report . --format html -o report.html
 # Hotspots: large files that change often (Git history)
 codedna hotspots .
 
+# Supply-chain red flags before you install or run a repo
+codedna audit https://github.com/user/repo
+
 # Short briefing for AI agents
 codedna context .
 
@@ -187,6 +190,7 @@ All analysis commands accept a **local path** or a **Git URL**.
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report |
 | `codedna report [path\|url] --format html -o FILE` | Self-contained HTML report (print to PDF from a browser) |
 | `codedna hotspots [path\|url] [--days N] [--limit N] [--json]` | Files ranked by Git commits × lines of code |
+| `codedna audit [path\|url] [--json] [--fail-on LEVEL]` | Supply-chain red flags: secrets, risky install scripts, obfuscation, executables, hidden Unicode, typosquats |
 | `codedna analyze [path\|url] --time` | Report with elapsed time |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Per-file LOC breakdown |
@@ -577,6 +581,7 @@ src/
 ├── dependency_graph.rs     — import/require/mod statement parsing
 ├── dead_code_detector.rs   — BFS reachability from entry points
 ├── hotspots.rs             — Git churn × size ranking
+├── audit.rs                — supply-chain red-flag scan
 ├── report.rs               — shareable Markdown / HTML reports
 ├── reporter.rs             — CLI report + JSON output formatting
 ├── rules.rs                — loads the detection rules (rules.toml)

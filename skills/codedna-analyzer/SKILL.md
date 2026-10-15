@@ -75,6 +75,7 @@ Trigger this skill when the user asks any of the following:
 | "Where is React used?" | `codedna framework react .` |
 | "Show me the directory structure" | `codedna map .` |
 | "Give me machine-readable output" | `codedna json .` |
+| "Is this repo safe to install?" | `codedna audit <url>` |
 | "Analyze this GitHub repo" | `codedna analyze <url>` |
 | "What does this remote repo use?" | `codedna stack <url>` |
 
@@ -112,6 +113,28 @@ codedna hotspots . --days 90 --limit 20 --json
 
 Ranks source files by the number of Git commits that changed them in the last N days (default 365) multiplied by their lines of code. Large files that change often are where bugs and refactoring effort usually gather. Merge commits are skipped, renames are not followed, and at most 5,000 commits are read. History is read from Git objects only; nothing is checked out and no hooks or filters run. A remote URL is cloned with up to 1,000 commits of history.
 
+### Supply-Chain Audit
+
+```bash
+codedna audit .
+codedna audit https://github.com/user/repo --json
+codedna audit . --fail-on high
+```
+
+An offline scan for red flags that often show up in malicious or compromised repositories:
+
+| Check | What it flags | Severity |
+|---|---|---|
+| `secret` | Hardcoded AWS, GitHub, GitLab, Slack, Stripe, Google, npm, PyPI, OpenAI and Anthropic keys, and private keys. The value is never shown. | high |
+| `install-script` | npm `preinstall`/`install`/`postinstall` scripts (high if they download or run code), network or shell calls in `setup.py`, network access in `build.rs` | low–high |
+| `obfuscation` | Decoded data passed to `eval`/`exec` on one line, long hex-escape strings, large encoded blobs | low–high |
+| `binary` | Checked-in ELF, Mach-O or Windows executables | medium |
+| `hidden-unicode` | Bidirectional controls (Trojan Source) and zero-width characters in code | low–high |
+| `minified` | Very long lines in non-`.min` source files | low |
+| `typosquat` | npm or PyPI dependencies one edit away from a popular package | medium |
+
+The risk score adds 25 per high, 10 per medium and 2 per low finding, capped at 100. `--fail-on low|medium|high` exits with status 1 when a finding reaches that level, for CI. Findings are leads to review, not a malware verdict: clean code can trip a check and a careful attacker can avoid them all.
+
 ### MCP Server
 
 ```bash
@@ -119,7 +142,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`, `find_hotspots`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`, `find_hotspots`, `audit_repo`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 

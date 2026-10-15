@@ -1,4 +1,5 @@
 mod analysis;
+mod audit;
 mod cli;
 mod context;
 mod dead_code_detector;
