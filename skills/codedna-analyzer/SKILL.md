@@ -75,7 +75,7 @@ Trigger this skill when the user asks any of the following:
 | "Where is React used?" | `codedna framework react .` |
 | "Show me the directory structure" | `codedna map .` |
 | "Give me machine-readable output" | `codedna json .` |
-| "Is this repo safe to install?" | `codedna audit <url>` |
+| "Any red flags before I install this repo?" | `codedna audit <url>` |
 | "How do I run this project?" | `codedna runbook .` |
 | "Which env vars / API routes does it have?" | `codedna runbook .` |
 | "What did this change do to the project?" | `codedna diff before.json .` |
@@ -138,7 +138,7 @@ An offline scan for red flags that often show up in malicious or compromised rep
 | `minified` | Very long lines in non-`.min` source files | low |
 | `typosquat` | npm or PyPI dependencies one edit away from a popular package | medium |
 
-The risk score adds 25 per high, 10 per medium and 2 per low finding, capped at 100. `--fail-on low|medium|high` exits with status 1 when a finding reaches that level, for CI. Findings are leads to review, not a malware verdict: clean code can trip a check and a careful attacker can avoid them all.
+The risk score adds 25 per high, 10 per medium and 2 per low finding, capped at 100. `--fail-on low|medium|high` exits with status 1 when a finding reaches that level, for CI. Each finding also has a `confidence` (`high`, `medium`, `low`): how likely it is a real problem rather than a false alarm. Findings in tests, docs, examples and fixtures are lowered one step on severity and confidence and carry a `context` field (`test`, `docs`, `example`, `fixture`); `lowered` counts them. The JSON includes a `note`. Findings are leads to review, not a safety verdict: clean code can trip a check, a careful attacker can avoid them all, and a clean result does not prove the code is safe.
 
 ### Runbook
 

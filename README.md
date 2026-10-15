@@ -56,7 +56,7 @@ Read-only. It never runs scripts or installs anything from the repo, never opens
 <td valign="top">
 
 ### 🔎 Supply-chain audit
-`codedna audit` flags leaked secrets, risky install scripts, obfuscation, executables, hidden Unicode and typosquatted packages **before** you run a repo.
+`codedna audit` flags leaked secrets, risky install scripts, obfuscation, executables, hidden Unicode and typosquatted packages **before** you run a repo. Each finding has a severity and a confidence, and findings in tests, docs and examples are lowered. It's a list of red flags to check, not a safety verdict.
 
 </td>
 <td valign="top">
@@ -523,6 +523,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 - **Architecture** comes from two sources. The summary line uses detected frameworks and databases. `architecture_details` then checks the code: files are grouped into layers by folder and file name (`routes/`, `user.controller.ts`, `services/`, `models.py`, …), tests are left out, and imports between layers are counted. Confidence is high when layers import each other top-down, medium when the folders exist without supporting imports, and low when no layers are found.
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
 - **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. Check before deleting anything, even at high confidence.
+- **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`.
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.
 
 </details>

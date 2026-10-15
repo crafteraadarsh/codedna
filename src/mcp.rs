@@ -282,12 +282,13 @@ impl Server {
                     report.truncated = true;
                 }
                 Ok(pretty(&json!({
-                    "note": "Supply-chain red flags to review, not a malware verdict. Secret values are never included. File contents were read, never run.",
+                    "note": report.note,
                     "files_scanned": report.files_scanned,
                     "risk_score": report.risk_score,
                     "risk_level": report.risk_level,
                     "total_findings": report.total_findings,
                     "truncated": report.truncated,
+                    "lowered": report.lowered,
                     "findings": report.findings,
                 })))
             }

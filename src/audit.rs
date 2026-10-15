@@ -7,13 +7,18 @@
 //! hardcoded credentials and dependency names one typo away from a popular
 //! package.
 //!
-//! The result is a list of things to review, not a malware verdict: clean
+//! The result is a list of things to review, not a safety verdict: clean
 //! code can trip a check and a careful attacker can avoid all of them.
+//! Each finding carries a severity (how bad it would be) and a confidence
+//! (how likely it is a real problem rather than a false alarm). Findings in
+//! tests, docs, examples and fixtures are lowered one step on both, since
+//! that code is not what users of the project run.
 //!
 //! Files are only read, never executed, and nothing is sent over the network.
 //! Secret values are never included in the output, only the kind of secret
 //! and its line.
 
+use crate::architecture::Confidence;
 use crate::safe_text::sanitize;
 use rayon::prelude::*;
 use serde::Serialize;
@@ -80,6 +85,8 @@ impl Severity {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Finding {
     pub severity: Severity,
+    /// How likely the finding is a real problem rather than a false alarm.
+    pub confidence: Confidence,
     /// Which check found it, e.g. `secret` or `install-script`.
     pub check: &'static str,
     /// Path relative to the audited folder.
@@ -87,11 +94,18 @@ pub struct Finding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line: Option<usize>,
     pub message: String,
+    /// Set when the file is a test, doc, example or fixture, e.g. `test`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<&'static str>,
 }
+
+/// What the audit does and does not tell you.
+pub const NOTE: &str = "Red flags to review, not a safety verdict. The scan matches known patterns: clean code can trip a check, and code that passes is not proven safe. Findings in tests, docs, examples and fixtures are lowered one step. Secret values are never included; files are read, never run.";
 
 /// All findings plus a summary score.
 #[derive(Debug, Clone, Serialize)]
 pub struct AuditReport {
+    pub note: &'static str,
     pub files_scanned: usize,
     /// 0–100: high findings count 25, medium 10, low 2, capped at 100.
     pub risk_score: u32,
@@ -101,6 +115,8 @@ pub struct AuditReport {
     pub total_findings: usize,
     /// `true` when findings were cut to `MAX_FINDINGS`.
     pub truncated: bool,
+    /// Findings lowered because they are in tests, docs, examples or fixtures.
+    pub lowered: usize,
     pub findings: Vec<Finding>,
 }
 
@@ -124,6 +140,11 @@ pub fn audit(root: &Path) -> AuditReport {
             let relative = sanitize(&relative.to_string_lossy().replace('\\', "/"));
             let mut found = audit_file(&relative, &bytes);
             found.truncate(PER_FILE_LIMIT);
+            if let Some(context) = context_of(&relative) {
+                for f in &mut found {
+                    lower(f, context);
+                }
+            }
             found
         })
         .collect();
@@ -134,6 +155,7 @@ fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
     findings.sort_by(|a, b| {
         b.severity
             .cmp(&a.severity)
+            .then_with(|| b.confidence.cmp(&a.confidence))
             .then_with(|| a.file.cmp(&b.file))
             .then_with(|| a.line.cmp(&b.line))
             .then_with(|| a.check.cmp(b.check))
@@ -145,14 +167,17 @@ fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
         .min(100);
     let risk_level = findings.first().map_or("none", |f| f.severity.name());
     let total_findings = findings.len();
+    let lowered = findings.iter().filter(|f| f.context.is_some()).count();
     let truncated = total_findings > MAX_FINDINGS;
     findings.truncate(MAX_FINDINGS);
     AuditReport {
+        note: NOTE,
         files_scanned,
         risk_score,
         risk_level,
         total_findings,
         truncated,
+        lowered,
         findings,
     }
 }
@@ -166,11 +191,93 @@ fn finding(
 ) -> Finding {
     Finding {
         severity,
+        confidence: base_confidence(check, severity),
         check,
         file: file.to_string(),
         line,
         message,
+        context: None,
     }
+}
+
+/// How sure each kind of check is, before the file's context is considered.
+fn base_confidence(check: &str, severity: Severity) -> Confidence {
+    match (check, severity) {
+        // Secrets match exact token formats and skip obvious placeholders.
+        (SECRET, _) => Confidence::High,
+        // Bidirectional controls have almost no business in source code.
+        (HIDDEN_UNICODE, Severity::High) => Confidence::High,
+        (HIDDEN_UNICODE, _) => Confidence::Medium,
+        // Install hooks and build scripts that download things are often
+        // legitimate (prebuilt binaries, native builds).
+        (INSTALL_SCRIPT, Severity::Low) => Confidence::Low,
+        (INSTALL_SCRIPT, _) => Confidence::Medium,
+        (OBFUSCATION, Severity::Low) => Confidence::Low,
+        (OBFUSCATION, _) => Confidence::Medium,
+        (TYPOSQUAT, _) => Confidence::Medium,
+        (BINARY, _) => Confidence::Medium,
+        _ => Confidence::Low,
+    }
+}
+
+/// Folders whose code users of the project do not run.
+const LOWERED_DIRS: &[(&str, &str)] = &[
+    ("test", "test"),
+    ("tests", "test"),
+    ("__tests__", "test"),
+    ("__mocks__", "test"),
+    ("spec", "test"),
+    ("e2e", "test"),
+    ("testdata", "fixture"),
+    ("fixtures", "fixture"),
+    ("fixture", "fixture"),
+    ("docs", "docs"),
+    ("doc", "docs"),
+    ("examples", "example"),
+    ("example", "example"),
+    ("samples", "example"),
+    ("sample", "example"),
+    ("demo", "example"),
+    ("demos", "example"),
+];
+
+/// `Some(kind)` when `file` is a test, doc, example or fixture.
+fn context_of(file: &str) -> Option<&'static str> {
+    let lower = file.to_ascii_lowercase();
+    let mut parts: Vec<&str> = lower.split('/').collect();
+    let name = parts.pop().unwrap_or("");
+    if let Some((_, kind)) = parts
+        .iter()
+        .find_map(|p| LOWERED_DIRS.iter().find(|(dir, _)| dir == p))
+    {
+        return Some(kind);
+    }
+    if crate::architecture::is_test(Path::new(file)) || name == "conftest.py" {
+        return Some("test");
+    }
+    let ext = name.rsplit_once('.').map_or("", |(_, e)| e);
+    if matches!(ext, "md" | "markdown" | "rst" | "adoc" | "txt")
+        && !name.starts_with("requirements")
+    {
+        return Some("docs");
+    }
+    if name.contains(".example") || name.contains(".sample") {
+        return Some("example");
+    }
+    None
+}
+
+/// Lower a finding one step on severity and confidence.
+fn lower(f: &mut Finding, context: &'static str) {
+    f.severity = match f.severity {
+        Severity::High => Severity::Medium,
+        _ => Severity::Low,
+    };
+    f.confidence = match f.confidence {
+        Confidence::High => Confidence::Medium,
+        _ => Confidence::Low,
+    };
+    f.context = Some(context);
 }
 
 /// Extensions treated as program source.
@@ -797,7 +904,8 @@ pub fn render_text(report: &AuditReport) -> String {
         report.risk_level,
     ));
     if report.findings.is_empty() {
-        out.push_str("  No red flags found. That is not a guarantee the code is safe.\n\n");
+        out.push_str("  No red flags found. This is not a safety verdict: the scan only\n");
+        out.push_str("  looks for known patterns.\n\n");
         return out;
     }
     for f in &report.findings {
@@ -805,9 +913,14 @@ pub fn render_text(report: &AuditReport) -> String {
             Some(line) => format!("{}:{line}", f.file),
             None => f.file.clone(),
         };
+        let context = match f.context {
+            Some(kind) => format!(", {kind} file"),
+            None => String::new(),
+        };
         out.push_str(&format!(
-            "  {:<6}  {place}\n          {}\n",
+            "  {:<6}  {place}  ({} confidence{context})\n          {}\n",
             f.severity.name().to_ascii_uppercase(),
+            f.confidence.as_str(),
             f.message
         ));
     }
@@ -817,8 +930,16 @@ pub fn render_text(report: &AuditReport) -> String {
             report.total_findings
         ));
     }
-    out.push_str("\n  These are red flags to review, not a malware verdict. Secret values\n");
-    out.push_str("  are never printed.\n\n");
+    if report.lowered > 0 {
+        out.push_str(&format!(
+            "\n  {} finding{} in tests, docs, examples or fixtures {} lowered one step.\n",
+            report.lowered,
+            if report.lowered == 1 { "" } else { "s" },
+            if report.lowered == 1 { "was" } else { "were" },
+        ));
+    }
+    out.push_str("\n  Red flags to review, not a safety verdict: clean code can trip a check\n");
+    out.push_str("  and code that passes is not proven safe. Secret values are never printed.\n\n");
     out
 }
 
@@ -829,6 +950,56 @@ mod tests {
 
     fn checks(findings: &[Finding]) -> Vec<&'static str> {
         findings.iter().map(|f| f.check).collect()
+    }
+
+    #[test]
+    fn context_lowers_severity_and_confidence() {
+        assert_eq!(context_of("tests/test_api.py"), Some("test"));
+        assert_eq!(context_of("src/app.test.ts"), Some("test"));
+        assert_eq!(context_of("docs/setup.md"), Some("docs"));
+        assert_eq!(context_of("README.md"), Some("docs"));
+        assert_eq!(context_of("examples/basic/main.rs"), Some("example"));
+        assert_eq!(context_of("testdata/key.pem"), Some("fixture"));
+        assert_eq!(context_of(".env.example"), Some("example"));
+        assert_eq!(context_of("requirements.txt"), None);
+        assert_eq!(context_of("src/latest/config.py"), None);
+        assert_eq!(context_of("src/config.py"), None);
+
+        let key = format!("{}{}", "AK", "IAZ7Q4K2M9P1R8T3V6");
+        let mut found = audit_file("tests/conftest.py", format!("k = \"{key}\"").as_bytes());
+        assert_eq!(found[0].confidence, Confidence::High);
+        lower(&mut found[0], "test");
+        assert_eq!(found[0].severity, Severity::Medium);
+        assert_eq!(found[0].confidence, Confidence::Medium);
+        let report = finish(1, found);
+        assert_eq!(report.lowered, 1);
+        let text = render_text(&report);
+        assert!(text.contains("(medium confidence, test file)"));
+        assert!(text.contains("not a safety verdict"));
+    }
+
+    #[test]
+    fn audit_lowers_findings_in_tests() {
+        let dir = tempfile::tempdir().unwrap();
+        let key = format!("{}{}", "AK", "IAZ7Q4K2M9P1R8T3V6");
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::create_dir_all(dir.path().join("tests")).unwrap();
+        fs::write(dir.path().join("src/app.py"), format!("k = \"{key}\"\n")).unwrap();
+        fs::write(dir.path().join("tests/fake.py"), format!("k = \"{key}\"\n")).unwrap();
+        let report = audit(dir.path());
+        assert_eq!(report.findings.len(), 2);
+        assert_eq!(report.findings[0].file, "src/app.py");
+        assert_eq!(report.findings[0].severity, Severity::High);
+        assert_eq!(report.findings[0].context, None);
+        assert_eq!(report.findings[1].severity, Severity::Medium);
+        assert_eq!(report.findings[1].context, Some("test"));
+        assert_eq!(report.risk_level, "high");
+        let json = serde_json::to_value(&report).unwrap();
+        assert!(json["note"]
+            .as_str()
+            .unwrap()
+            .contains("not a safety verdict"));
+        assert_eq!(json["findings"][0]["confidence"], "high");
     }
 
     #[test]
