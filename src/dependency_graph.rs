@@ -12,7 +12,7 @@
 //! stdlib imports are ignored.
 
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -36,6 +36,8 @@ pub type DependencyGraph = HashMap<PathBuf, Vec<PathBuf>>;
 /// other files that cannot import anything are left out, so they are never
 /// reported as dead code. Files that cannot be read are kept with no edges.
 pub fn build_dependency_graph(files: &[PathBuf]) -> DependencyGraph {
+    let aliases = Aliases::from_files(files);
+
     // Each file is parsed independently — no shared mutable state needed.
     // rayon collects directly into a HashMap via the FromParallelIterator impl.
     files
@@ -43,10 +45,239 @@ pub fn build_dependency_graph(files: &[PathBuf]) -> DependencyGraph {
         .filter(|file| is_source_file(file))
         .map(|file| {
             let key = normalize(file);
-            let deps = parse_dependencies(&key);
+            let deps = parse_dependencies_with(&key, &aliases);
             (key, deps)
         })
         .collect()
+}
+
+// ---------------------------------------------------------------------------
+// JavaScript / TypeScript path aliases
+// ---------------------------------------------------------------------------
+
+/// Largest `tsconfig.json` / `jsconfig.json` read for path aliases.
+const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
+
+/// Aliases used without any config by Vite, Nuxt and Create React App
+/// templates: `@/x` and `~/x` mean `src/x` (or `x` at the package root).
+const DEFAULT_ALIASES: &[(&str, &[&str])] = &[("@/*", &["src/*", "*"]), ("~/*", &["src/*", "*"])];
+
+/// Path aliases in force below one directory.
+#[derive(Debug, Default)]
+struct AliasScope {
+    /// Directory holding the config or `package.json`.
+    dir: PathBuf,
+    /// Directory alias targets are relative to (`baseUrl`, else `dir`).
+    base: PathBuf,
+    /// Whether `baseUrl` was set, so bare specifiers resolve against it.
+    base_url: bool,
+    /// `paths` entries: pattern → target paths (already joined to their
+    /// base directory), in config order.
+    paths: Vec<(String, Vec<String>)>,
+}
+
+/// Path aliases from every `tsconfig.json`, `jsconfig.json` and
+/// `package.json` in the repository, deepest directory first.
+#[derive(Debug, Default)]
+struct Aliases {
+    scopes: Vec<AliasScope>,
+    /// Every file in the repository; aliases only ever resolve to one of
+    /// these, so a config cannot point outside the project.
+    known: HashSet<PathBuf>,
+}
+
+impl Aliases {
+    fn from_files(files: &[PathBuf]) -> Self {
+        let mut scopes: BTreeMap<PathBuf, AliasScope> = BTreeMap::new();
+        for file in files {
+            let name = file.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if !matches!(name, "tsconfig.json" | "jsconfig.json" | "package.json") {
+                continue;
+            }
+            let path = normalize(file);
+            let dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
+            let scope = scopes.entry(dir.clone()).or_insert_with(|| AliasScope {
+                dir: dir.clone(),
+                base: dir.clone(),
+                ..AliasScope::default()
+            });
+            if name != "package.json" {
+                read_ts_config(&path, scope);
+            }
+        }
+
+        let mut scopes: Vec<AliasScope> = scopes.into_values().collect();
+        for scope in &mut scopes {
+            for (pattern, targets) in DEFAULT_ALIASES {
+                if !scope.paths.iter().any(|(p, _)| p == pattern) {
+                    let targets = targets
+                        .iter()
+                        .map(|t| scope.dir.join(t).to_string_lossy().into_owned())
+                        .collect();
+                    scope.paths.push((pattern.to_string(), targets));
+                }
+            }
+        }
+        scopes.sort_by_key(|s| std::cmp::Reverse(s.dir.components().count()));
+
+        Self {
+            scopes,
+            known: files.iter().map(|f| normalize(f)).collect(),
+        }
+    }
+
+    /// Resolve a non-relative specifier through the aliases of the nearest
+    /// enclosing configs.
+    fn resolve(&self, file: &Path, specifier: &str) -> Option<PathBuf> {
+        for scope in self.scopes.iter().filter(|s| file.starts_with(&s.dir)) {
+            for (pattern, targets) in &scope.paths {
+                let rest = match pattern.strip_suffix('*') {
+                    Some(prefix) => match specifier.strip_prefix(prefix) {
+                        Some(rest) => rest,
+                        None => continue,
+                    },
+                    None if pattern == specifier => "",
+                    None => continue,
+                };
+                for target in targets {
+                    let target = target.replacen('*', rest, 1);
+                    if let Some(found) = self.known_file(Path::new(""), &target) {
+                        return Some(found);
+                    }
+                }
+            }
+            if scope.base_url {
+                if let Some(found) = self.known_file(&scope.base, specifier) {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+
+    fn known_file(&self, base: &Path, target: &str) -> Option<PathBuf> {
+        resolve_js_ts_path(base, target).filter(|p| self.known.contains(p))
+    }
+}
+
+/// Read `compilerOptions.baseUrl` and `compilerOptions.paths` from a
+/// TypeScript or JavaScript project config. Unreadable or invalid configs
+/// are ignored.
+fn read_ts_config(path: &Path, scope: &mut AliasScope) {
+    let small = fs::metadata(path).is_ok_and(|m| m.len() <= MAX_CONFIG_BYTES);
+    if !small {
+        return;
+    }
+    let Ok(text) = fs::read_to_string(path) else {
+        return;
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&strip_jsonc(&text)) else {
+        return;
+    };
+    let Some(options) = json.get("compilerOptions") else {
+        return;
+    };
+    if let Some(base_url) = options.get("baseUrl").and_then(|b| b.as_str()) {
+        scope.base = normalize(&scope.dir.join(base_url));
+        scope.base_url = true;
+    }
+    if let Some(paths) = options.get("paths").and_then(|p| p.as_object()) {
+        for (pattern, targets) in paths {
+            if scope.paths.iter().any(|(p, _)| p == pattern) {
+                continue;
+            }
+            let targets = match targets.as_array() {
+                Some(list) => list
+                    .iter()
+                    .filter_map(|t| t.as_str())
+                    .map(|t| scope.base.join(t).to_string_lossy().into_owned())
+                    .collect(),
+                None => Vec::new(),
+            };
+            scope.paths.push((pattern.clone(), targets));
+        }
+    }
+}
+
+/// Turn JSON with comments and trailing commas (as `tsconfig.json` allows)
+/// into plain JSON.
+fn strip_jsonc(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                out.push(c);
+                while let Some(next) = chars.next() {
+                    out.push(next);
+                    if next == '\\' {
+                        if let Some(escaped) = chars.next() {
+                            out.push(escaped);
+                        }
+                    } else if next == '"' {
+                        break;
+                    }
+                }
+            }
+            '/' if chars.peek() == Some(&'/') => {
+                for next in chars.by_ref() {
+                    if next == '\n' {
+                        out.push('\n');
+                        break;
+                    }
+                }
+            }
+            '/' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut last = ' ';
+                for next in chars.by_ref() {
+                    if last == '*' && next == '/' {
+                        break;
+                    }
+                    last = next;
+                }
+                out.push(' ');
+            }
+            _ => out.push(c),
+        }
+    }
+    drop_trailing_commas(&out)
+}
+
+/// Remove commas directly before `}` or `]`, outside strings.
+fn drop_trailing_commas(json: &str) -> String {
+    let chars: Vec<char> = json.chars().collect();
+    let mut out = String::with_capacity(json.len());
+    let mut in_string = false;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if in_string {
+            if c == '\\' {
+                out.push(c);
+                i += 1;
+                if let Some(&escaped) = chars.get(i) {
+                    out.push(escaped);
+                }
+            } else {
+                in_string = c != '"';
+                out.push(c);
+            }
+            i += 1;
+            continue;
+        }
+        if c == ',' {
+            let next = chars[i + 1..].iter().find(|n| !n.is_whitespace());
+            if matches!(next, Some('}') | Some(']')) {
+                i += 1;
+                continue;
+            }
+        }
+        in_string = c == '"';
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -63,8 +294,14 @@ fn is_source_file(file: &Path) -> bool {
         .is_some_and(|e| SOURCE_EXTENSIONS.contains(&e.to_lowercase().as_str()))
 }
 
-/// Parse dependencies for a single file based on its extension.
+/// Parse dependencies for a single file, with no path aliases.
+#[cfg(test)]
 fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
+    parse_dependencies_with(file, &Aliases::default())
+}
+
+/// Parse dependencies for a single file based on its extension.
+fn parse_dependencies_with(file: &Path, aliases: &Aliases) -> Vec<PathBuf> {
     let ext = file
         .extension()
         .and_then(|e| e.to_str())
@@ -72,7 +309,7 @@ fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
         .to_lowercase();
 
     match ext.as_str() {
-        "ts" | "tsx" | "js" | "jsx" | "mjs" => parse_js_ts_imports(file),
+        "ts" | "tsx" | "js" | "jsx" | "mjs" => parse_js_ts_imports(file, aliases),
         "py" => parse_python_imports(file),
         "rs" => parse_rust_imports(file),
         _ => Vec::new(),
@@ -89,8 +326,10 @@ fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
 /// - `import ... from './path'`
 /// - `import ... from "../path"`
 /// - `require('./path')`
-/// - `import('./path')`
-fn parse_js_ts_imports(file: &Path) -> Vec<PathBuf> {
+/// - `import('./path')` and `import './path'`
+/// - aliased paths such as `@/components/x`, via `tsconfig.json` /
+///   `jsconfig.json` `paths` and `baseUrl`
+fn parse_js_ts_imports(file: &Path, aliases: &Aliases) -> Vec<PathBuf> {
     let content = match fs::read_to_string(file) {
         Ok(c) => c,
         Err(_) => return Vec::new(),
@@ -114,11 +353,13 @@ fn parse_js_ts_imports(file: &Path) -> Vec<PathBuf> {
         // Collect all quoted string literals on this line that look like
         // relative paths.
         for specifier in extract_quoted_specifiers(trimmed) {
-            if !is_relative(specifier) {
-                continue;
-            }
+            let resolved = if is_relative(specifier) {
+                resolve_js_ts_path(parent, specifier)
+            } else {
+                aliases.resolve(file, specifier)
+            };
 
-            if let Some(resolved) = resolve_js_ts_path(parent, specifier) {
+            if let Some(resolved) = resolved {
                 if !deps.contains(&resolved) {
                     deps.push(resolved);
                 }
@@ -135,7 +376,7 @@ fn extract_quoted_specifiers(line: &str) -> Vec<&str> {
     let mut results = Vec::new();
 
     // We scan for from/require/import( patterns then pull the next quoted string.
-    let triggers = ["from ", "require(", "import("];
+    let triggers = ["from ", "require(", "import(", "import "];
 
     for trigger in triggers {
         let mut search = line;
@@ -372,13 +613,15 @@ fn push_if_file(files: &mut Vec<PathBuf>, candidate: &Path) {
 // Rust parser
 // ---------------------------------------------------------------------------
 
-/// Parse Rust module declarations and `use` statements, returning resolved paths.
+/// Parse Rust module declarations, returning the files they load.
 ///
 /// Patterns matched:
-/// - `mod module_name;`          → resolves to `module_name.rs` or
-///   `module_name/mod.rs`
-/// - `use crate::a::b;`          → resolves relative to src/
-/// - `use super::module;`        → resolves relative to parent
+/// - `mod name;` with any visibility (`pub`, `pub(crate)`, ...) and
+///   leading attributes such as `#[cfg(test)]`
+/// - `#[path = "file.rs"] mod name;`
+///
+/// A crate root or `mod.rs` loads `name.rs` / `name/mod.rs` next to it;
+/// any other file `foo.rs` loads them from `foo/`.
 fn parse_rust_imports(file: &Path) -> Vec<PathBuf> {
     let content = match fs::read_to_string(file) {
         Ok(c) => c,
@@ -389,8 +632,10 @@ fn parse_rust_imports(file: &Path) -> Vec<PathBuf> {
         Some(p) => p,
         None => return Vec::new(),
     };
+    let module_dir = rust_module_dir(file, parent);
 
     let mut deps = Vec::new();
+    let mut path_attr: Option<String> = None;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -400,46 +645,121 @@ fn parse_rust_imports(file: &Path) -> Vec<PathBuf> {
             continue;
         }
 
+        if let Some(path) = rust_path_attr(trimmed) {
+            path_attr = Some(path.to_string());
+        }
+
+        let decl = strip_rust_attributes(trimmed);
+        if decl.is_empty() {
+            continue;
+        }
+
         // `mod module_name;`
-        if let Some(module_name) = parse_rust_mod_decl(trimmed) {
-            if let Some(resolved) = resolve_rust_mod(parent, module_name) {
+        if let Some(module_name) = parse_rust_mod_decl(decl) {
+            let resolved = match path_attr.take() {
+                Some(path) => {
+                    let candidate = parent.join(path);
+                    candidate.is_file().then(|| normalize(&candidate))
+                }
+                None => resolve_rust_mod(&module_dir, module_name),
+            };
+            if let Some(resolved) = resolved {
                 if !deps.contains(&resolved) {
                     deps.push(resolved);
                 }
             }
+        } else {
+            path_attr = None;
         }
     }
 
     deps
 }
 
+/// Directory holding the files of the modules a Rust file declares.
+fn rust_module_dir(file: &Path, parent: &Path) -> PathBuf {
+    let stem = file.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let dir_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let crate_root = matches!(stem, "mod" | "lib" | "main")
+        || matches!(dir_name, "bin" | "tests" | "examples" | "benches")
+        || (stem == "build" && parent.join("Cargo.toml").is_file());
+    if crate_root {
+        parent.to_path_buf()
+    } else {
+        parent.join(stem)
+    }
+}
+
+/// The file named by a `#[path = "..."]` attribute at the start of a line.
+fn rust_path_attr(line: &str) -> Option<&str> {
+    let rest = line
+        .strip_prefix("#[path")?
+        .trim_start()
+        .strip_prefix('=')?;
+    extract_first_quoted(rest)
+}
+
+/// Drop leading `#[...]` attributes from a line.
+fn strip_rust_attributes(line: &str) -> &str {
+    let mut rest = line.trim_start();
+    while rest.starts_with("#[") {
+        let mut depth = 0usize;
+        let mut end = None;
+        for (i, c) in rest.char_indices() {
+            match c {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(i);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        match end {
+            Some(i) => rest = rest[i + 1..].trim_start(),
+            None => return "",
+        }
+    }
+    rest
+}
+
 /// Extract module name from `mod name;` declarations.
 ///
 /// Returns `None` for `mod name { ... }` (inline modules).
 fn parse_rust_mod_decl(line: &str) -> Option<&str> {
-    let line = line.trim_start_matches("pub").trim_start();
-    let rest = line.strip_prefix("mod ")?.trim();
+    let mut line = line.trim_start();
+    if let Some(rest) = line.strip_prefix("pub") {
+        let rest = rest.trim_start();
+        line = match rest.strip_prefix('(') {
+            Some(inner) => inner.split_once(')')?.1.trim_start(),
+            None => rest,
+        };
+    }
+    let rest = line.strip_prefix("mod ")?;
 
     // Only handle `mod name;` not `mod name {`
-    if rest.ends_with(';') {
-        Some(rest.trim_end_matches(';').trim())
-    } else {
-        None
-    }
+    let (name, _) = rest.split_once(';')?;
+    let name = name.trim();
+    let name = name.strip_prefix("r#").unwrap_or(name);
+    let valid = !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_');
+    valid.then_some(name)
 }
 
 /// Resolve a Rust `mod name;` declaration to a file on disk.
 ///
 /// Tries:
-/// 1. `<parent>/<name>.rs`
-/// 2. `<parent>/<name>/mod.rs`
-fn resolve_rust_mod(parent: &Path, module_name: &str) -> Option<PathBuf> {
-    let as_file = parent.join(format!("{module_name}.rs"));
+/// 1. `<dir>/<name>.rs`
+/// 2. `<dir>/<name>/mod.rs`
+fn resolve_rust_mod(dir: &Path, module_name: &str) -> Option<PathBuf> {
+    let as_file = dir.join(format!("{module_name}.rs"));
     if as_file.is_file() {
         return Some(normalize(&as_file));
     }
 
-    let as_mod = parent.join(module_name).join("mod.rs");
+    let as_mod = dir.join(module_name).join("mod.rs");
     if as_mod.is_file() {
         return Some(normalize(&as_mod));
     }
@@ -869,5 +1189,165 @@ mod tests {
 
         assert!(graph.contains_key(&missing));
         assert!(graph[&missing].is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Path aliases
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn follows_tsconfig_path_aliases_and_base_url() {
+        let dir = unique_temp_dir("codedna_dg_alias");
+        let config = dir.join("tsconfig.json");
+        write_file(
+            &config,
+            r#"{
+  // comments and trailing commas are allowed
+  "compilerOptions": {
+    "baseUrl": ".", /* block */
+    "paths": { "@lib/*": ["lib/*",], "@config": ["config/index.ts"] },
+  },
+}"#,
+        );
+        let app = dir.join("src/app.ts");
+        let util = dir.join("lib/util.ts");
+        let conf = dir.join("config/index.ts");
+        let shared = dir.join("src/shared.ts");
+        let button = dir.join("src/components/Button.tsx");
+        write_file(
+            &app,
+            "import { u } from '@lib/util';\nimport c from \"@config\";\nimport s from 'src/shared';\nimport B from '@/components/Button';\nimport React from 'react';\n",
+        );
+        for f in [&util, &conf, &shared, &button] {
+            write_file(f, "export {}");
+        }
+
+        let files = [
+            config,
+            app.clone(),
+            util.clone(),
+            conf.clone(),
+            shared.clone(),
+            button.clone(),
+        ];
+        let graph = build_dependency_graph(&files);
+        let deps = &graph[&normalize(&app)];
+
+        for f in [&util, &conf, &shared, &button] {
+            assert!(deps.contains(&normalize(f)), "missing {f:?} in {deps:?}");
+        }
+        assert_eq!(deps.len(), 4);
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn follows_default_at_alias_without_config() {
+        let dir = unique_temp_dir("codedna_dg_alias_default");
+        let pkg = dir.join("package.json");
+        write_file(&pkg, "{}");
+        let main = dir.join("src/main.tsx");
+        let view = dir.join("src/views/Home.vue.ts");
+        let store = dir.join("src/store/index.ts");
+        write_file(
+            &main,
+            "import Home from '@/views/Home.vue';\nimport '~/store';\n",
+        );
+        write_file(&view, "export {}");
+        write_file(&store, "export {}");
+
+        let graph = build_dependency_graph(&[pkg, main.clone(), view.clone(), store.clone()]);
+        let deps = &graph[&normalize(&main)];
+
+        assert!(deps.contains(&normalize(&view)));
+        assert!(deps.contains(&normalize(&store)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn aliases_never_resolve_outside_the_scanned_files() {
+        let dir = unique_temp_dir("codedna_dg_alias_outside");
+        let repo = dir.join("repo");
+        let config = repo.join("tsconfig.json");
+        write_file(
+            &config,
+            r#"{"compilerOptions": {"paths": {"@x/*": ["../outside/*"]}}}"#,
+        );
+        let outside = dir.join("outside/secret.ts");
+        write_file(&outside, "export {}");
+        let app = repo.join("app.ts");
+        write_file(&app, "import s from '@x/secret';\n");
+
+        let graph = build_dependency_graph(&[config, app.clone()]);
+
+        assert!(graph[&normalize(&app)].is_empty());
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn follows_side_effect_imports() {
+        let dir = unique_temp_dir("codedna_dg_side_effect");
+        let polyfill = dir.join("polyfill.ts");
+        write_file(&polyfill, "export {}");
+        let main = dir.join("main.ts");
+        write_file(&main, "import './polyfill';\n");
+
+        let deps = parse_dependencies(&main);
+        assert!(deps.contains(&normalize(&polyfill)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn strips_jsonc_without_touching_strings() {
+        let json = strip_jsonc("{\"a\": \"http://x/*y*/\", /* c */ \"b\": [1, 2,], // d\n}");
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(value["a"], "http://x/*y*/");
+        assert_eq!(value["b"], serde_json::json!([1, 2]));
+    }
+
+    // -----------------------------------------------------------------------
+    // Rust module layout
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn resolves_rust_child_modules_of_non_mod_files() {
+        let dir = unique_temp_dir("codedna_dg_rs_children");
+        let scanner = dir.join("src/scanner.rs");
+        write_file(
+            &scanner,
+            "pub(crate) mod walk;\n#[cfg(test)]\nmod tests;\n#[path = \"extra/other.rs\"]\npub mod other;\n#[cfg(feature = \"x\")] pub(super) mod fast;\n",
+        );
+        let walk = dir.join("src/scanner/walk.rs");
+        let tests = dir.join("src/scanner/tests.rs");
+        let other = dir.join("src/extra/other.rs");
+        let fast = dir.join("src/scanner/fast/mod.rs");
+        for f in [&walk, &tests, &other, &fast] {
+            write_file(f, "");
+        }
+
+        let deps = parse_dependencies(&scanner);
+
+        for f in [&walk, &tests, &other, &fast] {
+            assert!(deps.contains(&normalize(f)), "missing {f:?} in {deps:?}");
+        }
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn rust_integration_tests_load_siblings() {
+        let dir = unique_temp_dir("codedna_dg_rs_tests");
+        let cli = dir.join("tests/cli.rs");
+        write_file(&cli, "mod common;\n");
+        let common = dir.join("tests/common/mod.rs");
+        write_file(&common, "");
+
+        let deps = parse_dependencies(&cli);
+        assert!(deps.contains(&normalize(&common)));
+
+        fs::remove_dir_all(dir).ok();
     }
 }
