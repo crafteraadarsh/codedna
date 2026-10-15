@@ -36,7 +36,7 @@
 <td width="33%" valign="top">
 
 ### 🧬 Instant overview
-Project type, languages, frameworks, databases, infrastructure and architecture from one command. Django's 5,700 files take about half a second.
+Project type, languages, frameworks, databases, infrastructure, architecture layers, circular imports and monorepo workspaces from one command. Django's 5,700 files take about 0.6 seconds.
 
 </td>
 <td width="33%" valign="top">
@@ -48,7 +48,7 @@ Project type, languages, frameworks, databases, infrastructure and architecture 
 <td width="33%" valign="top">
 
 ### 🛡️ Safe on untrusted code
-Read-only. It never runs scripts or installs anything from the repo, never opens `.env` files and sends nothing off your machine.
+Read-only. It never runs scripts or installs anything from the repo, never opens `.env` files and sends nothing off your machine unless you ask for `audit --deps`.
 
 </td>
 </tr>
@@ -266,18 +266,20 @@ Pull requests from forks get a read-only token, so they get the job summary but 
 
 ## 🔬 Real example
 
-Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`](https://github.com/gothinkster/node-express-realworld-example-app), an Express + Prisma API:
+Output from CodeDna v0.1.3 on [`gothinkster/node-express-realworld-example-app`](https://github.com/gothinkster/node-express-realworld-example-app), an Express + Prisma API:
 
 ```text
   Summary
   ───────
-  Total LOC          2,488
+  Total LOC          2,243
+  Comment lines      245
   Languages          5
   Frameworks         1
   Databases          1
   Infrastructure     1
   Files scanned      63
-  Dead files         5
+  Dead files         5  (2 medium, 3 low)
+  Circular imports   1
   Dependency links   49
 
   Project Type       Backend API service
@@ -301,13 +303,15 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
 
   Summary
   ───────
-  Total LOC          2,488
+  Total LOC          2,243
+  Comment lines      245
   Languages          5
   Frameworks         1
   Databases          1
   Infrastructure     1
   Files scanned      63
-  Dead files         5
+  Dead files         5  (2 medium, 3 low)
+  Circular imports   1
   Dependency links   49
 
   Project Type
@@ -329,31 +333,74 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
   Architecture
   ────────────
   API → Database
+  Code layers: Routes → Services → Data  (confidence: high)
+    · Routes: 11 files in src/app/routes/auth/, src/app/routes/article/, src/app/routes/profile/
+    · Services: 4 files in src/app/routes/article/, src/app/routes/auth/, src/app/routes/profile/
+    · Data: 10 files in src/app/routes/auth/, src/app/routes/article/, src/prisma/
+    · Services → Data: 12 imports
+    · Routes → Services: 4 imports
+    · Services → Routes: 4 imports
 
   Languages
   ─────────
-  TypeScript        ███████████████████████░░░░░   84%      2,104 LOC
-  JSON              ███░░░░░░░░░░░░░░░░░░░░░░░░░   13%        331 LOC
-  Markdown          ░░░░░░░░░░░░░░░░░░░░░░░░░░░░    1%         48 LOC
-  TOML              ░░░░░░░░░░░░░░░░░░░░░░░░░░░░    0%          3 LOC
+  TypeScript        ██████████████████████░░░░░░   82%      1,861 LOC
+  JSON              ███░░░░░░░░░░░░░░░░░░░░░░░░░   14%        331 LOC
+  Markdown          ░░░░░░░░░░░░░░░░░░░░░░░░░░░░    2%         48 LOC
   JavaScript        ░░░░░░░░░░░░░░░░░░░░░░░░░░░░    0%          2 LOC
+  TOML              ░░░░░░░░░░░░░░░░░░░░░░░░░░░░    0%          1 LOC
 
   Top 5 Files by LOC
   ──────────────────
   1  ./src/app/routes/article/article.service.ts              590 LOC   TypeScript
-  2  ./src/app/routes/article/article.controller.ts           230 LOC   TypeScript
-  3  ./src/tests/services/auth.service.test.ts                215 LOC   TypeScript
-  4  ./src/app/routes/auth/auth.service.ts                    159 LOC   TypeScript
-  5  ./src/tests/services/article.service.test.ts             126 LOC   TypeScript
+  2  ./src/tests/services/auth.service.test.ts                183 LOC   TypeScript
+  3  ./src/app/routes/auth/auth.service.ts                    159 LOC   TypeScript
+  4  ./src/app/routes/article/article.controller.ts           145 LOC   TypeScript
+  5  ./src/tests/services/article.service.test.ts             108 LOC   TypeScript
 
   Dead Code
   ─────────
-  e2e/src/support/global-setup.ts
-  e2e/src/support/global-teardown.ts
-  e2e/src/support/test-setup.ts
-  jest.preset.js
-  src/prisma/seed.ts
+  medium  jest.preset.js
+          Nothing imports it, but "jest.preset" is mentioned in 3 other files
+  medium  src/prisma/seed.ts
+          Nothing imports it, but "seed" is mentioned in 2 other files
+  low     e2e/src/support/global-setup.ts
+          A test file, run by the test runner rather than imported
+  low     e2e/src/support/global-teardown.ts
+          A test file, run by the test runner rather than imported
+  low     e2e/src/support/test-setup.ts
+          A test file, run by the test runner rather than imported
+
+  Circular Imports
+  ────────────────
+  src/app/routes/article/article.model.ts → src/app/routes/article/comment.model.ts → src/app/routes/article/article.model.ts
 ```
+
+</details>
+
+<details>
+<summary><b><code>audit --deps</code>: known vulnerabilities in dependencies</b></summary>
+
+<br>
+
+`codedna audit . --deps` (first findings of 39):
+
+```text
+  Audit: 67 files, 39 findings, risk 100/100 (high)
+
+  Checked 733 package versions from package-lock.json against osv.dev.
+
+  HIGH    package-lock.json  (high confidence)
+          @babel/plugin-transform-modules-systemjs 7.23.3 (npm) has 1 known vulnerability, e.g. "@babel/plugin-transform-modules-systemjs generates arbitrary code when compiling malicious input": GHSA-fv7c-fp4j-7gwp. Fixed in 8.0.0-alpha.13.
+  HIGH    package-lock.json  (high confidence)
+          axios 1.6.2 (npm) has 31 known vulnerabilities, e.g. "axios Vulnerable to Full Man-in-the-Middle via Prototype Pollution Gadget in `config.proxy`": GHSA-35jp-ww65-95wh, GHSA-3g43-6gmg-66jw, GHSA-43fc-jf86-j433, GHSA-4hjh-wcwx-xvwj, GHSA-6chq-wfr3-2hj9 and 26 more. Fixed in 1.20.0.
+  HIGH    package-lock.json  (high confidence)
+          body-parser 1.20.1 (npm) has 2 known vulnerabilities, e.g. "body-parser vulnerable to denial of service when url encoding is enabled": GHSA-qwcr-r2fm-qrc7, GHSA-v422-hmwv-36x6. Fixed in 2.3.0.
+  HIGH    package-lock.json  (high confidence)
+          body-parser 1.20.2 (npm) has 2 known vulnerabilities, e.g. "body-parser vulnerable to denial of service when url encoding is enabled": GHSA-qwcr-r2fm-qrc7, GHSA-v422-hmwv-36x6. Fixed in 2.3.0.
+  …
+```
+
+Without `--deps` nothing leaves your machine, and this project has no other findings.
 
 </details>
 
@@ -363,7 +410,7 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
 <br>
 
 ```text
-  Runbook: 4 commands, 4 environment variables, 8 routes
+  Runbook: 4 commands, 4 environment variables, 20 routes
 
   How to run (from the folder of each file)
 
@@ -385,13 +432,28 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
   API routes
 
     GET     /articles                            src/app/routes/article/article.controller.ts:30
+    GET     /articles/feed                       src/app/routes/article/article.controller.ts:45
     POST    /articles                            src/app/routes/article/article.controller.ts:71
+    GET     /articles/:slug                      src/app/routes/article/article.controller.ts:87
+    PUT     /articles/:slug                      src/app/routes/article/article.controller.ts:110
+    DELETE  /articles/:slug                      src/app/routes/article/article.controller.ts:129
+    GET     /articles/:slug/comments             src/app/routes/article/article.controller.ts:149
+    POST    /articles/:slug/comments             src/app/routes/article/article.controller.ts:170
+    DELETE  /articles/:slug/comments/:id         src/app/routes/article/article.controller.ts:190
+    POST    /articles/:slug/favorite             src/app/routes/article/article.controller.ts:210
+    DELETE  /articles/:slug/favorite             src/app/routes/article/article.controller.ts:230
     POST    /users                               src/app/routes/auth/auth.controller.ts:14
     POST    /users/login                         src/app/routes/auth/auth.controller.ts:30
     GET     /user                                src/app/routes/auth/auth.controller.ts:45
     PUT     /user                                src/app/routes/auth/auth.controller.ts:61
+    GET     /profiles/:username                  src/app/routes/profile/profile.controller.ts:14
+    POST    /profiles/:username/follow           src/app/routes/profile/profile.controller.ts:34
+    DELETE  /profiles/:username/follow           src/app/routes/profile/profile.controller.ts:54
     GET     /tags                                src/app/routes/tag/tag.controller.ts:13
     GET     /                                    src/main.ts:21
+
+  Nothing was run. Routes come from common framework patterns and may
+  be incomplete.
 ```
 
 </details>
@@ -410,7 +472,35 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
      2       13        48  README.md
      3        3       159  src/app/routes/auth/auth.service.ts
      4        8        58  package.json
-     5        2       230  src/app/routes/article/article.controller.ts
+     5        2       183  src/tests/services/auth.service.test.ts
+
+  Ranked by commits × lines of code. Large files that change often
+  are where bugs and refactoring effort usually gather.
+```
+
+</details>
+
+<details>
+<summary><b>Monorepo workspaces</b></summary>
+
+<br>
+
+Workspaces declared at the repository root are listed with their packages. On [tokio](https://github.com/tokio-rs/tokio):
+
+```text
+  Workspaces
+  ──────────
+  Cargo (Cargo.toml): 10 packages
+    benches                         ./benches
+    examples                        ./examples
+    stress-test                     ./stress-test
+    tests-build                     ./tests-build
+    tests-integration               ./tests-integration
+    tokio                           ./tokio
+    tokio-macros                    ./tokio-macros
+    tokio-stream                    ./tokio-stream
+    tokio-test                      ./tokio-test
+    tokio-util                      ./tokio-util
 ```
 
 </details>
@@ -420,23 +510,31 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
 
 <br>
 
-`codedna json .` on the same project (`dependency_graph` and `file_breakdown` shortened):
+`codedna json .` on the same project (`dependency_graph`, `file_breakdown` and `architecture_details` shortened):
 
 ```json
 {
   "project_type": "Backend API service",
-  "total_loc": 2488,
+  "total_loc": 2243,
+  "comment_lines": 245,
+  "blank_lines": 294,
   "languages": {
-    "JavaScript": 2,
+    "Markdown": 48,
+    "TOML": 1,
+    "TypeScript": 1861,
     "JSON": 331,
-    "TypeScript": 2104,
-    "TOML": 3,
-    "Markdown": 48
+    "JavaScript": 2
   },
   "frameworks": ["Express"],
   "databases": ["Prisma"],
   "infrastructure": ["Docker"],
   "architecture": "API → Database",
+  "architecture_details": {
+    "layers": [{ "name": "Routes", "files": 11, "dirs": ["src/app/routes/auth/", "..."] }],
+    "flows": [{ "from": "Services", "to": "Data", "imports": 12 }],
+    "confidence": "high",
+    "evidence": ["Services → Data: 12 imports"]
+  },
   "dead_code": [
     "e2e/src/support/global-setup.ts",
     "e2e/src/support/global-teardown.ts",
@@ -445,8 +543,12 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
     "src/prisma/seed.ts"
   ],
   "dead_code_details": [
-    { "file": "src/prisma/seed.ts", "confidence": "medium", "reason": "Nothing imports it, but \"seed\" is mentioned in 1 other file(s)" }
+    { "file": "jest.preset.js", "confidence": "medium", "reason": "Nothing imports it, but \"jest.preset\" is mentioned in 3 other files" }
   ],
+  "circular_imports": [
+    ["src/app/routes/article/article.model.ts", "src/app/routes/article/comment.model.ts"]
+  ],
+  "workspaces": [],
   "dependency_graph": { "...": ["..."] },
   "file_breakdown": [
     { "file": "./src/app/routes/article/article.service.ts", "loc": 590, "language": "TypeScript" }
@@ -468,6 +570,8 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
 | `architecture_details` | object | Layers found in the code (`layers`), import counts between them (`flows`), `confidence` (`high`/`medium`/`low`) and `evidence` |
 | `dead_code` | string[] | Files nothing reaches from an entry point |
 | `dead_code_details` | object[] | Per file `{ file, confidence, reason }`: how likely it is to be really unused, and why |
+| `circular_imports` | string[][] | Groups of files that import each other, directly or through other files |
+| `workspaces` | object[] | Monorepo workspaces declared at the root: `{ tool, manifest, packages: [{ name, path }] }` |
 | `dependency_graph` | object | File → imported files |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` |
 
@@ -561,13 +665,15 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 ## ⚡ Performance
 
-`codedna analyze` with v0.1.1 on a 2-core Linux machine, best of 5 runs:
+`codedna analyze` with v0.1.3 on a 2-core Linux machine, best of 5 runs:
 
 | Repository | Files | Lines of code | Time |
 |---|---:|---:|---:|
-| [tokio](https://github.com/tokio-rs/tokio) | 886 | 173k | **51 ms** |
-| [fastapi](https://github.com/fastapi/fastapi) | 2,993 | 256k | **163 ms** |
-| [django](https://github.com/django/django) | 5,700 | 497k | **516 ms** |
+| [tokio](https://github.com/tokio-rs/tokio) | 886 | 114k | **60 ms** |
+| [fastapi](https://github.com/fastapi/fastapi) | 2,993 | 255k | **186 ms** |
+| [django](https://github.com/django/django) | 5,699 | 468k | **631 ms** |
+
+Lines of code exclude comments and blank lines.
 
 ## 🛡️ Security
 
