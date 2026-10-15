@@ -5,26 +5,27 @@
 [![CI](https://github.com/crafteraadarsh/codedna/workflows/CI/badge.svg)](https://github.com/crafteraadarsh/codedna/actions)
 [![crates.io](https://img.shields.io/crates/v/codedna.svg)](https://crates.io/crates/codedna)
 [![docs.rs](https://img.shields.io/docsrs/codedna)](https://docs.rs/codedna)
-[![Tests](https://img.shields.io/badge/tests-155%20passing-brightgreen)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 [![Rust](https://img.shields.io/badge/rust-stable-orange)](#)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](#)
 
-Point CodeDna at any local directory or remote Git URL. It scans the repository and produces a complete intelligence report — tech stack, architecture, LOC distribution, framework usage, infrastructure, dead code — in milliseconds. Output is both human-readable and machine-readable (JSON), making it the ideal first command for any AI coding agent.
+Point CodeDna at a local folder or a Git URL and it tells you, or your AI agent, what the project is: tech stack, architecture, languages and size, entry points and possibly unused files. It also shows where the risky code is, flags supply-chain red flags, explains how to run the project and compares two versions of it.
+
+It only reads files. It never runs the code it analyses, never sends your code anywhere and never prints the secrets it finds (see [Security](#security)).
 
 ```bash
-codedna analyze .
-codedna analyze https://github.com/vercel/next.js
-codedna json . --compact
+codedna analyze .                                   # full report
+codedna analyze https://github.com/vercel/next.js   # any public repo, no manual clone
+codedna context .                                   # short briefing for an AI agent
 ```
 
-This repository is primarily a **Rust CLI tool**. It also ships agent integration files so CodeDna can be used cleanly from **Codex, OpenCode, and Claude**.
+CodeDna is a single **Rust binary**. AI agents use it through a skill or its MCP server: **Claude Code, Codex, OpenCode and Antigravity** are supported out of the box.
 
 ---
 
 ## Table of Contents
 
-- [Install](#install)
+- [Install](#install-cli)
 - [Use With AI Agents](#use-with-ai-agents)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
@@ -35,6 +36,7 @@ This repository is primarily a **Rust CLI tool**. It also ships agent integratio
 - [Detection Coverage](#detection-coverage)
 - [Performance](#performance)
 - [AI Agent Skill](#ai-agent-skill)
+- [Security](#security)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
@@ -57,7 +59,7 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/crafteraadarsh/codedna/main/install.ps1 | iex
 ```
 
-The script picks the right binary for your system, checks its SHA-256 checksum and installs it to `~/.local/bin` (Windows: `%LOCALAPPDATA%\codedna\bin`) without sudo. Set `CODEDNA_VERSION=v0.2.0` to pin a version or `CODEDNA_INSTALL_DIR` to choose the folder.
+The script picks the right binary for your system, checks its SHA-256 checksum and installs it to `~/.local/bin` (Windows: `%LOCALAPPDATA%\codedna\bin`) without sudo. Set `CODEDNA_VERSION=v0.1.0` to pin a version or `CODEDNA_INSTALL_DIR` to choose the folder.
 
 You can also download an archive from [Releases](https://github.com/crafteraadarsh/codedna/releases). Every archive has a build-provenance attestation, so you can check it was built from this repository:
 
@@ -390,16 +392,14 @@ CodeDna accepts Git URLs directly. No manual cloning required.
 ```
 https://github.com/user/repo
 https://gitlab.com/user/repo
-http://github.com/user/repo
 git@github.com:user/repo.git
-git@gitlab.com:user/repo.git
 ```
 
-Any input starting with `http://`, `https://`, or `git@` is treated as a Git URL. Everything else is a local path.
+Any input starting with `https://` or `git@` is treated as a Git URL. Everything else is a local path. Plain `http://` URLs are refused, and a token in a URL (`https://user:token@host/...`) is replaced with `***` in all output.
 
 ### What Happens
 
-1. URL detected → shallow clone (`--depth 1`) into a temp directory
+1. URL detected → shallow clone (`--depth 1`; up to 1,000 commits for `hotspots`) into a temp directory
 2. Standard analysis pipeline runs on the cloned content
 3. Output paths are normalized (identical format to local analysis)
 4. Temp directory is deleted automatically
@@ -415,9 +415,11 @@ Any input starting with `http://`, `https://`, or `git@` is treated as a Git URL
 
 ## Detection Coverage
 
-### Languages (22)
+### Languages (13)
 
-`.rs` `.ts` `.tsx` `.js` `.jsx` `.mjs` `.py` `.go` `.sol` `.css` `.scss` `.sass` `.html` `.htm` `.toml` `.json` `.yml` `.yaml` `.md` `.sh` `.bash` `.zsh`
+Rust (`.rs`), TypeScript (`.ts` `.tsx`), JavaScript (`.js` `.jsx` `.mjs`), Python (`.py`), Go (`.go`), Solidity (`.sol`), CSS (`.css` `.scss` `.sass`), HTML (`.html` `.htm`), TOML, JSON, YAML (`.yml` `.yaml`), Markdown (`.md` `.markdown`), Shell (`.sh` `.bash` `.zsh`).
+
+Languages, frameworks and databases are defined in [`rules.toml`](rules.toml), so adding one is usually a one-line change.
 
 ### Frameworks (46)
 
@@ -461,6 +463,8 @@ Any input starting with `http://`, `https://`, or `git@` is treated as a Git URL
 
 `node_modules/` `.git/` `target/` `dist/` `build/` `coverage/`
 
+Files over 10 MiB are skipped, and symbolic links are not followed.
+
 ---
 
 ## Performance
@@ -468,7 +472,7 @@ Any input starting with `http://`, `https://`, or `git@` is treated as a Git URL
 | Metric | Value |
 |---|---|
 | Local analysis (26 files) | ~2.6 ms |
-| Remote repos | Shallow clone (`--depth 1`) |
+| Remote repos | Shallow clone (`--depth 1`; `hotspots` up to 1,000 commits) |
 | Parallelism | rayon — all CPU cores |
 | 100k+ file repos | < 5 seconds target |
 | Memory | Streaming per-file reads |
@@ -573,6 +577,21 @@ See [`skills/codedna-analyzer/SKILL.md`](skills/codedna-analyzer/SKILL.md) for t
 
 ---
 
+## Security
+
+CodeDna is built to be safe to run on any repository, including ones you do not trust.
+
+- **Read-only.** It never runs scripts, build steps, hooks or package managers from the repository, and Git history is read without checking anything out.
+- **Nothing leaves your machine.** No telemetry or update checks; the only network access is cloning a URL you pass.
+- **Secrets stay secret.** `.env` files are never opened, `runbook` reports environment variable names only, `audit` names the kind of credential and the line but never the value, and tokens in clone URLs are masked.
+- **Hostile input is handled.** File names and text from a repository or snapshot are cleaned of terminal control and text-direction characters before printing; oversized files and snapshots are skipped.
+- **The MCP server is fenced.** It only reads folders under the directory it started in (or ones you allow with `--root`) and public `https://` repositories, and every response is size-capped.
+- **Verifiable releases.** Binaries carry SHA-256 checksums and build-provenance attestations, and dependencies are audited on every pull request.
+
+Found a vulnerability? Please report it privately as described in [SECURITY.md](SECURITY.md).
+
+---
+
 ## Project Structure
 
 ```
@@ -608,19 +627,21 @@ src/
 | `walkdir` 2 | Recursive directory traversal |
 | `serde` + `serde_json` | JSON serialization |
 | `rayon` | Parallel file processing |
-| `git2` 0.19 | Git operations (vendored OpenSSL) |
+| `git2` 0.21 | Git clone and history (vendored OpenSSL) |
 | `tempfile` 3 | Temp directory management |
+| `toml` | Detection rules and manifest parsing |
 
 ### CI
 
-Cross-platform CI via GitHub Actions — runs on every push to `main`:
+Every pull request and push to `main` runs:
 
-- **Clippy** — lint-free (`-D warnings`)
-- **Rustfmt** — format check
-- **Tests** — Ubuntu, macOS, Windows (155 tests)
-- **Release builds** — Linux x86_64, macOS x86_64, macOS ARM64, Windows x86_64
+- **Tests** on Ubuntu, macOS and Windows
+- **Clippy** with `-D warnings`
+- **Rustfmt**
+- **Dependency audit** against the RustSec advisory database
+- **Install scripts and skill**: shellcheck, PowerShell parse, and a check that every skill copy matches the canonical one
 
-Release binaries are uploaded as artifacts on every green build.
+Tagging `v*` builds release binaries for Linux (x86_64, arm64, static), macOS (Intel, Apple Silicon) and Windows x86_64, with SHA-256 checksums and build-provenance attestations.
 
 ---
 
@@ -629,7 +650,7 @@ Release binaries are uploaded as artifacts on every green build.
 Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ```bash
-cargo test          # 155 tests must pass
+cargo test          # all tests must pass
 cargo clippy        # must be warning-free
 cargo fmt           # must be formatted
 ```
