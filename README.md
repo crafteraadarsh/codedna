@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="CodeDna: codebase intelligence for humans and AI agents" width="100%">
+<img src="assets/banner-v2.svg" alt="CodeDna: codebase intelligence for humans and AI agents" width="100%">
 
 <p>
   <a href="https://github.com/crafteraadarsh/codedna/releases/latest"><img src="https://img.shields.io/github/v/release/crafteraadarsh/codedna?style=flat-square&color=7ee787&label=release" alt="Latest release"></a>
@@ -23,7 +23,7 @@
 
 <br>
 
-<img src="assets/demo.svg" alt="Terminal demo: codedna analyze and codedna audit on a sample Express app" width="100%">
+<img src="assets/demo-v2.svg" alt="Terminal demo: codedna analyze and codedna audit on a sample Express app" width="100%">
 
 </div>
 
@@ -444,7 +444,7 @@ codedna json . | jq '.dead_code[]'
 
 ## ⚙️ How it works
 
-<p align="center"><img src="assets/architecture.svg" alt="How CodeDna works: a path or Git URL goes through the Git handler and scanner, then languages, frameworks and the dependency graph are analyzed in parallel, dead code is found by reachability, and the combined result is shown in the terminal, as JSON, Markdown or HTML reports, or through MCP tools" width="100%"></p>
+<p align="center"><img src="assets/architecture-v2.svg" alt="How CodeDna works: a path or Git URL goes through the Git handler and scanner, then languages, frameworks and the dependency graph are analyzed in parallel, dead code is found by reachability, and the combined result is shown in the terminal, as JSON, Markdown or HTML reports, or through MCP tools" width="100%"></p>
 
 File-level work runs in parallel on every CPU core with [rayon](https://github.com/rayon-rs/rayon). Remote repositories are cloned into a temporary folder that is deleted when the run ends.
 
