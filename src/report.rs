@@ -11,6 +11,7 @@
 
 use crate::analysis::AnalysisResult;
 use crate::context::{self, ContextPack};
+use crate::hotspots::HotspotReport;
 use crate::safe_text::sanitize;
 use std::fmt::Write as FmtWrite;
 use std::path::Path;
@@ -30,6 +31,8 @@ pub struct Report {
     pub name: String,
     pub pack: ContextPack,
     pub dead_code: Vec<String>,
+    /// Files that change often and are large; `None` without Git history.
+    pub hotspots: Option<HotspotReport>,
 }
 
 /// Build a report from an analysis and a rendered directory map.
@@ -45,6 +48,7 @@ pub fn build(name: &str, result: &AnalysisResult, tree: &str) -> Report {
         name: sanitize(name),
         pack: context::build(result, tree, REPORT_TOKENS),
         dead_code,
+        hotspots: None,
     }
 }
 
@@ -126,6 +130,15 @@ pub fn render_markdown(report: &Report) -> String {
                 f.loc,
                 md_cell(&f.language)
             );
+        }
+    }
+
+    if let Some(h) = report.hotspots.as_ref().filter(|h| !h.hotspots.is_empty()) {
+        let _ = writeln!(out, "\n## Hotspots\n");
+        let _ = writeln!(out, "{}\n", hotspot_note(h));
+        let _ = writeln!(out, "| File | Commits | LOC |\n|---|---:|---:|");
+        for f in &h.hotspots {
+            let _ = writeln!(out, "| {} | {} | {} |", md_code(&f.file), f.commits, f.loc);
         }
     }
 
@@ -353,6 +366,25 @@ pub fn render_html(report: &Report) -> String {
         let _ = writeln!(out, "</table>");
     }
 
+    if let Some(h) = report.hotspots.as_ref().filter(|h| !h.hotspots.is_empty()) {
+        let _ = writeln!(out, "<h2>Hotspots</h2>");
+        let _ = writeln!(out, "<p class=\"note\">{}</p>", esc(&hotspot_note(h)));
+        let _ = writeln!(
+            out,
+            "<table><tr><th>File</th><th class=\"n\">Commits</th><th class=\"n\">LOC</th></tr>"
+        );
+        for f in &h.hotspots {
+            let _ = writeln!(
+                out,
+                "<tr><td><code>{}</code></td><td class=\"n\">{}</td><td class=\"n\">{}</td></tr>",
+                esc(&f.file),
+                f.commits,
+                f.loc
+            );
+        }
+        let _ = writeln!(out, "</table>");
+    }
+
     if !report.dead_code.is_empty() {
         let _ = writeln!(out, "<h2>Possibly unused files</h2>");
         let _ = writeln!(
@@ -428,6 +460,16 @@ fn dead_code_note(count: usize) -> String {
         "{count} file{} not reachable from a detected entry point. This is a heuristic: \
          check before deleting anything.",
         if count == 1 { " is" } else { "s are" }
+    )
+}
+
+fn hotspot_note(h: &HotspotReport) -> String {
+    format!(
+        "Large files that changed often in the last {} days ({} commit{}), ranked by commits × lines of code. \
+         Bugs and refactoring effort usually gather here.",
+        h.days,
+        h.commits_scanned,
+        if h.commits_scanned == 1 { "" } else { "s" }
     )
 }
 
@@ -519,6 +561,28 @@ mod tests {
         let report = build("demo", &sample("./a.rs"), "root\n└── ```evil\n");
         let md = render_markdown(&report);
         assert!(md.contains("````text"));
+    }
+
+    #[test]
+    fn shows_escaped_hotspots() {
+        let mut report = build("demo", &sample("./a.rs"), "root\n");
+        report.hotspots = Some(HotspotReport {
+            days: 90,
+            commits_scanned: 7,
+            truncated: false,
+            hotspots: vec![crate::hotspots::Hotspot {
+                file: HOSTILE.to_string(),
+                commits: 7,
+                loc: 50,
+                score: 350,
+            }],
+        });
+        let html = render_html(&report);
+        assert!(html.contains("<h2>Hotspots</h2>"));
+        assert!(!html.contains("<img"));
+        let md = render_markdown(&report);
+        assert!(md.contains("## Hotspots"));
+        assert!(md.contains("last 90 days (7 commits)"));
     }
 
     #[test]

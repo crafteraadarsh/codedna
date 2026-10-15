@@ -5,6 +5,7 @@ mod dead_code_detector;
 mod dependency_graph;
 mod framework_detector;
 mod git_handler;
+mod hotspots;
 mod language_detector;
 mod loc_counter;
 mod mcp;

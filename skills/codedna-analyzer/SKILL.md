@@ -101,7 +101,16 @@ codedna report . -o report.md
 codedna report . --format html -o report.html
 ```
 
-A document for people: summary, stack, languages, entry points, most imported and largest files, possibly unused files (up to 50) and a directory map. The HTML file is self-contained (no scripts or external resources) and has a print stylesheet, so a browser can save it as PDF. Everything taken from the repository is escaped.
+A document for people: summary, stack, languages, entry points, most imported and largest files, hotspots, possibly unused files (up to 50) and a directory map. The HTML file is self-contained (no scripts or external resources) and has a print stylesheet, so a browser can save it as PDF. Everything taken from the repository is escaped.
+
+### Hotspots
+
+```bash
+codedna hotspots .
+codedna hotspots . --days 90 --limit 20 --json
+```
+
+Ranks source files by the number of Git commits that changed them in the last N days (default 365) multiplied by their lines of code. Large files that change often are where bugs and refactoring effort usually gather. Merge commits are skipped, renames are not followed, and at most 5,000 commits are read. History is read from Git objects only; nothing is checked out and no hooks or filters run. A remote URL is cloned with up to 1,000 commits of history.
 
 ### MCP Server
 
@@ -110,7 +119,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`, `find_hotspots`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 
