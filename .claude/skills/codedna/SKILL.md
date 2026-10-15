@@ -29,6 +29,8 @@ This prints a short Markdown briefing: project type, stack, architecture, entry 
 | Folder layout | `repo_map` | `codedna map . --depth 3` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
+When the user wants something to share or keep, write a report: `codedna report . -o report.md`, or `codedna report . --format html -o report.html` (open it in a browser and print to PDF).
+
 Every command also accepts a public `https://` Git URL instead of `.`.
 
 ## Workflow

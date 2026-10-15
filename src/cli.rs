@@ -107,6 +107,21 @@ pub enum Commands {
         format: ContextFormat,
     },
 
+    /// Write a shareable report (Markdown, or HTML you can print to PDF)
+    Report {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = ReportFormat::Md)]
+        format: ReportFormat,
+
+        /// Write to this file instead of standard output
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+    },
+
     /// Run an MCP server on stdio so AI agents can call CodeDna as tools
     Mcp {
         /// Folder the server may read (repeatable; default: current folder)
@@ -122,6 +137,15 @@ pub enum ContextFormat {
     Md,
     /// JSON
     Json,
+}
+
+/// Output formats for `codedna report`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum ReportFormat {
+    /// Markdown
+    Md,
+    /// Self-contained HTML (print it to PDF from a browser)
+    Html,
 }
 
 // ── Helper: resolve input (path or URL) ───────────────────────────────────────
@@ -258,6 +282,40 @@ pub fn run() {
             }
         }
 
+        // ── report ────────────────────────────────────────────────────────────
+        Commands::Report {
+            path,
+            format,
+            output,
+        } => {
+            eprintln!("Analysing '{}'…", shown(&path));
+            let (local_path, _guard) = resolve(&path);
+            let result = crate::analysis::analyze(&local_path);
+            let tree = crate::repo_map::render_tree(&local_path, crate::report::MAP_DEPTH);
+            let name = crate::report::project_name(&path, &local_path);
+            let report = crate::report::build(&name, &result, &tree);
+            let text = match format {
+                ReportFormat::Md => crate::report::render_markdown(&report),
+                ReportFormat::Html => crate::report::render_html(&report),
+            };
+            match output {
+                None => print!("{text}"),
+                Some(file) => {
+                    if let Err(e) = std::fs::write(&file, text) {
+                        eprintln!(
+                            "error: could not write {}: {e}",
+                            crate::safe_text::sanitize(&file.to_string_lossy())
+                        );
+                        std::process::exit(1);
+                    }
+                    eprintln!(
+                        "Wrote {}",
+                        crate::safe_text::sanitize(&file.to_string_lossy())
+                    );
+                }
+            }
+        }
+
         // ── mcp ───────────────────────────────────────────────────────────────
         Commands::Mcp { roots } => {
             if let Err(e) = crate::mcp::serve(&roots) {
@@ -272,6 +330,25 @@ pub fn run() {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn parses_report_with_options() {
+        let cli =
+            Cli::try_parse_from(["codedna", "report", ".", "--format", "html", "-o", "r.html"])
+                .unwrap();
+        match cli.command {
+            Commands::Report {
+                path,
+                format,
+                output,
+            } => {
+                assert_eq!(path, ".");
+                assert_eq!(format, ReportFormat::Html);
+                assert_eq!(output, Some(PathBuf::from("r.html")));
+            }
+            _ => panic!("expected report command"),
+        }
+    }
 
     #[test]
     fn parses_analyze_with_time_flag() {

@@ -94,6 +94,15 @@ codedna context . --format json
 
 A short Markdown briefing sized for a context window: project type, architecture, size, stack, entry points, most imported files, largest files and a trimmed directory map. Default budget: 2000 tokens (minimum 300).
 
+### Shareable Report
+
+```bash
+codedna report . -o report.md
+codedna report . --format html -o report.html
+```
+
+A document for people: summary, stack, languages, entry points, most imported and largest files, possibly unused files (up to 50) and a directory map. The HTML file is self-contained (no scripts or external resources) and has a print stylesheet, so a browser can save it as PDF. Everything taken from the repository is escaped.
+
 ### MCP Server
 
 ```bash

@@ -9,6 +9,7 @@ mod language_detector;
 mod loc_counter;
 mod mcp;
 mod repo_map;
+mod report;
 mod reporter;
 mod rules;
 mod safe_text;
