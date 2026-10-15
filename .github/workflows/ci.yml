@@ -109,63 +109,21 @@ jobs:
       - name: Check dependencies for known vulnerabilities
         run: cargo audit
 
-  release:
-    name: Build release binary (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    needs: [test, clippy, fmt, audit]
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: codedna-linux-x86_64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: codedna-macos-x86_64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact: codedna-macos-arm64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: codedna-windows-x86_64.exe
-
+  scripts:
+    name: Install scripts
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+      - name: Lint install.sh
+        run: shellcheck install.sh
 
-      - name: Cache Cargo registry
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Rename binary (Unix)
-        if: runner.os != 'Windows'
+      - name: Parse install.ps1
+        shell: pwsh
         run: |
-          cp target/${{ matrix.target }}/release/codedna ${{ matrix.artifact }}
-
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          Copy-Item "target\${{ matrix.target }}\release\codedna.exe" "${{ matrix.artifact }}"
-
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
-          retention-days: 30
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/install.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors; exit 1 }

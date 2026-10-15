@@ -14,6 +14,14 @@ CodeDna is built to be safe to run on any repository, including ones you do not 
 
 Dependencies are checked against the RustSec advisory database on every pull request.
 
+## Verifying a download
+
+Release binaries are built by GitHub Actions from the tagged source. Each archive ships with a SHA-256 checksum (the install scripts check it before installing) and a signed build-provenance attestation:
+
+```bash
+gh attestation verify <archive> --repo crafteraadarsh/codedna
+```
+
 ## Supported versions
 
 Security fixes go into the latest release.

@@ -42,7 +42,31 @@ This repository is primarily a **Rust CLI tool**. It also ships agent integratio
 
 ## Install CLI
 
-### From GitHub
+### Prebuilt binary (no Rust needed)
+
+macOS and Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/crafteraadarsh/codedna/main/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/crafteraadarsh/codedna/main/install.ps1 | iex
+```
+
+The script picks the right binary for your system, checks its SHA-256 checksum and installs it to `~/.local/bin` (Windows: `%LOCALAPPDATA%\codedna\bin`) without sudo. Set `CODEDNA_VERSION=v0.2.0` to pin a version or `CODEDNA_INSTALL_DIR` to choose the folder.
+
+You can also download an archive from [Releases](https://github.com/crafteraadarsh/codedna/releases). Every archive has a build-provenance attestation, so you can check it was built from this repository:
+
+```bash
+gh attestation verify codedna-x86_64-unknown-linux-musl.tar.gz --repo crafteraadarsh/codedna
+```
+
+Binaries: Linux x86_64 and arm64 (static), macOS Intel and Apple Silicon, Windows x86_64.
+
+### From GitHub with Cargo
 
 ```bash
 cargo install --git https://github.com/crafteraadarsh/codedna
