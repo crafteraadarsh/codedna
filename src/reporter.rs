@@ -4,6 +4,8 @@
 //! structured JSON matching the schema defined in `SPEC.md`.
 
 use crate::analysis::AnalysisResult;
+use crate::architecture::Confidence;
+use crate::safe_text::sanitize;
 
 // ── Box-drawing header ────────────────────────────────────────────────────────
 
@@ -49,7 +51,19 @@ pub fn print_report(result: &AnalysisResult) {
     kv("Databases", &result.databases.len().to_string());
     kv("Infrastructure", &result.infrastructure.len().to_string());
     kv("Files scanned", &result.file_breakdown.len().to_string());
-    kv("Dead files", &result.dead_code.len().to_string());
+    let dead = result.dead_code_candidates();
+    if dead.is_empty() {
+        kv("Dead files", "0");
+    } else {
+        kv(
+            "Dead files",
+            &format!(
+                "{}  ({})",
+                dead.len(),
+                crate::dead_code_detector::confidence_summary(&dead)
+            ),
+        );
+    }
     kv(
         "Dependency links",
         &result
@@ -149,9 +163,7 @@ pub fn print_report(result: &AnalysisResult) {
     // ── Dead Code ─────────────────────────────────────────────────────────────
     if !result.dead_code.is_empty() {
         section("Dead Code");
-        for file in &result.dead_code {
-            println!("  \x1b[33m{}\x1b[0m", file.display());
-        }
+        print_candidates(&result.dead_code_candidates());
     }
 
     println!();
@@ -240,16 +252,39 @@ pub fn print_dead_code(result: &AnalysisResult) {
         return;
     }
 
+    let candidates = result.dead_code_candidates();
     println!(
-        "  \x1b[1mUnused files detected\x1b[0m  ({} file{})",
-        result.dead_code.len(),
-        if result.dead_code.len() == 1 { "" } else { "s" }
+        "  \x1b[1mPossibly unused files\x1b[0m  ({} file{}: {})",
+        candidates.len(),
+        if candidates.len() == 1 { "" } else { "s" },
+        crate::dead_code_detector::confidence_summary(&candidates)
+    );
+    println!(
+        "  \x1b[2mNot reachable from a detected entry point. Check before deleting: high means\x1b[0m"
+    );
+    println!(
+        "  \x1b[2mno other file mentions it, low means it is probably loaded another way.\x1b[0m"
     );
     println!();
-    for file in &result.dead_code {
-        println!("  \x1b[33m  {}\x1b[0m", file.display());
-    }
+    print_candidates(&candidates);
     println!();
+}
+
+/// One line per candidate with its confidence, then the reason, dimmed.
+fn print_candidates(candidates: &[crate::dead_code_detector::DeadCodeCandidate]) {
+    for c in candidates {
+        let colour = match c.confidence {
+            Confidence::High => "31",
+            Confidence::Medium => "33",
+            Confidence::Low => "2",
+        };
+        println!(
+            "  \x1b[{colour}m{:<6}\x1b[0m  {}",
+            c.confidence.as_str(),
+            sanitize(&c.file.to_string_lossy())
+        );
+        println!("          \x1b[2m{}\x1b[0m", sanitize(&c.reason));
+    }
 }
 
 // ── Framework usage output ────────────────────────────────────────────────────
@@ -347,6 +382,7 @@ mod tests {
             comment_lines: 0,
             blank_lines: 0,
             architecture_details: Default::default(),
+            dead_code_details: Vec::new(),
             languages,
             frameworks: vec!["React".to_string(), "Express".to_string()],
             databases: vec!["PostgreSQL".to_string()],

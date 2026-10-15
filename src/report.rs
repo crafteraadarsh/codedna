@@ -10,7 +10,9 @@
 //! trust, so all of it is escaped for the target format.
 
 use crate::analysis::AnalysisResult;
+use crate::architecture::Confidence;
 use crate::context::{self, ContextPack};
+use crate::dead_code_detector::confidence_summary;
 use crate::hotspots::HotspotReport;
 use crate::safe_text::sanitize;
 use std::fmt::Write as FmtWrite;
@@ -26,28 +28,43 @@ const REPORT_TOKENS: usize = 25_000;
 /// How many dead-code candidates a report lists.
 const DEAD_CODE_LIMIT: usize = 50;
 
+/// A possibly unused file as shown in a report.
+pub struct DeadFile {
+    pub file: String,
+    pub confidence: Confidence,
+    pub reason: String,
+}
+
 /// Everything a report shows.
 pub struct Report {
     pub name: String,
     pub pack: ContextPack,
-    pub dead_code: Vec<String>,
+    pub dead_code: Vec<DeadFile>,
+    /// Count per confidence level, e.g. "2 high, 1 low".
+    pub dead_summary: String,
     /// Files that change often and are large; `None` without Git history.
     pub hotspots: Option<HotspotReport>,
 }
 
 /// Build a report from an analysis and a rendered directory map.
 pub fn build(name: &str, result: &AnalysisResult, tree: &str) -> Report {
-    let mut dead_code: Vec<String> = result
-        .dead_code
-        .iter()
-        .map(|p| sanitize(&p.to_string_lossy()))
+    // Candidates arrive most certain first, so truncation keeps the best ones.
+    let candidates = result.dead_code_candidates();
+    let dead_summary = confidence_summary(&candidates);
+    let mut dead_code: Vec<DeadFile> = candidates
+        .into_iter()
+        .map(|c| DeadFile {
+            file: sanitize(&c.file.to_string_lossy()),
+            confidence: c.confidence,
+            reason: sanitize(&c.reason),
+        })
         .collect();
-    dead_code.sort();
     dead_code.truncate(DEAD_CODE_LIMIT);
     Report {
         name: sanitize(name),
         pack: context::build(result, tree, REPORT_TOKENS),
         dead_code,
+        dead_summary,
         hotspots: None,
     }
 }
@@ -165,9 +182,19 @@ pub fn render_markdown(report: &Report) -> String {
 
     if !report.dead_code.is_empty() {
         let _ = writeln!(out, "\n## Possibly unused files\n");
-        let _ = writeln!(out, "{}\n", dead_code_note(p.dead_code_candidates));
+        let _ = writeln!(
+            out,
+            "{}\n",
+            dead_code_note(p.dead_code_candidates, &report.dead_summary)
+        );
         for f in &report.dead_code {
-            let _ = writeln!(out, "- {}", md_code(f));
+            let _ = writeln!(
+                out,
+                "- {} ({}): {}",
+                md_code(&f.file),
+                f.confidence.as_str(),
+                md_text(&f.reason)
+            );
         }
         if p.dead_code_candidates > report.dead_code.len() {
             let _ = writeln!(
@@ -269,6 +296,9 @@ pre{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:12
 .tags span{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 10px;margin:0 6px 6px 0;font-size:13px}
 .note{color:var(--muted);font-size:14px}
 ul.files{padding-left:20px;columns:2;column-gap:32px}
+ul.dead{padding-left:0;list-style:none}ul.dead li{margin:6px 0}
+.conf{display:inline-block;min-width:56px;font-size:12px;font-weight:600;text-transform:uppercase}
+.conf.high{color:#c0392b}.conf.medium{color:#b7791f}.conf.low{color:#888}
 footer{margin-top:40px;color:var(--muted);font-size:13px}
 @media print{main{padding:0;max-width:none}h2{break-after:avoid}tr,.card,pre{break-inside:avoid}pre{white-space:pre-wrap}}
 @page{margin:16mm}
@@ -430,9 +460,22 @@ pub fn render_html(report: &Report) -> String {
         let _ = writeln!(
             out,
             "<p class=\"note\">{}</p>",
-            esc(&dead_code_note(p.dead_code_candidates))
+            esc(&dead_code_note(
+                p.dead_code_candidates,
+                &report.dead_summary
+            ))
         );
-        file_list(&mut out, &report.dead_code);
+        let _ = writeln!(out, "<ul class=\"dead\">");
+        for f in &report.dead_code {
+            let _ = writeln!(
+                out,
+                "<li><span class=\"conf {level}\">{level}</span> <code>{}</code><br><span class=\"note\">{}</span></li>",
+                esc(&f.file),
+                esc(&f.reason),
+                level = f.confidence.as_str(),
+            );
+        }
+        let _ = writeln!(out, "</ul>");
         if p.dead_code_candidates > report.dead_code.len() {
             let _ = writeln!(
                 out,
@@ -495,10 +538,11 @@ fn esc(s: &str) -> String {
 // Shared text
 // ---------------------------------------------------------------------------
 
-fn dead_code_note(count: usize) -> String {
+fn dead_code_note(count: usize, summary: &str) -> String {
     format!(
-        "{count} file{} not reachable from a detected entry point. This is a heuristic: \
-         check before deleting anything.",
+        "{count} file{} not reachable from a detected entry point ({summary}). High: no other \
+         file mentions the name. Medium: the name appears elsewhere or modules load dynamically. \
+         Low: probably loaded by convention or a dynamic import. Check before deleting anything.",
         if count == 1 { " is" } else { "s are" }
     )
 }
@@ -543,6 +587,7 @@ mod tests {
             comment_lines: 0,
             blank_lines: 0,
             architecture_details: Default::default(),
+            dead_code_details: Vec::new(),
             languages,
             frameworks: vec!["<b>Axum</b>".to_string()],
             databases: vec![],

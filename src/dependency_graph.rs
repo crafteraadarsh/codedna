@@ -475,6 +475,8 @@ fn append_extension(path: &Path, ext: &str) -> PathBuf {
 /// - `from .module import ...` and `from ..module import ...`
 /// - `from . import module`
 /// - `from package.module import ...` and `import package.module`
+/// - dotted module paths in string literals, such as Django's
+///   `ROOT_URLCONF = "project.urls"` or `include("app.urls")`
 ///
 /// Third-party and stdlib imports find no matching file and are ignored.
 fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
@@ -498,7 +500,10 @@ fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
             continue;
         }
 
-        for resolved in resolve_python_import(parent, trimmed) {
+        let found = resolve_python_import(parent, trimmed)
+            .into_iter()
+            .chain(resolve_python_string_paths(parent, trimmed));
+        for resolved in found {
             if !deps.contains(&resolved) {
                 deps.push(resolved);
             }
@@ -536,6 +541,55 @@ fn resolve_python_import(file_parent: &Path, line: &str) -> Vec<PathBuf> {
     }
 
     Vec::new()
+}
+
+/// Resolve quoted dotted paths (`"app.views"`, `"app.auth.Backend"`) to the
+/// modules they name. Frameworks load these by name: Django settings,
+/// URL includes, Celery task names. A trailing attribute is dropped when the
+/// full path is not a module.
+fn resolve_python_string_paths(file_parent: &Path, line: &str) -> Vec<PathBuf> {
+    let mut deps = Vec::new();
+    for literal in python_string_literals(line) {
+        let segments: Vec<&str> = literal.split('.').collect();
+        let is_dotted = segments.len() >= 2
+            && segments.iter().all(|s| {
+                s.chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                    && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            });
+        if !is_dotted {
+            continue;
+        }
+        for keep in (2..=segments.len()).rev().take(2) {
+            let module = segments[..keep].join(".");
+            let found = resolve_python_module_in(file_parent, &module, &[]);
+            if found
+                .iter()
+                .any(|f| f.extension().is_some_and(|e| e == "py"))
+            {
+                deps.extend(found);
+                break;
+            }
+        }
+    }
+    deps
+}
+
+/// Single- or double-quoted string literals on one line.
+fn python_string_literals(line: &str) -> Vec<&str> {
+    let mut literals = Vec::new();
+    let mut rest = line;
+    while let Some(start) = rest.find(['"', '\'']) {
+        let quote = rest[start..].chars().next().unwrap_or('"');
+        let after = &rest[start + 1..];
+        let Some(end) = after.find(quote) else {
+            break;
+        };
+        literals.push(&after[..end]);
+        rest = &after[end + 1..];
+    }
+    literals
 }
 
 /// Find the files a module import loads, starting from the importing file.
@@ -1004,6 +1058,29 @@ mod tests {
 
         let deps = parse_dependencies(&routes);
         assert!(deps.contains(&normalize(&shared)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn resolves_python_dotted_string_paths() {
+        let dir = unique_temp_dir("codedna_dg_py_strings");
+        let settings = dir.join("site").join("settings.py");
+        write_file(&settings, "");
+        let backends = dir.join("site").join("auth").join("backends.py");
+        write_file(&backends, "class JWT: pass");
+        let manage = dir.join("manage.py");
+        write_file(
+            &manage,
+            "os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"site.settings\")\n\
+             AUTH = ['site.auth.backends.JWT']\n\
+             VERSION = \"1.0.2\"\nTEXT = 'see site.missing'\n",
+        );
+
+        let deps = parse_dependencies(&manage);
+        assert!(deps.contains(&normalize(&settings)));
+        assert!(deps.contains(&normalize(&backends)));
+        assert_eq!(deps.len(), 2, "{deps:?}");
 
         fs::remove_dir_all(dir).ok();
     }

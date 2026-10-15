@@ -70,6 +70,8 @@ pub struct ContextPack {
     pub most_imported: Vec<ImportedFile>,
     pub largest_files: Vec<SizedFile>,
     pub dead_code_candidates: usize,
+    /// Candidates per confidence level, e.g. "2 high, 1 low".
+    pub dead_code_confidence: String,
     pub map: String,
     pub map_truncated: bool,
 }
@@ -103,6 +105,9 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
             })
             .collect(),
         dead_code_candidates: result.dead_code.len(),
+        dead_code_confidence: crate::dead_code_detector::confidence_summary(
+            &result.dead_code_candidates(),
+        ),
         map: String::new(),
         map_truncated: false,
     };
@@ -200,14 +205,15 @@ pub fn render_markdown(pack: &ContextPack) -> String {
         let _ = writeln!(out, "\n## Notes\n");
         let _ = writeln!(
             out,
-            "- {} file{} not reachable from a detected entry point. This is a heuristic: \
-             verify before deleting anything.",
+            "- {} file{} not reachable from a detected entry point ({}). This is a heuristic: \
+             verify before deleting anything; `codedna deadcode` gives the reason for each.",
             pack.dead_code_candidates,
             if pack.dead_code_candidates == 1 {
                 " is"
             } else {
                 "s are"
-            }
+            },
+            pack.dead_code_confidence
         );
     }
 
@@ -323,6 +329,7 @@ mod tests {
             comment_lines: 0,
             blank_lines: 0,
             architecture_details: Default::default(),
+            dead_code_details: Vec::new(),
             languages,
             frameworks: vec![],
             databases: vec![],

@@ -391,6 +391,7 @@ mod tests {
             comment_lines: 0,
             blank_lines: 0,
             architecture_details: Default::default(),
+            dead_code_details: Vec::new(),
             languages,
             frameworks: frameworks.iter().map(|s| s.to_string()).collect(),
             databases: vec![],
