@@ -603,7 +603,7 @@ mod tests {
     fn analyze_leaves_lockfiles_out_of_line_counts() {
         let root = unique_temp_dir("codedna_analysis_lockfile");
         write_file(&root.join("index.js"), "console.log('hello');");
-        write_file(&root.join("package-lock.json"), "{\n  \"lockfileVersion\": 3\n}");
+        write_file(&root.join("package-lock.json"), "{\n  \"v\": 3\n}");
         write_file(&root.join("web").join("yarn.lock"), "# yarn lockfile v1");
 
         let result = analyze(&root);
