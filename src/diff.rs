@@ -8,9 +8,10 @@
 //! read from them is sanitized before it is shown.
 
 use crate::analysis::AnalysisResult;
+use crate::cycles;
 use crate::safe_text::sanitize;
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
 /// Largest snapshot file read, in bytes.
@@ -86,6 +87,9 @@ pub struct Diff {
     pub files_changed: Vec<FileChange>,
     /// Files that are dead-code candidates now but were not before.
     pub new_dead_code: Vec<String>,
+    /// Import cycles that use at least one import the base did not have,
+    /// each as files in import order (the last imports the first).
+    pub new_circular_imports: Vec<Vec<String>>,
 }
 
 impl Diff {
@@ -103,6 +107,7 @@ impl Diff {
             && self.files_removed_total == 0
             && self.files_changed_total == 0
             && self.new_dead_code.is_empty()
+            && self.new_circular_imports.is_empty()
     }
 }
 
@@ -181,6 +186,22 @@ pub fn diff(before: &AnalysisResult, after: &AnalysisResult) -> Diff {
     new_dead_code.dedup();
     new_dead_code.truncate(MAX_FILES);
 
+    // Recomputed from the graphs, so snapshots saved before cycles were
+    // reported still compare correctly.
+    let old_edges: HashSet<(String, String)> = before
+        .dependency_graph
+        .iter()
+        .flat_map(|(from, to)| to.iter().map(move |t| (show(from), show(t))))
+        .collect();
+    let mut new_circular_imports: Vec<Vec<String>> = cycles::find_cycles(&after.dependency_graph)
+        .into_iter()
+        .filter(|cycle| {
+            cycles::cycle_edges(cycle).any(|(a, b)| !old_edges.contains(&(show(a), show(b))))
+        })
+        .map(|cycle| cycle.iter().map(|p| show(p)).collect())
+        .collect();
+    new_circular_imports.truncate(MAX_FILES);
+
     let (files_added_total, files_removed_total, files_changed_total) =
         (added.len(), removed.len(), changed.len());
     added.truncate(MAX_FILES);
@@ -205,6 +226,7 @@ pub fn diff(before: &AnalysisResult, after: &AnalysisResult) -> Diff {
         files_removed: removed,
         files_changed: changed,
         new_dead_code,
+        new_circular_imports,
     }
 }
 
@@ -370,8 +392,24 @@ pub fn render_text(d: &Diff) -> String {
             out.push_str(&format!("    {f}\n"));
         }
     }
+    if !d.new_circular_imports.is_empty() {
+        out.push_str("\n  New circular imports (files that now import each other)\n");
+        for cycle in &d.new_circular_imports {
+            out.push_str(&format!("    {}\n", cycle_text(cycle, |f| f.to_string())));
+        }
+    }
     out.push('\n');
     out
+}
+
+/// A cycle as `a → b → a`, each file passed through `fmt`.
+fn cycle_text(cycle: &[String], fmt: impl Fn(&str) -> String) -> String {
+    cycle
+        .iter()
+        .chain(cycle.first())
+        .map(|f| fmt(f))
+        .collect::<Vec<_>>()
+        .join(" → ")
 }
 
 /// First line of every Markdown diff, so a CI job can find and update its
@@ -467,6 +505,13 @@ pub fn render_markdown(d: &Diff) -> String {
         out.push_str("\n**New possibly unused files** (a heuristic: check before deleting)\n\n");
         for f in &d.new_dead_code {
             out.push_str(&format!("- {}\n", md(f)));
+        }
+    }
+
+    if !d.new_circular_imports.is_empty() {
+        out.push_str("\n**New circular imports** (files that now import each other)\n\n");
+        for cycle in &d.new_circular_imports {
+            out.push_str(&format!("- {}\n", cycle_text(cycle, md)));
         }
     }
 
@@ -569,6 +614,7 @@ mod tests {
             blank_lines: 0,
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
+            circular_imports: Vec::new(),
             languages,
             frameworks: frameworks.iter().map(|s| s.to_string()).collect(),
             databases: vec![],
@@ -661,6 +707,34 @@ mod tests {
         let d = diff(&before, &after);
         assert_eq!(d.files_added[0].file, "a?[2J.rs");
         assert_eq!(d.frameworks.added, ["X?Y"]);
+    }
+
+    #[test]
+    fn reports_only_cycles_with_a_new_import() {
+        let graph = |edges: &[(&str, &str)]| {
+            let mut g: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+            for (from, to) in edges {
+                g.entry(PathBuf::from(from))
+                    .or_default()
+                    .push(PathBuf::from(to));
+            }
+            g
+        };
+        let mut before = result(&[("./a.ts", 1)], &[]);
+        before.dependency_graph = graph(&[("./a.ts", "./b.ts"), ("./b.ts", "./a.ts")]);
+        let mut after = before.clone();
+        after.dependency_graph = graph(&[
+            ("./a.ts", "./b.ts"),
+            ("./b.ts", "./a.ts"),
+            ("./x.ts", "./y.ts"),
+            ("./y.ts", "./x.ts"),
+        ]);
+
+        let d = diff(&before, &after);
+        assert_eq!(d.new_circular_imports, vec![vec!["x.ts", "y.ts"]]);
+        assert!(render_text(&d).contains("x.ts → y.ts → x.ts"));
+        assert!(render_markdown(&d).contains("- x.ts → y.ts → x.ts"));
+        assert!(diff(&before, &before).new_circular_imports.is_empty());
     }
 
     #[test]

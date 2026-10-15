@@ -65,6 +65,10 @@ pub fn print_report(result: &AnalysisResult) {
         );
     }
     kv(
+        "Circular imports",
+        &result.circular_imports.len().to_string(),
+    );
+    kv(
         "Dependency links",
         &result
             .dependency_graph
@@ -164,6 +168,12 @@ pub fn print_report(result: &AnalysisResult) {
     if !result.dead_code.is_empty() {
         section("Dead Code");
         print_candidates(&result.dead_code_candidates());
+    }
+
+    // ── Circular Imports ──────────────────────────────────────────────────────
+    if !result.circular_imports.is_empty() {
+        section("Circular Imports");
+        print_cycle_list(&result.circular_imports);
     }
 
     println!();
@@ -268,6 +278,50 @@ pub fn print_dead_code(result: &AnalysisResult) {
     println!();
     print_candidates(&candidates);
     println!();
+}
+
+// ── Circular imports output ───────────────────────────────────────────────────
+
+/// Print groups of files that import each other.
+pub fn print_cycles(result: &AnalysisResult) {
+    println!();
+    let cycles = &result.circular_imports;
+    if cycles.is_empty() {
+        println!("  \x1b[32m✓ No circular imports detected.\x1b[0m");
+        println!();
+        return;
+    }
+    println!(
+        "  \x1b[1mCircular imports\x1b[0m  ({} group{})",
+        cycles.len(),
+        if cycles.len() == 1 { "" } else { "s" }
+    );
+    println!(
+        "  \x1b[2mEach line is the shortest import loop in a group of files that import\x1b[0m"
+    );
+    println!(
+        "  \x1b[2meach other. Type-only imports count too, so check before refactoring.\x1b[0m"
+    );
+    println!();
+    print_cycle_list(cycles);
+    println!();
+}
+
+/// One line per cycle: `a → b → a`.
+fn print_cycle_list(cycles: &[Vec<std::path::PathBuf>]) {
+    for cycle in cycles {
+        println!("  {}", sanitize(&cycle_line(cycle)));
+    }
+}
+
+/// A cycle as `a → b → a`.
+pub fn cycle_line(cycle: &[std::path::PathBuf]) -> String {
+    cycle
+        .iter()
+        .chain(cycle.first())
+        .map(|p| p.display().to_string())
+        .collect::<Vec<_>>()
+        .join(" → ")
 }
 
 /// One line per candidate with its confidence, then the reason, dimmed.
@@ -410,6 +464,7 @@ mod tests {
             blank_lines: 0,
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
+            circular_imports: Vec::new(),
             languages,
             frameworks: vec!["React".to_string(), "Express".to_string()],
             databases: vec!["PostgreSQL".to_string()],

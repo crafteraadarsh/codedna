@@ -26,6 +26,7 @@ This prints a short Markdown briefing: project type, stack, architecture, entry 
 | Biggest files | `list_files` | `codedna files .` |
 | Where is a framework used? | `find_framework_usage` | `codedna framework <name> .` |
 | Possibly unused files | `find_dead_code` | `codedna deadcode .` |
+| Files that import each other (circular imports) | `find_circular_imports` | `codedna cycles .` |
 | Folder layout | `repo_map` | `codedna map . --depth 3` |
 | Risky files: large and changed often, plus files that change together | `find_hotspots` | `codedna hotspots .` |
 | Supply-chain red flags | `audit_repo` | `codedna audit .` |

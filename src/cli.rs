@@ -55,6 +55,17 @@ pub enum Commands {
         path: String,
     },
 
+    /// List groups of files that import each other (circular imports)
+    Cycles {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output JSON: a list of cycles, each a list of files
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Run full intelligence analysis and print a formatted report
     Analyze {
         /// Target repository path or Git URL
@@ -313,6 +324,21 @@ pub fn run() {
             let (local_path, _guard) = resolve(&path);
             let result = crate::analysis::analyze(&local_path);
             crate::reporter::print_dead_code(&result);
+        }
+
+        // ── cycles ────────────────────────────────────────────────────────────
+        Commands::Cycles { path, json } => {
+            eprintln!("Analysing '{}'…", shown(&path));
+            let (local_path, _guard) = resolve(&path);
+            let result = crate::analysis::analyze(&local_path);
+            if json {
+                match serde_json::to_string_pretty(&result.circular_imports) {
+                    Ok(out) => println!("{out}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                }
+            } else {
+                crate::reporter::print_cycles(&result);
+            }
         }
 
         // ── analyze ───────────────────────────────────────────────────────────

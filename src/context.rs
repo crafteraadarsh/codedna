@@ -72,6 +72,10 @@ pub struct ContextPack {
     pub dead_code_candidates: usize,
     /// Candidates per confidence level, e.g. "2 high, 1 low".
     pub dead_code_confidence: String,
+    /// Groups of files that import each other.
+    pub circular_import_count: usize,
+    /// The first few of those, each as `a → b → a`.
+    pub circular_imports: Vec<String>,
     pub map: String,
     pub map_truncated: bool,
 }
@@ -108,6 +112,13 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
         dead_code_confidence: crate::dead_code_detector::confidence_summary(
             &result.dead_code_candidates(),
         ),
+        circular_import_count: result.circular_imports.len(),
+        circular_imports: result
+            .circular_imports
+            .iter()
+            .take(LIST_LIMIT)
+            .map(|c| short_cycle_line(c))
+            .collect(),
         map: String::new(),
         map_truncated: false,
     };
@@ -201,8 +212,10 @@ pub fn render_markdown(pack: &ContextPack) -> String {
         }
     }
 
-    if pack.dead_code_candidates > 0 {
+    if pack.dead_code_candidates > 0 || pack.circular_import_count > 0 {
         let _ = writeln!(out, "\n## Notes\n");
+    }
+    if pack.dead_code_candidates > 0 {
         let _ = writeln!(
             out,
             "- {} file{} not reachable from a detected entry point ({}). This is a heuristic: \
@@ -216,8 +229,38 @@ pub fn render_markdown(pack: &ContextPack) -> String {
             pack.dead_code_confidence
         );
     }
+    if pack.circular_import_count > 0 {
+        let _ = writeln!(
+            out,
+            "- {} circular import{} (files that import each other), e.g. {}. \
+             `codedna cycles` lists them.",
+            pack.circular_import_count,
+            if pack.circular_import_count == 1 {
+                ""
+            } else {
+                "s"
+            },
+            code(
+                pack.circular_imports
+                    .first()
+                    .map(String::as_str)
+                    .unwrap_or_default()
+            )
+        );
+    }
 
     out
+}
+
+/// A cycle as `a → b → a`, with long cycles shortened to their first files.
+pub fn short_cycle_line(cycle: &[PathBuf]) -> String {
+    const SHOWN: usize = 6;
+    let mut parts: Vec<String> = cycle.iter().take(SHOWN).map(|p| show(p)).collect();
+    if cycle.len() > SHOWN {
+        parts.push(format!("… ({} files)", cycle.len()));
+    }
+    parts.extend(cycle.first().map(|p| show(p)));
+    parts.join(" → ")
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +373,7 @@ mod tests {
             blank_lines: 0,
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
+            circular_imports: Vec::new(),
             languages,
             frameworks: vec![],
             databases: vec![],

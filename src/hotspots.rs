@@ -335,6 +335,7 @@ mod tests {
             blank_lines: 0,
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
+            circular_imports: Vec::new(),
             languages: HashMap::new(),
             frameworks: vec![],
             databases: vec![],

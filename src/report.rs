@@ -205,6 +205,21 @@ pub fn render_markdown(report: &Report) -> String {
         }
     }
 
+    if !p.circular_imports.is_empty() {
+        let _ = writeln!(out, "\n## Circular imports\n");
+        let _ = writeln!(out, "{}\n", cycles_note(p.circular_import_count));
+        for c in &p.circular_imports {
+            let _ = writeln!(out, "- {}", md_code(c));
+        }
+        if p.circular_import_count > p.circular_imports.len() {
+            let _ = writeln!(
+                out,
+                "- …and {} more",
+                p.circular_import_count - p.circular_imports.len()
+            );
+        }
+    }
+
     if !p.map.is_empty() {
         let _ = writeln!(out, "\n## Directory map\n");
         // A fence longer than any backtick run in the map cannot be closed early.
@@ -485,6 +500,27 @@ pub fn render_html(report: &Report) -> String {
         }
     }
 
+    if !p.circular_imports.is_empty() {
+        let _ = writeln!(out, "<h2>Circular imports</h2>");
+        let _ = writeln!(
+            out,
+            "<p class=\"note\">{}</p>",
+            esc(&cycles_note(p.circular_import_count))
+        );
+        let _ = writeln!(out, "<ul>");
+        for c in &p.circular_imports {
+            let _ = writeln!(out, "<li><code>{}</code></li>", esc(c));
+        }
+        let _ = writeln!(out, "</ul>");
+        if p.circular_import_count > p.circular_imports.len() {
+            let _ = writeln!(
+                out,
+                "<p class=\"note\">…and {} more.</p>",
+                p.circular_import_count - p.circular_imports.len()
+            );
+        }
+    }
+
     if !p.map.is_empty() {
         let _ = writeln!(out, "<h2>Directory map</h2>");
         let _ = writeln!(out, "<pre>{}</pre>", esc(&p.map));
@@ -538,6 +574,13 @@ fn esc(s: &str) -> String {
 // Shared text
 // ---------------------------------------------------------------------------
 
+fn cycles_note(count: usize) -> String {
+    format!(
+        "Files in {count} group{} import each other. Type-only imports count too, so check each before refactoring.",
+        if count == 1 { "" } else { "s" }
+    )
+}
+
 fn dead_code_note(count: usize, summary: &str) -> String {
     format!(
         "{count} file{} not reachable from a detected entry point ({summary}). High: no other \
@@ -588,6 +631,7 @@ mod tests {
             blank_lines: 0,
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
+            circular_imports: Vec::new(),
             languages,
             frameworks: vec!["<b>Axum</b>".to_string()],
             databases: vec![],
