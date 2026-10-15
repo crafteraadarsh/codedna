@@ -331,6 +331,8 @@ mod tests {
         AnalysisResult {
             project_type: String::new(),
             total_loc: files.iter().map(|f| f.1).sum(),
+            comment_lines: 0,
+            blank_lines: 0,
             languages: HashMap::new(),
             frameworks: vec![],
             databases: vec![],

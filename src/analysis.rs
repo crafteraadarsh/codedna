@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 pub struct FileInfo {
     /// Path to the file (relative to the scanned root where possible).
     pub file: PathBuf,
-    /// Non-empty lines of code counted in the file.
+    /// Code lines in the file: comments and blank lines are not counted.
     pub loc: usize,
     /// Detected language name (e.g. "TypeScript", "Python").
     pub language: String,
@@ -36,8 +36,17 @@ pub struct AnalysisResult {
     /// High-level project classification (e.g. "Full-stack web application").
     pub project_type: String,
 
-    /// Total non-empty lines of code across all recognised source files.
+    /// Total code lines across all recognised source files.  Comment-only
+    /// and blank lines are excluded; see `comment_lines` and `blank_lines`.
     pub total_loc: usize,
+
+    /// Comment-only lines across all recognised source files.
+    #[serde(default)]
+    pub comment_lines: usize,
+
+    /// Blank lines across all recognised source files.
+    #[serde(default)]
+    pub blank_lines: usize,
 
     /// LOC per language: `{ "TypeScript": 12450, "Python": 800, … }`.
     pub languages: HashMap<String, usize>,
@@ -112,22 +121,30 @@ pub fn analyze(root: &Path) -> AnalysisResult {
 
     // ── 2 & 3. LOC + language (parallel) ────────────────────────────────────
     // Each file is processed independently — ideal for rayon par_iter.
-    let per_file: Vec<(PathBuf, usize, String)> = files
+    let per_file: Vec<(PathBuf, loc_counter::LineCounts, String)> = files
         .par_iter()
         .filter(|file| !is_lockfile(file))
         .filter_map(|file| {
-            let loc = loc_counter::count_lines(file)?;
+            let counts = loc_counter::count_line_kinds(file)?;
             let language = language_detector::detect_language(file)
                 .map(|l| l.to_string())
                 .unwrap_or_else(|| "Other".to_string());
-            Some((file.clone(), loc, language))
+            Some((file.clone(), counts, language))
         })
         .collect();
+
+    // Comment and blank totals cover the same files as `total_loc`: those in
+    // a recognised language.
+    let (comment_lines, blank_lines) = per_file
+        .iter()
+        .filter(|(file, _, _)| language_detector::detect_language(file).is_some())
+        .fold((0, 0), |(c, b), (_, k, _)| (c + k.comment, b + k.blank));
 
     let mut file_loc_pairs: Vec<(PathBuf, usize)> = Vec::with_capacity(per_file.len());
     let mut file_breakdown: Vec<FileInfo> = Vec::with_capacity(per_file.len());
 
-    for (file, loc, language) in per_file {
+    for (file, counts, language) in per_file {
+        let loc = counts.code;
         file_loc_pairs.push((file.clone(), loc));
         file_breakdown.push(FileInfo {
             file,
@@ -199,6 +216,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     AnalysisResult {
         project_type,
         total_loc,
+        comment_lines,
+        blank_lines,
         languages,
         frameworks: fw_result.frameworks,
         databases: fw_result.databases,

@@ -1,5 +1,5 @@
+use ignore::{DirEntry, WalkBuilder};
 use std::path::{Path, PathBuf};
-use walkdir::{DirEntry, WalkDir};
 
 const IGNORED_DIRS: &[&str] = &[
     "node_modules",
@@ -16,7 +16,7 @@ const IGNORED_DIRS: &[&str] = &[
 pub const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
 
 fn is_ignored_dir(entry: &DirEntry) -> bool {
-    entry.file_type().is_dir()
+    entry.file_type().is_some_and(|t| t.is_dir())
         && entry
             .file_name()
             .to_str()
@@ -29,6 +29,11 @@ fn is_ignored_dir(entry: &DirEntry) -> bool {
 /// Rules:
 /// - Traverses recursively from `root`
 /// - Skips directories in `IGNORED_DIRS`
+/// - Honours `.gitignore`, `.ignore` and `.git/info/exclude` the way git
+///   does, including nested ignore files and `!` re-includes, whether or not
+///   the directory is a git checkout.  The user's global git excludes are not
+///   read, so the same repository gives the same result on every machine.
+/// - Hidden files are scanned (`.github/`, `.env.example` carry signal)
 /// - Returns regular files only; symbolic links are not followed, so a
 ///   repository cannot point the scan at files outside itself
 /// - Skips files larger than `MAX_FILE_BYTES`
@@ -40,11 +45,16 @@ pub fn scan_repository(root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     }
 
-    let mut files: Vec<PathBuf> = WalkDir::new(root)
-        .into_iter()
+    let mut files: Vec<PathBuf> = WalkBuilder::new(root)
+        .hidden(false)
+        .parents(false)
+        .git_global(false)
+        .require_git(false)
+        .follow_links(false)
         .filter_entry(|entry| !is_ignored_dir(entry))
+        .build()
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| entry.file_type().is_some_and(|t| t.is_file()))
         .filter(|entry| {
             entry
                 .metadata()
@@ -112,6 +122,33 @@ mod tests {
             let ignored_file = root.join(ignored).join("ignored.txt");
             assert!(!result.contains(&ignored_file));
         }
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn honours_gitignore_files() {
+        let root = unique_temp_dir("codedna_scanner_gitignore_test");
+        fs::write(root.join(".gitignore"), "generated/\n*.log\n!keep.log\n").unwrap();
+        fs::create_dir_all(root.join("generated")).unwrap();
+        fs::write(root.join("generated/out.js"), "x").unwrap();
+        fs::write(root.join("debug.log"), "x").unwrap();
+        fs::write(root.join("keep.log"), "x").unwrap();
+        fs::create_dir_all(root.join("pkg")).unwrap();
+        fs::write(root.join("pkg/.gitignore"), "local.ts\n").unwrap();
+        fs::write(root.join("pkg/local.ts"), "x").unwrap();
+        fs::write(root.join("pkg/main.ts"), "x").unwrap();
+        fs::create_dir_all(root.join(".github")).unwrap();
+        fs::write(root.join(".github/ci.yml"), "x").unwrap();
+
+        let result = scan_repository(&root);
+
+        assert!(!result.contains(&root.join("generated/out.js")));
+        assert!(!result.contains(&root.join("debug.log")));
+        assert!(!result.contains(&root.join("pkg/local.ts")));
+        assert!(result.contains(&root.join("keep.log")));
+        assert!(result.contains(&root.join("pkg/main.ts")));
+        assert!(result.contains(&root.join(".github/ci.yml")));
 
         fs::remove_dir_all(root).ok();
     }

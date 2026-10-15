@@ -388,6 +388,8 @@ mod tests {
         AnalysisResult {
             project_type: "CLI tool".to_string(),
             total_loc: files.iter().map(|f| f.1).sum(),
+            comment_lines: 0,
+            blank_lines: 0,
             languages,
             frameworks: frameworks.iter().map(|s| s.to_string()).collect(),
             databases: vec![],
