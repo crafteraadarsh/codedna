@@ -115,6 +115,9 @@ pub fn render_markdown(report: &Report) -> String {
     let _ = writeln!(out, "| Frameworks | {} |", md_list(&p.frameworks));
     let _ = writeln!(out, "| Databases | {} |", md_list(&p.databases));
     let _ = writeln!(out, "| Infrastructure | {} |", md_list(&p.infrastructure));
+    if !p.workspaces.is_empty() {
+        let _ = writeln!(out, "| Workspaces | {} |", md_list(&workspace_summaries(p)));
+    }
 
     if !p.languages.is_empty() {
         let _ = writeln!(out, "\n## Languages\n");
@@ -370,6 +373,13 @@ pub fn render_html(report: &Report) -> String {
         }
         let _ = writeln!(out, "</td></tr>");
     }
+    if !p.workspaces.is_empty() {
+        let _ = write!(out, "<tr><th>Workspaces</th><td class=\"tags\">");
+        for s in workspace_summaries(p) {
+            let _ = write!(out, "<span>{}</span>", esc(&s));
+        }
+        let _ = writeln!(out, "</td></tr>");
+    }
     let _ = writeln!(out, "</table>");
 
     if !p.languages.is_empty() {
@@ -574,6 +584,10 @@ fn esc(s: &str) -> String {
 // Shared text
 // ---------------------------------------------------------------------------
 
+fn workspace_summaries(p: &crate::context::ContextPack) -> Vec<String> {
+    p.workspaces.iter().map(|w| w.summary.clone()).collect()
+}
+
 fn cycles_note(count: usize) -> String {
     format!(
         "Files in {count} group{} import each other. Type-only imports count too, so check each before refactoring.",
@@ -632,6 +646,7 @@ mod tests {
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
             circular_imports: Vec::new(),
+            workspaces: Vec::new(),
             languages,
             frameworks: vec!["<b>Axum</b>".to_string()],
             databases: vec![],

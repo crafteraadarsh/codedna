@@ -615,6 +615,7 @@ mod tests {
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
             circular_imports: Vec::new(),
+            workspaces: Vec::new(),
             languages,
             frameworks: frameworks.iter().map(|s| s.to_string()).collect(),
             databases: vec![],

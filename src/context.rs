@@ -27,6 +27,9 @@ const CHARS_PER_TOKEN: usize = 4;
 /// How many entries each ranked list keeps.
 const LIST_LIMIT: usize = 10;
 
+/// Packages listed per workspace.
+const WORKSPACE_PACKAGE_LIMIT: usize = 20;
+
 /// Depth of the directory map before it is trimmed to the budget.
 pub const MAP_DEPTH: usize = 3;
 
@@ -46,6 +49,13 @@ pub struct ImportedFile {
 }
 
 /// A file and its size.
+/// A workspace and the first of its packages, each as `name (path)`.
+#[derive(Debug, Serialize)]
+pub struct WorkspaceLine {
+    pub summary: String,
+    pub packages: Vec<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct SizedFile {
     pub file: String,
@@ -76,6 +86,8 @@ pub struct ContextPack {
     pub circular_import_count: usize,
     /// The first few of those, each as `a → b → a`.
     pub circular_imports: Vec<String>,
+    /// Workspaces with their packages, e.g. `Cargo (Cargo.toml): 2 packages`.
+    pub workspaces: Vec<WorkspaceLine>,
     pub map: String,
     pub map_truncated: bool,
 }
@@ -118,6 +130,19 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
             .iter()
             .take(LIST_LIMIT)
             .map(|c| short_cycle_line(c))
+            .collect(),
+        workspaces: result
+            .workspaces
+            .iter()
+            .map(|w| WorkspaceLine {
+                summary: crate::workspaces::summary(w),
+                packages: w
+                    .packages
+                    .iter()
+                    .take(WORKSPACE_PACKAGE_LIMIT)
+                    .map(|p| format!("{} ({})", p.name, show(&p.path)))
+                    .collect(),
+            })
             .collect(),
         map: String::new(),
         map_truncated: false,
@@ -182,6 +207,16 @@ pub fn render_markdown(pack: &ContextPack) -> String {
         "- Infrastructure: {}",
         list_or_none(&pack.infrastructure)
     );
+
+    if !pack.workspaces.is_empty() {
+        let _ = writeln!(out, "\n## Workspaces\n");
+        for w in &pack.workspaces {
+            let _ = writeln!(out, "- {}", w.summary);
+            for p in &w.packages {
+                let _ = writeln!(out, "  - {p}");
+            }
+        }
+    }
 
     if !pack.entry_points.is_empty() {
         let _ = writeln!(out, "\n## Entry points\n");
@@ -374,6 +409,7 @@ mod tests {
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
             circular_imports: Vec::new(),
+            workspaces: Vec::new(),
             languages,
             frameworks: vec![],
             databases: vec![],

@@ -21,6 +21,7 @@ mod runbook;
 mod safe_text;
 mod scanner;
 mod vulns;
+mod workspaces;
 
 fn main() {
     cli::run();
