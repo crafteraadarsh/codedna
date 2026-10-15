@@ -69,8 +69,9 @@ curl -fsSL --proto '=https' --tlsv1.2 -o "$tmp/$archive.sha256" "$base/$archive.
 
 expected="$(cut -d' ' -f1 <"$tmp/$archive.sha256")"
 actual="$(sha "$tmp/$archive")"
-[ -n "$expected" ] && [ "$expected" = "$actual" ] ||
+if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
     err "checksum mismatch for $archive; refusing to install"
+fi
 
 tar -xzf "$tmp/$archive" -C "$tmp"
 mkdir -p "$INSTALL_DIR"
