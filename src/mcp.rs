@@ -293,7 +293,11 @@ impl Server {
                 let limit = usize_arg(args, "limit")?
                     .unwrap_or(DEFAULT_LIMIT)
                     .clamp(1, crate::audit::MAX_FINDINGS);
-                let mut report = crate::audit::audit(&root);
+                let osv = bool_arg(args, "check_dependencies")?
+                    .unwrap_or(false)
+                    .then(crate::vulns::OsvApi::new);
+                let source = osv.as_ref().map(|s| s as &dyn crate::vulns::Source);
+                let mut report = crate::audit::audit(&root, source);
                 if report.findings.len() > limit {
                     report.findings.truncate(limit);
                     report.truncated = true;
@@ -306,6 +310,7 @@ impl Server {
                     "total_findings": report.total_findings,
                     "truncated": report.truncated,
                     "lowered": report.lowered,
+                    "dependencies": report.dependencies,
                     "findings": report.findings,
                 })))
             }
@@ -509,11 +514,12 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "audit_repo",
-            "description": "Supply-chain red flags: hardcoded secrets (values never shown), install scripts that download or run code, decode-and-eval obfuscation, checked-in executables, hidden Unicode (Trojan Source) and typosquatted dependency names. Use before installing or running an unfamiliar repository. Results are leads to review, not a verdict.",
+            "description": "Supply-chain red flags: hardcoded secrets (values never shown), install scripts that download or run code, decode-and-eval obfuscation, checked-in executables, hidden Unicode (Trojan Source) and typosquatted dependency names. With check_dependencies, also lockfile versions with known vulnerabilities (OSV). Use before installing or running an unfamiliar repository. Results are leads to review, not a verdict.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "path": path,
+                    "check_dependencies": { "type": "boolean", "description": "Also check lockfile dependency versions for known vulnerabilities. Sends package names and versions to osv.dev (default false)." },
                     "limit": { "type": "integer", "minimum": 1, "maximum": crate::audit::MAX_FINDINGS, "description": "Maximum number of findings to return, most severe first (default 100)." }
                 }
             },
@@ -540,6 +546,14 @@ fn str_arg<'a>(args: &'a Value, key: &str) -> Result<Option<&'a str>, String> {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.as_str())),
         Some(_) => Err(format!("Argument '{key}' must be a string.")),
+    }
+}
+
+fn bool_arg(args: &Value, key: &str) -> Result<Option<bool>, String> {
+    match args.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
+        Some(_) => Err(format!("Argument '{key}' must be true or false.")),
     }
 }
 

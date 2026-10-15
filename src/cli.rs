@@ -165,6 +165,11 @@ pub enum Commands {
         /// Exit with status 1 if any finding is at or above this severity
         #[arg(long, value_name = "LEVEL", value_parser = ["low", "medium", "high"])]
         fail_on: Option<String>,
+
+        /// Also check lockfile versions for known vulnerabilities (sends
+        /// package names and versions to osv.dev)
+        #[arg(long, default_value_t = false)]
+        deps: bool,
     },
 
     /// How to run a project: commands, environment variable names and API routes
@@ -465,10 +470,13 @@ pub fn run() {
             path,
             json,
             fail_on,
+            deps,
         } => {
             eprintln!("Auditing {}…", shown(&path));
             let (local_path, _guard) = resolve(&path);
-            let report = crate::audit::audit(&local_path);
+            let osv = deps.then(crate::vulns::OsvApi::new);
+            let source = osv.as_ref().map(|s| s as &dyn crate::vulns::Source);
+            let report = crate::audit::audit(&local_path, source);
             if json {
                 match serde_json::to_string_pretty(&report) {
                     Ok(text) => println!("{text}"),
@@ -482,6 +490,16 @@ pub fn run() {
                 .and_then(crate::audit::Severity::from_name);
             if threshold.is_some_and(|level| report.has_at_least(level)) {
                 std::process::exit(1);
+            }
+            // A gate must not pass just because the database was down.
+            if threshold.is_some()
+                && report
+                    .dependencies
+                    .as_ref()
+                    .is_some_and(|d| d.error.is_some())
+            {
+                eprintln!("error: dependencies could not be checked");
+                std::process::exit(2);
             }
         }
 
@@ -596,19 +614,30 @@ mod tests {
             Commands::Audit {
                 json: false,
                 fail_on: None,
+                deps: false,
                 ..
             }
         ));
-        let cli =
-            Cli::try_parse_from(["codedna", "audit", "x", "--json", "--fail-on", "high"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "codedna",
+            "audit",
+            "x",
+            "--json",
+            "--fail-on",
+            "high",
+            "--deps",
+        ])
+        .unwrap();
         match cli.command {
             Commands::Audit {
                 path,
                 json,
                 fail_on,
+                deps,
             } => {
                 assert_eq!(path, "x");
                 assert!(json);
+                assert!(deps);
                 assert_eq!(fail_on.as_deref(), Some("high"));
             }
             _ => panic!("expected audit command"),

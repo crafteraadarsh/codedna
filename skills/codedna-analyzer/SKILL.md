@@ -126,9 +126,10 @@ The same history gives **files that change together** (co-change coupling): sour
 codedna audit .
 codedna audit https://github.com/user/repo --json
 codedna audit . --fail-on high
+codedna audit . --deps
 ```
 
-An offline scan for red flags that often show up in malicious or compromised repositories:
+A scan for red flags that often show up in malicious or compromised repositories:
 
 | Check | What it flags | Severity |
 |---|---|---|
@@ -139,8 +140,11 @@ An offline scan for red flags that often show up in malicious or compromised rep
 | `hidden-unicode` | Bidirectional controls (Trojan Source) and zero-width characters in code | low–high |
 | `minified` | Very long lines in non-`.min` source files | low |
 | `typosquat` | npm or PyPI dependencies one edit away from a popular package | medium |
+| `vulnerable-dependency` | With `--deps`: a locked dependency version with published advisories in [OSV](https://osv.dev), with the advisory ids and the version that fixes them | low–high |
 
 The risk score adds 25 per high, 10 per medium and 2 per low finding, capped at 100. `--fail-on low|medium|high` exits with status 1 when a finding reaches that level, for CI. Each finding also has a `confidence` (`high`, `medium`, `low`): how likely it is a real problem rather than a false alarm. Findings in tests, docs, examples and fixtures are lowered one step on severity and confidence and carry a `context` field (`test`, `docs`, `example`, `fixture`); `lowered` counts them. The JSON includes a `note`. Findings are leads to review, not a safety verdict: clean code can trip a check, a careful attacker can avoid them all, and a clean result does not prove the code is safe.
+
+`--deps` (MCP: `check_dependencies: true`) is the only part of the audit that uses the network, so it is off by default. It reads `Cargo.lock`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements*.txt` (`==` pins), `poetry.lock`, `uv.lock`, `Pipfile.lock`, `go.mod`, `Gemfile.lock` and `composer.lock` (not inside `node_modules`, `vendor` or `target`), and sends package names and versions, nothing else, to osv.dev. Each vulnerable package is one finding: its severity is the worst advisory's (GitHub's rating, else the CVSS score; RustSec "unmaintained" notices are low). The JSON adds `dependencies` with `packages_checked`, `lockfiles` and an `error` if the database could not be reached; with `--fail-on`, that exits with status 2 so a CI gate cannot pass unchecked. A matched version means the advisory applies to that release, not that the vulnerable code is reachable from this project.
 
 ### Runbook
 

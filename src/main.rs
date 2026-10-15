@@ -20,6 +20,7 @@ mod rules;
 mod runbook;
 mod safe_text;
 mod scanner;
+mod vulns;
 
 fn main() {
     cli::run();
