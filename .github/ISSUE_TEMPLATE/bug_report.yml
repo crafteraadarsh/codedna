@@ -1,0 +1,33 @@
+name: Bug report
+description: Wrong detection, a crash, or bad output
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: CodeDna version
+      description: Output of `codedna --version`
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command you ran
+      placeholder: codedna analyze ./my-project
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected vs what happened
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: Repository (if public) or project type
+      placeholder: https://github.com/... or "Next.js monorepo with Prisma"
+  - type: input
+    id: os
+    attributes:
+      label: OS

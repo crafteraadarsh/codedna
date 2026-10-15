@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: First time contributing?
+    url: https://github.com/crafteraadarsh/codedna/blob/main/CONTRIBUTING.md#your-first-pr-in-15-minutes
+    about: Adding a detector is a one-line rule plus one test.
