@@ -1,6 +1,6 @@
 [package]
 name = "codedna"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Rust-powered CLI for codebase intelligence: stack detection, architecture hints, LOC breakdown, repo maps, and dead-code heuristics."
 license = "MIT"
