@@ -720,7 +720,10 @@ mod tests {
         write_file(&users, "router = 1");
 
         let main = dir.join("api").join("main.py");
-        write_file(&main, "from api.routes import items, users\nimport api.routes.items");
+        write_file(
+            &main,
+            "from api.routes import items, users\nimport api.routes.items",
+        );
 
         let deps = parse_dependencies(&main);
         assert!(deps.contains(&normalize(&items)));
