@@ -431,7 +431,8 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
 | `frameworks` | string[] | Detected frameworks |
 | `databases` | string[] | Detected databases and ORMs |
 | `infrastructure` | string[] | Detected DevOps tooling |
-| `architecture` | string | Inferred architecture pattern |
+| `architecture` | string | Architecture summary from detected frameworks and databases |
+| `architecture_details` | object | Layers found in the code (`layers`), import counts between them (`flows`), `confidence` (`high`/`medium`/`low`) and `evidence` |
 | `dead_code` | string[] | Files nothing reaches from an entry point |
 | `dependency_graph` | object | File → imported files |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` |
@@ -515,6 +516,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 <br>
 
+- **Architecture** comes from two sources. The summary line uses detected frameworks and databases. `architecture_details` then checks the code: files are grouped into layers by folder and file name (`routes/`, `user.controller.ts`, `services/`, `models.py`, …), tests are left out, and imports between layers are counted. Confidence is high when layers import each other top-down, medium when the folders exist without supporting imports, and low when no layers are found.
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
 - **Dead code is a heuristic.** A file is listed when nothing reaches it through imports from an entry point. Tests, declaration files and common tool configs count as entry points, but dynamic imports, path aliases and framework conventions can still hide real usage. Check before deleting anything.
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.

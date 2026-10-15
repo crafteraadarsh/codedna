@@ -90,6 +90,9 @@ pub fn render_markdown(report: &Report) -> String {
     let _ = writeln!(out, "| | |\n|---|---|");
     let _ = writeln!(out, "| Project type | {} |", md_cell(&p.project_type));
     let _ = writeln!(out, "| Architecture | {} |", md_cell(&p.architecture));
+    if !p.code_layers.is_empty() {
+        let _ = writeln!(out, "| Code layers | {} |", md_cell(&p.code_layers));
+    }
     let _ = writeln!(out, "| Lines of code | {} |", p.total_loc);
     let _ = writeln!(out, "| Files | {} |", p.file_count);
     let _ = writeln!(out, "| Frameworks | {} |", md_list(&p.frameworks));
@@ -539,6 +542,7 @@ mod tests {
             total_loc: 120,
             comment_lines: 0,
             blank_lines: 0,
+            architecture_details: Default::default(),
             languages,
             frameworks: vec!["<b>Axum</b>".to_string()],
             databases: vec![],

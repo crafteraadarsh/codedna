@@ -1,4 +1,5 @@
 mod analysis;
+mod architecture;
 mod audit;
 mod cli;
 mod context;

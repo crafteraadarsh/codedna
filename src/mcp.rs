@@ -202,6 +202,7 @@ impl Server {
                 Ok(pretty(&json!({
                     "project_type": result.project_type,
                     "architecture": result.architecture,
+                    "architecture_details": result.architecture_details,
                     "languages": result.languages,
                     "frameworks": result.frameworks,
                     "databases": result.databases,
@@ -549,6 +550,7 @@ fn summary(result: &AnalysisResult, limit: usize) -> Value {
     json!({
         "project_type": result.project_type,
         "architecture": result.architecture,
+        "architecture_details": result.architecture_details,
         "total_loc": result.total_loc,
         "total_files": result.file_breakdown.len(),
         "languages": result.languages,

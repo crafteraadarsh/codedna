@@ -87,6 +87,20 @@ pub fn print_report(result: &AnalysisResult) {
     // ── Architecture ──────────────────────────────────────────────────────────
     section("Architecture");
     println!("  {}", result.architecture);
+    let details = &result.architecture_details;
+    match details.layer_chain() {
+        Some(chain) => println!(
+            "  Code layers: {chain}  (confidence: {})",
+            details.confidence.as_str()
+        ),
+        None => println!(
+            "  Code layers: none found  (confidence: {})",
+            details.confidence.as_str()
+        ),
+    }
+    for line in &details.evidence {
+        println!("    \x1b[2m· {line}\x1b[0m");
+    }
 
     // ── Languages ─────────────────────────────────────────────────────────────
     section("Languages");
@@ -332,6 +346,7 @@ mod tests {
             total_loc: 14550,
             comment_lines: 0,
             blank_lines: 0,
+            architecture_details: Default::default(),
             languages,
             frameworks: vec!["React".to_string(), "Express".to_string()],
             databases: vec!["PostgreSQL".to_string()],

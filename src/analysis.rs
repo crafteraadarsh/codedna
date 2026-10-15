@@ -3,6 +3,7 @@
 //! Wires every analysis module together and produces a single `AnalysisResult`
 //! that represents the complete intelligence report for a repository.
 
+use crate::architecture::{self, ArchitectureInsight};
 use crate::dead_code_detector;
 use crate::dependency_graph;
 use crate::framework_detector;
@@ -63,6 +64,11 @@ pub struct AnalysisResult {
     /// Inferred architecture description
     /// (e.g. `"Frontend → API → Database"`).
     pub architecture: String,
+
+    /// Layers found in the code, the imports between them, a confidence
+    /// level and the evidence behind it.
+    #[serde(default)]
+    pub architecture_details: ArchitectureInsight,
 
     /// Files unreachable from any entry point via dependency graph traversal.
     pub dead_code: Vec<PathBuf>,
@@ -183,6 +189,12 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         &infrastructure,
     );
     let architecture = infer_architecture(&fw_result.frameworks, &fw_result.databases);
+    let architecture_details = architecture::infer(
+        root,
+        &dep_graph,
+        &fw_result.frameworks,
+        &fw_result.databases,
+    );
 
     // ── 8. Normalise paths ──────────────────────────────────────────────────
     // Strip the `root` prefix so output is always relative, regardless of
@@ -223,6 +235,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         databases: fw_result.databases,
         infrastructure,
         architecture,
+        architecture_details,
         dead_code,
         dependency_graph,
         file_breakdown,
