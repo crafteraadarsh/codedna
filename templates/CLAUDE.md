@@ -5,20 +5,21 @@
 Run:
 
 ```bash
-codedna json . --compact
+codedna context .
 ```
+
+If the CodeDna MCP tools are connected, call `get_context` instead.
 
 Use the output to understand:
 
-- `project_type` before making structural assumptions
-- `frameworks` before adding libraries or patterns
-- `databases` before changing persistence code
-- `architecture` before introducing new layers
-- `file_breakdown` to find major files quickly
-- `dead_code` as a heuristic only; verify before deleting anything
+- the project type before making structural assumptions
+- frameworks before adding libraries or patterns
+- databases before changing persistence code
+- architecture and entry points before introducing new layers
+- the largest and most imported files to find the core quickly
 
 ## Working Rules
 
 - Match the existing framework and language choices.
 - Prefer extending current patterns over adding new architecture.
-- Treat `dead_code` as a hint, not proof.
+- Treat dead-code candidates as a hint, not proof.

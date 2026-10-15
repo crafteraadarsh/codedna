@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
+# Add the CodeDna skill to a repository (or to Codex globally).
+#
+#   scripts/bootstrap-agent-files.sh <target-repo> [agent...]
+#
+# Agents:
+#   claude    .claude/skills/codedna and a CLAUDE.md (if the repo has none)
+#   codex     ~/.codex/skills/codedna (global)
+#   opencode  .opencode/skills/codedna
+#   agents    .agents/skills/codedna (Antigravity, and Codex per repository)
 
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 <target-repo-path> [codex] [opencode] [claude]" >&2
-  echo "Default agents: opencode claude" >&2
+  echo "Usage: $0 <target-repo-path> [claude] [codex] [opencode] [agents]" >&2
+  echo "Default agents: claude opencode agents" >&2
 }
 
 if [[ $# -lt 1 ]]; then
@@ -13,8 +22,9 @@ if [[ $# -lt 1 ]]; then
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+skill_src="$repo_root/skill/codedna"
 target_repo="$1"
-shift || true
+shift
 
 if [[ ! -d "$target_repo" ]]; then
   echo "Target repo not found: $target_repo" >&2
@@ -23,34 +33,43 @@ fi
 
 declare -a agents
 if [[ $# -eq 0 ]]; then
-  agents=("opencode" "claude")
+  agents=("claude" "opencode" "agents")
 else
   agents=("$@")
 fi
 
-copy_file() {
-  local src="$1"
-  local dst="$2"
-  cp "$src" "$dst"
-  echo "Wrote $dst"
+install_skill() {
+  local dst="$1/codedna"
+  mkdir -p "$1"
+  rm -rf "$dst"
+  mkdir -p "$dst"
+  cp "$skill_src/SKILL.md" "$dst/SKILL.md"
+  echo "Installed skill to $dst"
 }
 
 for agent in "${agents[@]}"; do
   case "$agent" in
+    claude)
+      install_skill "$target_repo/.claude/skills"
+      if [[ -e "$target_repo/CLAUDE.md" ]]; then
+        echo "Kept existing $target_repo/CLAUDE.md"
+      else
+        cp "$repo_root/templates/CLAUDE.md" "$target_repo/CLAUDE.md"
+        echo "Wrote $target_repo/CLAUDE.md"
+      fi
+      ;;
     codex)
-      mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-      rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/codedna"
-      cp -R "$repo_root/skill/codedna" "${CODEX_HOME:-$HOME/.codex}/skills/codedna"
-      echo "Installed Codex skill to ${CODEX_HOME:-$HOME/.codex}/skills/codedna"
+      codex_skills="${CODEX_HOME:-$HOME/.codex}/skills"
+      mkdir -p "$codex_skills"
+      rm -rf "$codex_skills/codedna"
+      cp -R "$skill_src" "$codex_skills/codedna"
+      echo "Installed skill to $codex_skills/codedna"
       ;;
     opencode)
-      mkdir -p "$target_repo/.opencode/skills"
-      rm -rf "$target_repo/.opencode/skills/codedna"
-      cp -R "$repo_root/.opencode/skills/codedna" "$target_repo/.opencode/skills/codedna"
-      echo "Installed OpenCode skill to $target_repo/.opencode/skills/codedna"
+      install_skill "$target_repo/.opencode/skills"
       ;;
-    claude)
-      copy_file "$repo_root/templates/CLAUDE.md" "$target_repo/CLAUDE.md"
+    agents | agy | antigravity)
+      install_skill "$target_repo/.agents/skills"
       ;;
     *)
       echo "Unknown agent: $agent" >&2

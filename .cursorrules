@@ -2,32 +2,25 @@
 
 ## Project Analysis
 
-Before suggesting any code, run `codedna json . --compact` in the terminal
-and use the output to understand the project stack, architecture, and dead code.
+Before suggesting code, run `codedna context .` in the terminal and use the
+briefing to understand the project's stack, architecture and key files.
+If the CodeDna MCP tools are connected, call `get_context` instead.
 
-For remote repos, pass the URL: `codedna json <url> --compact`
+For a remote repo, pass its URL: `codedna context <https-url>`.
+For full JSON: `codedna json . --compact`.
 
 ## Rules derived from CodeDna output
 
-- Match detected frameworks — do not introduce new ones without asking
+- Match detected frameworks; do not introduce new ones without asking
 - Follow the detected architecture pattern
-- Do not import from files listed in dead_code
-- Match the dominant language (highest LOC %) for new files
-- Match existing database patterns when adding data access code
-- Match existing infrastructure patterns (Docker, CI, etc.)
-
-## Quick context command
-
-```
-codedna json . --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
-```
+- Do not import from dead-code candidates without checking them first
+- Match the dominant language for new files
+- Match existing database and infrastructure patterns
 
 ## Installation
 
-```
-cargo install --git https://github.com/crafteraadarsh/codedna
-```
+See https://github.com/crafteraadarsh/codedna#install-cli
 
 ## Skill reference
 
-Full skill documentation: skills/codedna-analyzer/SKILL.md
+skill/codedna/SKILL.md (short) and skills/codedna-analyzer/SKILL.md (full reference)

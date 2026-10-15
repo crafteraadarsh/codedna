@@ -110,7 +110,7 @@ jobs:
         run: cargo audit
 
   scripts:
-    name: Install scripts
+    name: Install scripts and skill
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -118,8 +118,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Lint install.sh
-        run: shellcheck install.sh
+      - name: Lint shell scripts
+        run: shellcheck install.sh scripts/*.sh
+
+      - name: Check skill copies match
+        run: |
+          for copy in .agents .claude .opencode plugins/codedna; do
+            diff -u skill/codedna/SKILL.md "$copy/skills/codedna/SKILL.md"
+          done
 
       - name: Parse install.ps1
         shell: pwsh
