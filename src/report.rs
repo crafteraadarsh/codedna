@@ -140,6 +140,24 @@ pub fn render_markdown(report: &Report) -> String {
         for f in &h.hotspots {
             let _ = writeln!(out, "| {} | {} | {} |", md_code(&f.file), f.commits, f.loc);
         }
+        if !h.coupling.is_empty() {
+            let _ = writeln!(out, "\n### Files that change together\n");
+            let _ = writeln!(out, "{}\n", COUPLING_NOTE);
+            let _ = writeln!(
+                out,
+                "| Files | Shared commits | Together |\n|---|---:|---:|"
+            );
+            for c in &h.coupling {
+                let _ = writeln!(
+                    out,
+                    "| {} + {} | {} | {}% |",
+                    md_code(&c.file),
+                    md_code(&c.other),
+                    c.shared,
+                    c.percent
+                );
+            }
+        }
     }
 
     if !report.dead_code.is_empty() {
@@ -383,6 +401,25 @@ pub fn render_html(report: &Report) -> String {
             );
         }
         let _ = writeln!(out, "</table>");
+        if !h.coupling.is_empty() {
+            let _ = writeln!(out, "<h3>Files that change together</h3>");
+            let _ = writeln!(out, "<p class=\"note\">{}</p>", esc(COUPLING_NOTE));
+            let _ = writeln!(
+                out,
+                "<table><tr><th>Files</th><th class=\"n\">Shared commits</th><th class=\"n\">Together</th></tr>"
+            );
+            for c in &h.coupling {
+                let _ = writeln!(
+                    out,
+                    "<tr><td><code>{}</code> + <code>{}</code></td><td class=\"n\">{}</td><td class=\"n\">{}%</td></tr>",
+                    esc(&c.file),
+                    esc(&c.other),
+                    c.shared,
+                    c.percent
+                );
+            }
+            let _ = writeln!(out, "</table>");
+        }
     }
 
     if !report.dead_code.is_empty() {
@@ -462,6 +499,8 @@ fn dead_code_note(count: usize) -> String {
         if count == 1 { " is" } else { "s are" }
     )
 }
+
+const COUPLING_NOTE: &str = "Pairs of files usually changed in the same commit. \"Together\" is the share of the less active file's commits that also changed the other. A change to one often needs a change to both.";
 
 fn hotspot_note(h: &HotspotReport) -> String {
     format!(
@@ -576,6 +615,12 @@ mod tests {
                 loc: 50,
                 score: 350,
             }],
+            coupling: vec![crate::hotspots::Coupling {
+                file: HOSTILE.to_string(),
+                other: "b.rs".to_string(),
+                shared: 3,
+                percent: 75,
+            }],
         });
         let html = render_html(&report);
         assert!(html.contains("<h2>Hotspots</h2>"));
@@ -583,6 +628,8 @@ mod tests {
         let md = render_markdown(&report);
         assert!(md.contains("## Hotspots"));
         assert!(md.contains("last 90 days (7 commits)"));
+        assert!(md.contains("### Files that change together"));
+        assert!(html.contains("<h3>Files that change together</h3>"));
     }
 
     #[test]

@@ -152,7 +152,7 @@ codedna analyze https://github.com/vercel/next.js
 codedna report . -o report.md
 codedna report . --format html -o report.html
 
-# Hotspots: large files that change often (Git history)
+# Hotspots: large files that change often, and files that change together
 codedna hotspots .
 
 # Supply-chain red flags before you install or run a repo
@@ -192,7 +192,7 @@ All analysis commands accept a **local path** or a **Git URL**.
 | `codedna analyze [path\|url]` | Full intelligence report |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report |
 | `codedna report [path\|url] --format html -o FILE` | Self-contained HTML report (print to PDF from a browser) |
-| `codedna hotspots [path\|url] [--days N] [--limit N] [--json]` | Files ranked by Git commits × lines of code |
+| `codedna hotspots [path\|url] [--days N] [--limit N] [--json]` | Files ranked by Git commits × lines of code, plus files usually changed in the same commit |
 | `codedna audit [path\|url] [--json] [--fail-on LEVEL]` | Supply-chain red flags: secrets, risky install scripts, obfuscation, executables, hidden Unicode, typosquats |
 | `codedna runbook [path\|url] [--json]` | How to run it: scripts and targets, environment variable names (values are never read), API routes |
 | `codedna analyze [path\|url] --time` | Report with elapsed time |
@@ -584,7 +584,7 @@ src/
 ├── framework_detector.rs   — manifest parsing + per-file import scanning
 ├── dependency_graph.rs     — import/require/mod statement parsing
 ├── dead_code_detector.rs   — BFS reachability from entry points
-├── hotspots.rs             — Git churn × size ranking
+├── hotspots.rs             — Git churn × size ranking, co-change coupling
 ├── audit.rs                — supply-chain red-flag scan
 ├── runbook.rs              — commands, env var names and API routes
 ├── report.rs               — shareable Markdown / HTML reports
