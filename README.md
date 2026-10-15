@@ -102,7 +102,7 @@ codedna context .
 
 It prints a short Markdown briefing (project type, stack, architecture, entry points, key files, directory map) sized for an agent's context window. `--max-tokens N` changes the budget; `--format json` gives the same data as JSON.
 
-**2. MCP server.** `codedna mcp` serves read-only tools over stdio: `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code` and `repo_map`.
+**2. MCP server.** `codedna mcp` serves read-only tools over stdio: `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map` and `find_hotspots`.
 
 | Agent | Setup |
 |---|---|
@@ -152,6 +152,9 @@ codedna analyze https://github.com/vercel/next.js
 codedna report . -o report.md
 codedna report . --format html -o report.html
 
+# Hotspots: large files that change often (Git history)
+codedna hotspots .
+
 # Short briefing for AI agents
 codedna context .
 
@@ -183,6 +186,7 @@ All analysis commands accept a **local path** or a **Git URL**.
 | `codedna analyze [path\|url]` | Full intelligence report |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report |
 | `codedna report [path\|url] --format html -o FILE` | Self-contained HTML report (print to PDF from a browser) |
+| `codedna hotspots [path\|url] [--days N] [--limit N] [--json]` | Files ranked by Git commits × lines of code |
 | `codedna analyze [path\|url] --time` | Report with elapsed time |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Per-file LOC breakdown |
@@ -572,6 +576,7 @@ src/
 ├── framework_detector.rs   — manifest parsing + per-file import scanning
 ├── dependency_graph.rs     — import/require/mod statement parsing
 ├── dead_code_detector.rs   — BFS reachability from entry points
+├── hotspots.rs             — Git churn × size ranking
 ├── report.rs               — shareable Markdown / HTML reports
 ├── reporter.rs             — CLI report + JSON output formatting
 ├── rules.rs                — loads the detection rules (rules.toml)

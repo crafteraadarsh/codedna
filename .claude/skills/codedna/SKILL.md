@@ -27,9 +27,12 @@ This prints a short Markdown briefing: project type, stack, architecture, entry 
 | Where is a framework used? | `find_framework_usage` | `codedna framework <name> .` |
 | Possibly unused files | `find_dead_code` | `codedna deadcode .` |
 | Folder layout | `repo_map` | `codedna map . --depth 3` |
+| Risky files: large and changed often | `find_hotspots` | `codedna hotspots .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
 When the user wants something to share or keep, write a report: `codedna report . -o report.md`, or `codedna report . --format html -o report.html` (open it in a browser and print to PDF).
+
+Before a refactor, or when asked where the risky code is, check hotspots: files that are large and changed often in Git history. Start with those, and expect them to need extra care and tests.
 
 Every command also accepts a public `https://` Git URL instead of `.`.
 

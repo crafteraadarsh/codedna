@@ -62,6 +62,11 @@ fn scrub(text: &str, url: &str) -> String {
 ///
 /// Uses a shallow fetch (depth 1) to minimise download size.
 pub fn clone_repo(url: &str) -> Result<TempDir, String> {
+    clone_repo_with_depth(url, 1)
+}
+
+/// Clone like [`clone_repo`], fetching the newest `depth` commits of history.
+pub fn clone_repo_with_depth(url: &str, depth: i32) -> Result<TempDir, String> {
     if url.starts_with("http://") {
         return Err(format!(
             "Refusing to clone over unencrypted http://: {}. Use https:// instead.",
@@ -71,9 +76,8 @@ pub fn clone_repo(url: &str) -> Result<TempDir, String> {
 
     let temp_dir = TempDir::new().map_err(|e| format!("Failed to create temp directory: {e}"))?;
 
-    // Set up fetch options for shallow clone (depth 1)
     let mut fetch_opts = git2::FetchOptions::new();
-    fetch_opts.depth(1);
+    fetch_opts.depth(depth.max(1));
 
     let mut builder = git2::build::RepoBuilder::new();
     builder.fetch_options(fetch_opts);
@@ -91,8 +95,17 @@ pub fn clone_repo(url: &str) -> Result<TempDir, String> {
 /// **must** keep the `TempDir` alive until analysis is complete — dropping it
 /// deletes the cloned repository.
 pub fn resolve_input(input: &str) -> Result<(std::path::PathBuf, Option<TempDir>), String> {
+    resolve_input_with_depth(input, 1)
+}
+
+/// Like [`resolve_input`], but a cloned repository keeps the newest `depth`
+/// commits of history.
+pub fn resolve_input_with_depth(
+    input: &str,
+    depth: i32,
+) -> Result<(std::path::PathBuf, Option<TempDir>), String> {
     if is_git_url(input) {
-        let temp_dir = clone_repo(input)?;
+        let temp_dir = clone_repo_with_depth(input, depth)?;
         let path = temp_dir.path().to_path_buf();
         Ok((path, Some(temp_dir)))
     } else {

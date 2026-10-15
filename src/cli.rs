@@ -122,6 +122,25 @@ pub enum Commands {
         output: Option<PathBuf>,
     },
 
+    /// Rank files that change often and are large (git churn × size)
+    Hotspots {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Count commits from the last N days
+        #[arg(long, default_value_t = crate::hotspots::DEFAULT_DAYS)]
+        days: u64,
+
+        /// Number of files to show
+        #[arg(long, default_value_t = crate::hotspots::DEFAULT_LIMIT)]
+        limit: usize,
+
+        /// Output JSON instead of a table
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Run an MCP server on stdio so AI agents can call CodeDna as tools
     Mcp {
         /// Folder the server may read (repeatable; default: current folder)
@@ -129,6 +148,9 @@ pub enum Commands {
         roots: Vec<PathBuf>,
     },
 }
+
+/// How many hotspots a report lists.
+const REPORT_HOTSPOTS: usize = 10;
 
 /// Output formats for `codedna context`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -156,7 +178,12 @@ pub enum ReportFormat {
 /// The returned `_guard` **must** be kept alive for the duration of the command
 /// — dropping it deletes the cloned repository.
 fn resolve(input: &str) -> (PathBuf, Option<tempfile::TempDir>) {
-    match crate::git_handler::resolve_input(input) {
+    resolve_with_depth(input, 1)
+}
+
+/// Like [`resolve`], keeping the newest `depth` commits of a cloned repository.
+fn resolve_with_depth(input: &str, depth: i32) -> (PathBuf, Option<tempfile::TempDir>) {
+    match crate::git_handler::resolve_input_with_depth(input, depth) {
         Ok(pair) => pair,
         Err(msg) => {
             eprintln!("error: {msg}");
@@ -293,7 +320,14 @@ pub fn run() {
             let result = crate::analysis::analyze(&local_path);
             let tree = crate::repo_map::render_tree(&local_path, crate::report::MAP_DEPTH);
             let name = crate::report::project_name(&path, &local_path);
-            let report = crate::report::build(&name, &result, &tree);
+            let mut report = crate::report::build(&name, &result, &tree);
+            report.hotspots = crate::hotspots::analyze(
+                &local_path,
+                &result,
+                crate::hotspots::DEFAULT_DAYS,
+                REPORT_HOTSPOTS,
+            )
+            .ok();
             let text = match format {
                 ReportFormat::Md => crate::report::render_markdown(&report),
                 ReportFormat::Html => crate::report::render_html(&report),
@@ -312,6 +346,29 @@ pub fn run() {
                         "Wrote {}",
                         crate::safe_text::sanitize(&file.to_string_lossy())
                     );
+                }
+            }
+        }
+
+        // ── hotspots ──────────────────────────────────────────────────────────
+        Commands::Hotspots {
+            path,
+            days,
+            limit,
+            json,
+        } => {
+            eprintln!("Analysing {}…", shown(&path));
+            let (local_path, _guard) = resolve_with_depth(&path, crate::hotspots::CLONE_DEPTH);
+            let result = crate::analysis::analyze(&local_path);
+            match crate::hotspots::analyze(&local_path, &result, days, limit) {
+                Ok(report) if json => match serde_json::to_string_pretty(&report) {
+                    Ok(text) => println!("{text}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                },
+                Ok(report) => print!("{}", crate::hotspots::render_text(&report)),
+                Err(msg) => {
+                    eprintln!("error: {msg}");
+                    std::process::exit(1);
                 }
             }
         }
@@ -348,6 +405,38 @@ mod tests {
             }
             _ => panic!("expected report command"),
         }
+    }
+
+    #[test]
+    fn parses_hotspots_with_defaults_and_options() {
+        let cli = Cli::try_parse_from(["codedna", "hotspots"]).unwrap();
+        match cli.command {
+            Commands::Hotspots {
+                path,
+                days,
+                limit,
+                json,
+            } => {
+                assert_eq!(path, ".");
+                assert_eq!(days, crate::hotspots::DEFAULT_DAYS);
+                assert_eq!(limit, crate::hotspots::DEFAULT_LIMIT);
+                assert!(!json);
+            }
+            _ => panic!("expected hotspots command"),
+        }
+        let cli = Cli::try_parse_from([
+            "codedna", "hotspots", "x", "--days", "30", "--limit", "5", "--json",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Hotspots {
+                days: 30,
+                limit: 5,
+                json: true,
+                ..
+            }
+        ));
     }
 
     #[test]
