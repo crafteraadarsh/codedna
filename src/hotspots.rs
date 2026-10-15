@@ -131,9 +131,11 @@ pub fn rank(result: &AnalysisResult, churn: &Churn, limit: usize) -> Vec<Hotspot
         .file_breakdown
         .iter()
         .filter_map(|f| {
-            let commits = *churn.counts.get(&f.file)?;
+            // Analysis paths start with "./"; Git paths do not.
+            let path = f.file.strip_prefix(".").unwrap_or(&f.file);
+            let commits = *churn.counts.get(path)?;
             Some(Hotspot {
-                file: sanitize(&f.file.to_string_lossy().replace('\\', "/")),
+                file: sanitize(&path.to_string_lossy().replace('\\', "/")),
                 commits,
                 loc: f.loc,
                 score: commits.saturating_mul(f.loc),
@@ -298,6 +300,18 @@ mod tests {
         assert_eq!(ranked[0].score, 1000);
         assert_eq!(ranked[1].file, "small.rs");
         assert_eq!(rank(&result, &churn, 1).len(), 1);
+    }
+
+    #[test]
+    fn matches_analysis_paths_with_leading_dot() {
+        let mut churn = Churn::default();
+        churn.counts.insert(PathBuf::from("src/main.rs"), 3);
+        let result = result(&[("./src/main.rs", 10)]);
+
+        let ranked = rank(&result, &churn, 10);
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].file, "src/main.rs");
+        assert_eq!(ranked[0].score, 30);
     }
 
     #[test]

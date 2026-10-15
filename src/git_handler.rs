@@ -61,6 +61,7 @@ fn scrub(text: &str, url: &str) -> String {
 /// the duration of the analysis — dropping it deletes the cloned files.
 ///
 /// Uses a shallow fetch (depth 1) to minimise download size.
+#[cfg(test)]
 pub fn clone_repo(url: &str) -> Result<TempDir, String> {
     clone_repo_with_depth(url, 1)
 }
@@ -94,6 +95,7 @@ pub fn clone_repo_with_depth(url: &str, depth: i32) -> Result<TempDir, String> {
 /// Returns `(Path, Option<TempDir>)`.  When the input was a URL the caller
 /// **must** keep the `TempDir` alive until analysis is complete — dropping it
 /// deletes the cloned repository.
+#[cfg(test)]
 pub fn resolve_input(input: &str) -> Result<(std::path::PathBuf, Option<TempDir>), String> {
     resolve_input_with_depth(input, 1)
 }
