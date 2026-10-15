@@ -12,9 +12,11 @@
 //! stdlib imports are ignored.
 
 use rayon::prelude::*;
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A directed dependency graph.
 ///
@@ -36,6 +38,7 @@ pub type DependencyGraph = HashMap<PathBuf, Vec<PathBuf>>;
 /// other files that cannot import anything are left out, so they are never
 /// reported as dead code. Files that cannot be read are kept with no edges.
 pub fn build_dependency_graph(files: &[PathBuf]) -> DependencyGraph {
+    BUILD.fetch_add(1, Ordering::Relaxed);
     let aliases = Aliases::from_files(files);
 
     // Each file is parsed independently — no shared mutable state needed.
@@ -49,6 +52,50 @@ pub fn build_dependency_graph(files: &[PathBuf]) -> DependencyGraph {
             (key, deps)
         })
         .collect()
+}
+
+/// Counts graph builds, so the per-thread file cache below starts empty for
+/// each build and never answers from an older scan.
+static BUILD: AtomicU64 = AtomicU64::new(0);
+
+thread_local! {
+    /// Whether a path is a file (`Some(true)`), a directory (`Some(false)`)
+    /// or neither (`None`), for the build numbered in the first field.
+    /// Import resolution asks about the same paths over and over.
+    static KINDS: RefCell<(u64, HashMap<PathBuf, Option<bool>>)> = RefCell::new((0, HashMap::new()));
+}
+
+/// What `path` is on disk, cached for the current build.
+fn path_kind(path: &Path) -> Option<bool> {
+    let build = BUILD.load(Ordering::Relaxed);
+    KINDS.with(|cell| {
+        let mut cache = cell.borrow_mut();
+        if cache.0 != build {
+            *cache = (build, HashMap::new());
+        }
+        if let Some(&kind) = cache.1.get(path) {
+            return kind;
+        }
+        let kind = fs::metadata(path).ok().and_then(|m| {
+            if m.is_file() {
+                Some(true)
+            } else if m.is_dir() {
+                Some(false)
+            } else {
+                None
+            }
+        });
+        cache.1.insert(path.to_path_buf(), kind);
+        kind
+    })
+}
+
+fn is_file(path: &Path) -> bool {
+    path_kind(path) == Some(true)
+}
+
+fn is_dir(path: &Path) -> bool {
+    path_kind(path) == Some(false)
 }
 
 // ---------------------------------------------------------------------------
@@ -420,14 +467,14 @@ fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
     let base = parent.join(specifier);
 
     // 1. Exact path
-    if base.is_file() {
+    if is_file(&base) {
         return Some(normalize(&base));
     }
 
     // 2. With extension appended
     for ext in &["ts", "tsx", "js", "jsx", "mjs"] {
         let candidate = append_extension(&base, ext);
-        if candidate.is_file() {
+        if is_file(&candidate) {
             return Some(normalize(&candidate));
         }
     }
@@ -440,7 +487,7 @@ fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
     if js_like {
         for ext in &["ts", "tsx"] {
             let candidate = base.with_extension(ext);
-            if candidate.is_file() {
+            if is_file(&candidate) {
                 return Some(normalize(&candidate));
             }
         }
@@ -449,7 +496,7 @@ fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
     // 4. Index file inside directory
     for ext in &["ts", "tsx", "js", "jsx", "mjs"] {
         let candidate = base.join(format!("index.{ext}"));
-        if candidate.is_file() {
+        if is_file(&candidate) {
             return Some(normalize(&candidate));
         }
     }
@@ -632,13 +679,13 @@ fn resolve_python_module(root: &Path, dotted: &str, names: &[&str]) -> Option<Ve
 
     for (i, segment) in segments.iter().enumerate() {
         let as_file = dir.join(format!("{segment}.py"));
-        if i + 1 == segments.len() && as_file.is_file() {
+        if i + 1 == segments.len() && is_file(&as_file) {
             files.push(normalize(&as_file));
             return Some(files);
         }
 
         dir = dir.join(segment);
-        if !dir.is_dir() {
+        if !is_dir(&dir) {
             return None;
         }
         push_if_file(&mut files, &dir.join("__init__.py"));
@@ -646,7 +693,7 @@ fn resolve_python_module(root: &Path, dotted: &str, names: &[&str]) -> Option<Ve
 
     for name in names {
         let as_file = dir.join(format!("{name}.py"));
-        if as_file.is_file() {
+        if is_file(&as_file) {
             files.push(normalize(&as_file));
         } else {
             push_if_file(&mut files, &dir.join(name).join("__init__.py"));
@@ -658,7 +705,7 @@ fn resolve_python_module(root: &Path, dotted: &str, names: &[&str]) -> Option<Ve
 
 /// Push `candidate` onto `files` when it exists.
 fn push_if_file(files: &mut Vec<PathBuf>, candidate: &Path) {
-    if candidate.is_file() {
+    if is_file(candidate) {
         files.push(normalize(candidate));
     }
 }
@@ -713,7 +760,7 @@ fn parse_rust_imports(file: &Path) -> Vec<PathBuf> {
             let resolved = match path_attr.take() {
                 Some(path) => {
                     let candidate = parent.join(path);
-                    candidate.is_file().then(|| normalize(&candidate))
+                    is_file(&candidate).then(|| normalize(&candidate))
                 }
                 None => resolve_rust_mod(&module_dir, module_name),
             };
@@ -736,7 +783,7 @@ fn rust_module_dir(file: &Path, parent: &Path) -> PathBuf {
     let dir_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let crate_root = matches!(stem, "mod" | "lib" | "main")
         || matches!(dir_name, "bin" | "tests" | "examples" | "benches")
-        || (stem == "build" && parent.join("Cargo.toml").is_file());
+        || (stem == "build" && is_file(&parent.join("Cargo.toml")));
     if crate_root {
         parent.to_path_buf()
     } else {
@@ -809,12 +856,12 @@ fn parse_rust_mod_decl(line: &str) -> Option<&str> {
 /// 2. `<dir>/<name>/mod.rs`
 fn resolve_rust_mod(dir: &Path, module_name: &str) -> Option<PathBuf> {
     let as_file = dir.join(format!("{module_name}.rs"));
-    if as_file.is_file() {
+    if is_file(&as_file) {
         return Some(normalize(&as_file));
     }
 
     let as_mod = dir.join(module_name).join("mod.rs");
-    if as_mod.is_file() {
+    if is_file(&as_mod) {
         return Some(normalize(&as_mod));
     }
 

@@ -13,7 +13,7 @@
 use crate::analysis::is_lockfile;
 use crate::architecture::{is_test, Confidence};
 use crate::safe_text::sanitize;
-use aho_corasick::AhoCorasick;
+use aho_corasick::{AhoCorasick, AhoCorasickKind};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -329,6 +329,8 @@ struct Loader {
     file: PathBuf,
     line: usize,
     text: String,
+    /// `text` lower-cased once, for matching against every candidate.
+    lower: String,
 }
 
 /// Rate each unreachable file:
@@ -354,10 +356,34 @@ pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeC
         .filter(|(_, s)| s.len() >= 3 && !GENERIC_STEMS.contains(&s.as_str()))
         .map(|(i, s)| (i, s.as_str()))
         .collect();
-    let matcher = AhoCorasick::builder()
-        .ascii_case_insensitive(true)
-        .build(searchable.iter().map(|(_, s)| *s))
-        .ok();
+    // Names made only of identifier characters are found by splitting each
+    // file into words and looking them up, which is much faster than a
+    // substring search. The rest (`jest.preset`, `my-module`) still need one.
+    let mut by_word: HashMap<String, Vec<usize>, BuildFnv> = HashMap::default();
+    let mut other: Vec<(usize, &str)> = Vec::new();
+    for &(index, stem) in &searchable {
+        if stem.bytes().all(is_ident_byte) {
+            by_word
+                .entry(stem.to_ascii_lowercase())
+                .or_default()
+                .push(index);
+        } else {
+            other.push((index, stem));
+        }
+    }
+    let mut words = WordSet::default();
+    for word in by_word.keys() {
+        words.add(word.as_bytes());
+    }
+    let matcher = if other.is_empty() {
+        None
+    } else {
+        AhoCorasick::builder()
+            .ascii_case_insensitive(true)
+            .kind(Some(AhoCorasickKind::DFA))
+            .build(other.iter().map(|(_, s)| *s))
+            .ok()
+    };
 
     // Per candidate: files that mention its name, split by whether the
     // mentioning file is itself unreachable.
@@ -368,17 +394,31 @@ pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeC
         .filter_map(|file| {
             let bytes = fs::read(file).ok()?;
             let text = std::str::from_utf8(&bytes).ok()?;
+            let from_dead = dead_set.contains(file);
+            let mut seen = vec![false; dead.len()];
             let mut mentions: Vec<(usize, bool)> = Vec::new();
-            if let Some(m) = &matcher {
-                let from_dead = dead_set.contains(file);
-                let mut seen: HashSet<usize> = HashSet::new();
-                for hit in m.find_overlapping_iter(text) {
-                    let index = searchable[hit.pattern().as_usize()].0;
-                    if &dead[index] == file || !is_word(text, hit.start(), hit.end()) {
-                        continue;
+            let mut note = |index: usize| {
+                // `seen` first: comparing paths is slow and names repeat often.
+                if !std::mem::replace(&mut seen[index], true)
+                    && dead[index].as_os_str() != file.as_os_str()
+                {
+                    mentions.push((index, from_dead));
+                }
+            };
+            if !by_word.is_empty() {
+                let mut word = String::new();
+                for token in words.candidates(text.as_bytes()) {
+                    word.clear();
+                    word.extend(token.iter().map(|b| b.to_ascii_lowercase() as char));
+                    for &index in by_word.get(&word).into_iter().flatten() {
+                        note(index);
                     }
-                    if seen.insert(index) {
-                        mentions.push((index, from_dead));
+                }
+            }
+            if let Some(m) = &matcher {
+                for hit in m.find_overlapping_iter(text) {
+                    if is_word(text, hit.start(), hit.end()) {
+                        note(other[hit.pattern().as_usize()].0);
                     }
                 }
             }
@@ -476,9 +516,8 @@ fn rate(
     let parent = dirs.last().map(String::as_str).unwrap_or(".");
     let generic_stem = stem.len() < 3 || GENERIC_STEMS.contains(&stem);
     let related = loaders.iter().find(|l| {
-        let text = l.text.to_ascii_lowercase();
-        (!GENERIC_DIRS.contains(&parent) && text.contains(parent))
-            || (!generic_stem && text.contains(stem))
+        (!GENERIC_DIRS.contains(&parent) && l.lower.contains(parent))
+            || (!generic_stem && l.lower.contains(stem))
     });
     if let Some(l) = related {
         return (
@@ -548,6 +587,106 @@ fn file_name(path: &Path) -> String {
 }
 
 /// Whether `text[start..end]` is not part of a longer identifier.
+fn is_ident_byte(b: u8) -> bool {
+    IDENT[b as usize]
+}
+
+const IDENT: [bool; 256] = {
+    let mut table = [false; 256];
+    let mut b = 0;
+    while b < 256 {
+        let c = b as u8;
+        table[b] = c.is_ascii_alphanumeric() || c == b'_';
+        b += 1;
+    }
+    table
+};
+
+/// A cheap first check for whole-word lookups: the lengths, the first two
+/// letters and the last letter (lowercased) of the words searched for. Most
+/// words in a file fail it, so few need to be lowercased and looked up.
+struct WordSet {
+    /// Bit `n` is set when some word is `n` bytes long (longer ones share bit 63).
+    lengths: u64,
+    starts: Vec<bool>,
+    last: [bool; 256],
+}
+
+impl Default for WordSet {
+    fn default() -> Self {
+        WordSet {
+            lengths: 0,
+            starts: vec![false; 1 << 16],
+            last: [false; 256],
+        }
+    }
+}
+
+impl WordSet {
+    fn add(&mut self, word: &[u8]) {
+        if word.len() < 2 {
+            return;
+        }
+        self.lengths |= 1 << word.len().min(63);
+        self.starts[start_key(word)] = true;
+        self.last[word[word.len() - 1].to_ascii_lowercase() as usize] = true;
+    }
+
+    /// The whole identifier words in `text` that pass the check.
+    fn candidates<'a>(&'a self, text: &'a [u8]) -> impl Iterator<Item = &'a [u8]> + 'a {
+        let mut i = 0;
+        std::iter::from_fn(move || {
+            while i < text.len() {
+                if !IDENT[text[i] as usize] {
+                    i += 1;
+                    continue;
+                }
+                let start = i;
+                while i < text.len() && IDENT[text[i] as usize] {
+                    i += 1;
+                }
+                let word = &text[start..i];
+                if word.len() >= 2
+                    && self.lengths & (1 << word.len().min(63)) != 0
+                    && self.starts[start_key(word)]
+                    && self.last[word[word.len() - 1].to_ascii_lowercase() as usize]
+                {
+                    return Some(word);
+                }
+            }
+            None
+        })
+    }
+}
+
+/// FNV-1a: the words looked up are short, and SipHash dominates the search.
+#[derive(Default)]
+struct Fnv(u64);
+
+impl std::hash::Hasher for Fnv {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        let mut hash = if self.0 == 0 {
+            0xcbf2_9ce4_8422_2325
+        } else {
+            self.0
+        };
+        for &b in bytes {
+            hash = (hash ^ b as u64).wrapping_mul(0x0100_0000_01b3);
+        }
+        self.0 = hash;
+    }
+}
+
+type BuildFnv = std::hash::BuildHasherDefault<Fnv>;
+
+fn start_key(word: &[u8]) -> usize {
+    ((word[0].to_ascii_lowercase() as usize) << 8) | word[1].to_ascii_lowercase() as usize
+}
+
 fn is_word(text: &str, start: usize, end: usize) -> bool {
     let ident = |c: char| c.is_ascii_alphanumeric() || c == '_';
     let before = text[..start].chars().next_back().is_none_or(|c| !ident(c));
@@ -588,10 +727,12 @@ fn find_loaders(file: &Path, text: &str) -> Vec<Loader> {
             if trimmed.chars().count() > MAX_LOADER_TEXT {
                 text.push('…');
             }
+            let text = text.replace('`', "'");
             found.push(Loader {
                 file: file.to_path_buf(),
                 line: i + 1,
-                text: text.replace('`', "'"),
+                lower: text.to_ascii_lowercase(),
+                text,
             });
         }
     }
