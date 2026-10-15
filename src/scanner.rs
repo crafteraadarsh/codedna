@@ -10,6 +10,11 @@ const IGNORED_DIRS: &[&str] = &[
     "coverage",
 ];
 
+/// Files larger than this are skipped.  Source files are far smaller; a huge
+/// file is almost always generated or a data dump, and reading it would only
+/// cost memory and time.
+pub const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
+
 fn is_ignored_dir(entry: &DirEntry) -> bool {
     entry.file_type().is_dir()
         && entry
@@ -24,7 +29,11 @@ fn is_ignored_dir(entry: &DirEntry) -> bool {
 /// Rules:
 /// - Traverses recursively from `root`
 /// - Skips directories in `IGNORED_DIRS`
-/// - Returns files only
+/// - Returns regular files only; symbolic links are not followed, so a
+///   repository cannot point the scan at files outside itself
+/// - Skips files larger than `MAX_FILE_BYTES`
+/// - Skips paths with control or bidirectional-override characters, which
+///   could otherwise rewrite the terminal when the path is printed
 /// - Silently skips unreadable entries
 pub fn scan_repository(root: &Path) -> Vec<PathBuf> {
     if !root.exists() || !root.is_dir() {
@@ -36,6 +45,16 @@ pub fn scan_repository(root: &Path) -> Vec<PathBuf> {
         .filter_entry(|entry| !is_ignored_dir(entry))
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| {
+            entry
+                .metadata()
+                .map(|m| m.len() <= MAX_FILE_BYTES)
+                .unwrap_or(false)
+        })
+        .filter(|entry| {
+            let relative = entry.path().strip_prefix(root).unwrap_or(entry.path());
+            !crate::safe_text::has_unsafe_chars(&relative.to_string_lossy())
+        })
         .map(|entry| entry.into_path())
         .collect();
 
@@ -95,6 +114,59 @@ mod tests {
         }
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn skips_files_over_the_size_limit() {
+        let root = unique_temp_dir("codedna_scanner_size_test");
+        let small = root.join("small.rs");
+        File::create(&small).unwrap();
+        let huge = root.join("huge.json");
+        // Sparse file: takes no real disk space.
+        File::create(&huge).unwrap().set_len(MAX_FILE_BYTES + 1).unwrap();
+
+        let result = scan_repository(&root);
+
+        assert!(result.contains(&small));
+        assert!(!result.contains(&huge));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn skips_paths_with_control_characters() {
+        let root = unique_temp_dir("codedna_scanner_ctrl_test");
+        let normal = root.join("main.rs");
+        File::create(&normal).unwrap();
+        let evil = root.join("evil\u{1b}[2J.rs");
+        File::create(&evil).unwrap();
+
+        let result = scan_repository(&root);
+
+        assert!(result.contains(&normal));
+        assert!(!result.contains(&evil));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn does_not_follow_symlinks_out_of_the_repository() {
+        let outside = unique_temp_dir("codedna_scanner_outside");
+        let secret = outside.join("secret.env");
+        fs::write(&secret, "TOKEN=abc").unwrap();
+
+        let root = unique_temp_dir("codedna_scanner_symlink_test");
+        std::os::unix::fs::symlink(&secret, root.join("link.env")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("linkdir")).unwrap();
+
+        let result = scan_repository(&root);
+
+        assert!(result.is_empty(), "symlinks were followed: {result:?}");
+
+        fs::remove_dir_all(root).ok();
+        fs::remove_dir_all(outside).ok();
     }
 
     #[test]

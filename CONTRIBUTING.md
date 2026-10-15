@@ -121,11 +121,13 @@ codedna/
 │   ├── dependency_graph.rs   # Import/require/mod statement parser
 │   ├── dead_code_detector.rs # BFS from entry points → unreachable files
 │   ├── reporter.rs           # CLI report formatter + JSON serialiser
-│   └── repo_map.rs           # Directory tree renderer
+│   ├── repo_map.rs           # Directory tree renderer
+│   └── safe_text.rs          # Strips terminal escapes from printed names
 ├── Cargo.toml
 ├── README.md
 ├── LICENSE
-└── CONTRIBUTING.md
+├── CONTRIBUTING.md
+└── SECURITY.md
 ```
 
 ---

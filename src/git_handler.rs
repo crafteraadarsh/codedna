@@ -12,9 +12,45 @@ use tempfile::TempDir;
 
 /// Returns `true` if `input` looks like a Git URL rather than a local path.
 ///
-/// Recognised prefixes: `http://`, `https://`, `git@`.
+/// Recognised prefixes: `http://`, `https://`, `git@`.  Plain `http://` is
+/// recognised so it is never mistaken for a path, but `clone_repo` refuses it.
 pub fn is_git_url(input: &str) -> bool {
     input.starts_with("http://") || input.starts_with("https://") || input.starts_with("git@")
+}
+
+/// Return `url` with any credentials (`user:token@`) replaced by `***`.
+///
+/// Use this whenever a URL the user typed is printed, so a token embedded in
+/// it never reaches the terminal, logs or CI output.
+pub fn redact_url(url: &str) -> String {
+    match userinfo_range(url) {
+        Some((start, end)) => format!("{}***{}", &url[..start], &url[end..]),
+        None => url.to_string(),
+    }
+}
+
+/// Byte range of the `user:password` part of a `scheme://user:password@host/...` URL.
+fn userinfo_range(url: &str) -> Option<(usize, usize)> {
+    let start = url.find("://")? + 3;
+    let rest = &url[start..];
+    let authority = &rest[..rest.find(['/', '?', '#']).unwrap_or(rest.len())];
+    let at = authority.rfind('@')?;
+    if at == 0 {
+        None
+    } else {
+        Some((start, start + at))
+    }
+}
+
+/// Remove the credentials in `url` from `text` and make it safe to print.
+fn scrub(text: &str, url: &str) -> String {
+    let text = match userinfo_range(url) {
+        Some((start, end)) => text
+            .replace(url, &redact_url(url))
+            .replace(&format!("{}@", &url[start..end]), "***@"),
+        None => text.to_string(),
+    };
+    crate::safe_text::sanitize(&text)
 }
 
 // ── Repository cloning ───────────────────────────────────────────────────────
@@ -26,6 +62,13 @@ pub fn is_git_url(input: &str) -> bool {
 ///
 /// Uses a shallow fetch (depth 1) to minimise download size.
 pub fn clone_repo(url: &str) -> Result<TempDir, String> {
+    if url.starts_with("http://") {
+        return Err(format!(
+            "Refusing to clone over unencrypted http://: {}. Use https:// instead.",
+            scrub(url, url)
+        ));
+    }
+
     let temp_dir = TempDir::new().map_err(|e| format!("Failed to create temp directory: {e}"))?;
 
     // Set up fetch options for shallow clone (depth 1)
@@ -55,7 +98,8 @@ pub fn resolve_input(input: &str) -> Result<(std::path::PathBuf, Option<TempDir>
     } else {
         let path = Path::new(input).to_path_buf();
         if !path.exists() {
-            return Err(format!("Path not found: '{input}'"));
+            let shown = crate::safe_text::sanitize(input);
+            return Err(format!("Path not found: '{shown}'"));
         }
         Ok((path, None))
     }
@@ -64,8 +108,12 @@ pub fn resolve_input(input: &str) -> Result<(std::path::PathBuf, Option<TempDir>
 // ── Error classification ─────────────────────────────────────────────────────
 
 /// Translate raw `git2::Error` into a user-friendly message.
+///
+/// Credentials in `url` are removed from everything returned.
 fn classify_clone_error(url: &str, err: &git2::Error) -> String {
-    let raw = err.message();
+    let shown_url = scrub(url, url);
+    let raw = scrub(err.message(), url);
+    let raw = raw.as_str();
 
     // Repository not found / access denied
     if raw.contains("not found")
@@ -74,7 +122,7 @@ fn classify_clone_error(url: &str, err: &git2::Error) -> String {
         || raw.contains("authentication")
         || raw.contains("could not read Username")
     {
-        return format!("Repository not found or access denied: {url}");
+        return format!("Repository not found or access denied: {shown_url}");
     }
 
     // Network connectivity issues
@@ -89,7 +137,7 @@ fn classify_clone_error(url: &str, err: &git2::Error) -> String {
 
     // Invalid URL
     if raw.contains("unsupported URL protocol") || raw.contains("invalid") {
-        return format!("Invalid repository URL: {url}");
+        return format!("Invalid repository URL: {shown_url}");
     }
 
     // Fallback
@@ -142,6 +190,54 @@ mod tests {
     #[test]
     fn rejects_bare_word() {
         assert!(!is_git_url("myproject"));
+    }
+
+    // ── redact_url ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn redacts_token_in_https_url() {
+        assert_eq!(
+            redact_url("https://ghp_secret@github.com/user/repo"),
+            "https://***@github.com/user/repo"
+        );
+        assert_eq!(
+            redact_url("https://user:pass@github.com/user/repo.git"),
+            "https://***@github.com/user/repo.git"
+        );
+    }
+
+    #[test]
+    fn leaves_urls_without_credentials_alone() {
+        let url = "https://github.com/user/repo";
+        assert_eq!(redact_url(url), url);
+        assert_eq!(redact_url("git@github.com:user/repo.git"), "git@github.com:user/repo.git");
+        assert_eq!(redact_url("./local/path"), "./local/path");
+    }
+
+    #[test]
+    fn redacts_short_credentials_without_touching_the_scheme() {
+        assert_eq!(redact_url("https://h@example.com/r"), "https://***@example.com/r");
+    }
+
+    #[test]
+    fn ignores_at_sign_after_the_host() {
+        let url = "https://github.com/user/repo/tree/main@v1";
+        assert_eq!(redact_url(url), url);
+    }
+
+    #[test]
+    fn scrub_removes_credentials_from_messages() {
+        let url = "https://user:pass@example.com/repo";
+        let msg = scrub("failed to fetch https://user:pass@example.com/repo\n", url);
+        assert!(!msg.contains("pass"), "{msg}");
+        assert!(!msg.contains('\n'), "{msg}");
+    }
+
+    #[test]
+    fn refuses_plain_http_clone() {
+        let err = clone_repo("http://user:pass@example.com/repo").unwrap_err();
+        assert!(err.contains("https://"), "{err}");
+        assert!(!err.contains("pass"), "{err}");
     }
 
     // ── clone_repo error paths ────────────────────────────────────────────────
