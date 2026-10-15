@@ -32,12 +32,15 @@ pub type DependencyGraph = HashMap<PathBuf, Vec<PathBuf>>;
 /// `.py`, or `.rs`, the file is parsed and its relative imports are resolved
 /// to absolute paths that exist on disk.
 ///
-/// Files that cannot be read are skipped silently.
+/// Only those source files become nodes: READMEs, configs, lockfiles and
+/// other files that cannot import anything are left out, so they are never
+/// reported as dead code. Files that cannot be read are kept with no edges.
 pub fn build_dependency_graph(files: &[PathBuf]) -> DependencyGraph {
     // Each file is parsed independently — no shared mutable state needed.
     // rayon collects directly into a HashMap via the FromParallelIterator impl.
     files
         .par_iter()
+        .filter(|file| is_source_file(file))
         .map(|file| {
             let key = normalize(file);
             let deps = parse_dependencies(&key);
@@ -49,6 +52,16 @@ pub fn build_dependency_graph(files: &[PathBuf]) -> DependencyGraph {
 // ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
+
+/// Extensions whose imports CodeDna can follow.
+const SOURCE_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "py", "rs"];
+
+/// Whether `file` is a source file the dependency graph understands.
+fn is_source_file(file: &Path) -> bool {
+    file.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| SOURCE_EXTENSIONS.contains(&e.to_lowercase().as_str()))
+}
 
 /// Parse dependencies for a single file based on its extension.
 fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
@@ -663,6 +676,24 @@ mod tests {
         assert!(graph.contains_key(&b));
         assert!(graph[&a].contains(&normalize(&b)));
         assert!(graph[&b].is_empty());
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn build_graph_leaves_out_non_source_files() {
+        let dir = unique_temp_dir("codedna_dg_non_source");
+        let main = dir.join("main.rs");
+        let readme = dir.join("README.md");
+        let config = dir.join("config.yml");
+        write_file(&main, "fn main() {}");
+        write_file(&readme, "# Hello");
+        write_file(&config, "key: value");
+
+        let graph = build_dependency_graph(&[main.clone(), readme.clone(), config.clone()]);
+
+        assert_eq!(graph.len(), 1);
+        assert!(graph.contains_key(&normalize(&main)));
 
         fs::remove_dir_all(dir).ok();
     }
