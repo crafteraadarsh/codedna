@@ -13,6 +13,7 @@ CodeDna is built to be safe to run on any repository, including ones you do not 
 - **The MCP server is read-only and fenced.** `codedna mcp` only reads folders inside the directory it was started in, or ones you allow with `--root`; `..` and symbolic links cannot escape them. Remote repositories must be `https://` URLs. Tools return analysis results, never file contents, and every response is size-capped.
 - **Git history is only read.** `codedna hotspots` reads commits and trees from Git objects. Nothing is checked out, and no hooks, filters or diff drivers from the repository run. Commit messages and authors are not collected.
 - **`codedna audit` never prints secrets.** It reports the kind of credential it found and the line, never the value. Like every other command it only reads files: nothing is run and nothing is sent anywhere.
+- **Snapshots are untrusted input.** `codedna diff` refuses snapshot files over 64 MiB and cleans every name read from one before printing it.
 - **Hostile files are handled.** Files over 10 MiB are skipped, and file names containing terminal control or text-direction characters are never printed as-is.
 
 Dependencies are checked against the RustSec advisory database on every pull request.
