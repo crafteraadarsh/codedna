@@ -177,8 +177,12 @@ pub enum Commands {
         after: String,
 
         /// Output JSON instead of a summary
-        #[arg(long, default_value_t = false)]
+        #[arg(long, default_value_t = false, conflicts_with = "markdown")]
         json: bool,
+
+        /// Output Markdown, for a pull request comment or CI job summary
+        #[arg(long, default_value_t = false)]
+        markdown: bool,
     },
 
     /// Run an MCP server on stdio so AI agents can call CodeDna as tools
@@ -475,6 +479,7 @@ pub fn run() {
             before,
             after,
             json,
+            markdown,
         } => {
             let old = load_side(&before);
             let new = load_side(&after);
@@ -484,6 +489,8 @@ pub fn run() {
                     Ok(text) => println!("{text}"),
                     Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
                 }
+            } else if markdown {
+                print!("{}", crate::diff::render_markdown(&d));
             } else {
                 print!("{}", crate::diff::render_text(&d));
             }
@@ -602,13 +609,23 @@ mod tests {
         let cli = Cli::try_parse_from(["codedna", "diff", "old.json"]).unwrap();
         assert!(matches!(
             cli.command,
-            Commands::Diff { ref before, ref after, json: false } if before == "old.json" && after == "."
+            Commands::Diff { ref before, ref after, json: false, markdown: false } if before == "old.json" && after == "."
         ));
         let cli = Cli::try_parse_from(["codedna", "diff", "a", "b", "--json"]).unwrap();
         assert!(matches!(
             cli.command,
-            Commands::Diff { ref before, ref after, json: true } if before == "a" && after == "b"
+            Commands::Diff { ref before, ref after, json: true, .. } if before == "a" && after == "b"
         ));
+        let cli = Cli::try_parse_from(["codedna", "diff", "a", "--markdown"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Diff {
+                markdown: true,
+                json: false,
+                ..
+            }
+        ));
+        assert!(Cli::try_parse_from(["codedna", "diff", "a", "--json", "--markdown"]).is_err());
         assert!(Cli::try_parse_from(["codedna", "diff"]).is_err());
     }
 

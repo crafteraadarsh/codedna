@@ -356,6 +356,33 @@ pub fn print_json(result: &AnalysisResult, compact: bool) {
     }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Format a LOC number with thousands separators (e.g. 12450 → "12,450").
+fn format_loc(n: usize) -> String {
+    let s = n.to_string();
+    let mut result = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    for (i, c) in chars.iter().enumerate() {
+        if i > 0 && (chars.len() - i).is_multiple_of(3) {
+            result.push(',');
+        }
+        result.push(*c);
+    }
+    result
+}
+
+/// Return the display length of the longest file path in the breakdown.
+fn longest_path_len(result: &AnalysisResult) -> usize {
+    result
+        .file_breakdown
+        .iter()
+        .map(|f| f.file.display().to_string().len())
+        .max()
+        .unwrap_or(20)
+        .max(4) // at least "File"
+}
+
 // ── JSON tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -528,31 +555,4 @@ mod tests {
             result.languages.get("TypeScript")
         );
     }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/// Format a LOC number with thousands separators (e.g. 12450 → "12,450").
-fn format_loc(n: usize) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    let chars: Vec<char> = s.chars().collect();
-    for (i, c) in chars.iter().enumerate() {
-        if i > 0 && (chars.len() - i).is_multiple_of(3) {
-            result.push(',');
-        }
-        result.push(*c);
-    }
-    result
-}
-
-/// Return the display length of the longest file path in the breakdown.
-fn longest_path_len(result: &AnalysisResult) -> usize {
-    result
-        .file_breakdown
-        .iter()
-        .map(|f| f.file.display().to_string().len())
-        .max()
-        .unwrap_or(20)
-        .max(4) // at least "File"
 }

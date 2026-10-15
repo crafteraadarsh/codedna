@@ -224,7 +224,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna hotspots [path\|url]` | Files ranked by commits × lines of code, plus files that change together (`--days N`, `--limit N`, `--json`) |
 | `codedna runbook [path\|url]` | Scripts and targets, env var names (values are never read), API routes (`--json`) |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report (`--format html` for a self-contained page) |
-| `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`) |
+| `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Lines of code per file |
@@ -233,6 +233,34 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna map [path\|url]` | Directory tree (`--depth N`) |
 | `codedna scan [path\|url]` | Raw scanned file list |
 | `codedna mcp [--root DIR]` | MCP server for AI agents (stdio) |
+
+### Pull request comments
+
+Add CodeDna to a repository's pull requests and each one gets a comment saying what it changes: lines of code, languages, frameworks added or removed, files added, removed or resized, and new possibly unused files. The comment is updated on every push instead of adding a new one.
+
+```yaml
+# .github/workflows/codedna.yml
+name: CodeDna
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crafteraadarsh/codedna@main
+```
+
+| Input | Default | What it does |
+|---|---|---|
+| `version` | `latest` | CodeDna release to install |
+| `binary` | | Path to a `codedna` binary to use instead |
+| `comment` | `true` | `false` writes only the job summary |
+| `github-token` | `github.token` | Token used to post the comment |
+
+Pull requests from forks get a read-only token, so they get the job summary but no comment. Locally, `codedna diff before.json . --markdown` prints the same summary.
 
 ## 🔬 Real example
 

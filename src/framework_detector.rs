@@ -415,7 +415,7 @@ mod tests {
         let f = dir.join("index.tsx");
         fs::write(&f, "import { useState } from 'react';").unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "react");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "react");
         assert!(result.contains(&f));
         fs::remove_dir_all(dir).ok();
     }
@@ -430,7 +430,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "express");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "express");
         assert!(result.contains(&f));
         fs::remove_dir_all(dir).ok();
     }
@@ -441,7 +441,7 @@ mod tests {
         let f = dir.join("main.py");
         fs::write(&f, "from fastapi import FastAPI\napp = FastAPI()").unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "fastapi");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "fastapi");
         assert!(result.contains(&f));
         fs::remove_dir_all(dir).ok();
     }
@@ -456,7 +456,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "django");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "django");
         assert!(result.contains(&f));
         fs::remove_dir_all(dir).ok();
     }
@@ -467,7 +467,7 @@ mod tests {
         let f = dir.join("server.rs");
         fs::write(&f, "use axum::{Router, routing::get};\nfn main() {}").unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "axum");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "axum");
         assert!(result.contains(&f));
         fs::remove_dir_all(dir).ok();
     }
@@ -478,7 +478,7 @@ mod tests {
         let f = dir.join("main.rs");
         fs::write(&f, "#[tokio::main]\nasync fn main() {}").unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "tokio");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "tokio");
         assert!(result.contains(&f));
         fs::remove_dir_all(dir).ok();
     }
@@ -490,7 +490,7 @@ mod tests {
         // commented out — should NOT be flagged
         fs::write(&f, "// import express from \"express\";\nconst x = 1;").unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "express");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "express");
         assert!(result.is_empty());
         fs::remove_dir_all(dir).ok();
     }
@@ -501,7 +501,7 @@ mod tests {
         let f = dir.join("app.ts");
         fs::write(&f, "import something from 'somewhere';").unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "nonexistentframework");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "nonexistentframework");
         assert!(result.is_empty());
         fs::remove_dir_all(dir).ok();
     }
@@ -512,7 +512,7 @@ mod tests {
         let f = dir.join("app.ts");
         fs::write(&f, "import { something } from './local';").unwrap();
 
-        let result = detect_files_using_framework(&[f.clone()], "react");
+        let result = detect_files_using_framework(std::slice::from_ref(&f), "react");
         assert!(result.is_empty());
         fs::remove_dir_all(dir).ok();
     }

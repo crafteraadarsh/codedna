@@ -1,0 +1,49 @@
+name: CodeDna diff
+
+on:
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    name: Comment with CodeDna diff
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-release-
+
+      # This repository tests the action with the code in the pull request.
+      # Other repositories use `crafteraadarsh/codedna@v0` without `binary`.
+      - name: Build
+        run: cargo build --release
+
+      - name: CodeDna diff
+        uses: ./
+        with:
+          binary: target/release/codedna
