@@ -51,6 +51,12 @@ pub fn print_report(result: &AnalysisResult) {
     kv("Databases", &result.databases.len().to_string());
     kv("Infrastructure", &result.infrastructure.len().to_string());
     kv("Files scanned", &result.file_breakdown.len().to_string());
+    if !result.workspaces.is_empty() {
+        kv(
+            "Workspace packages",
+            &crate::workspaces::package_count(&result.workspaces).to_string(),
+        );
+    }
     let dead = result.dead_code_candidates();
     if dead.is_empty() {
         kv("Dead files", "0");
@@ -81,6 +87,12 @@ pub fn print_report(result: &AnalysisResult) {
     // ── Project Type ─────────────────────────────────────────────────────────
     section("Project Type");
     println!("  {}", result.project_type);
+
+    // ── Workspaces ───────────────────────────────────────────────────────────
+    if !result.workspaces.is_empty() {
+        section("Workspaces");
+        print_workspaces(&result.workspaces);
+    }
 
     // ── Stack ─────────────────────────────────────────────────────────────────
     section("Stack");
@@ -177,6 +189,20 @@ pub fn print_report(result: &AnalysisResult) {
     }
 
     println!();
+}
+
+/// Each workspace with its packages, the first few per workspace.
+fn print_workspaces(workspaces: &[crate::workspaces::Workspace]) {
+    const SHOWN: usize = 15;
+    for w in workspaces {
+        println!("  {}", crate::workspaces::summary(w));
+        for p in w.packages.iter().take(SHOWN) {
+            println!("    {:<30}  \x1b[2m{}\x1b[0m", p.name, p.path.display());
+        }
+        if w.packages.len() > SHOWN {
+            println!("    \x1b[2m… and {} more\x1b[0m", w.packages.len() - SHOWN);
+        }
+    }
 }
 
 // ── Stack-only output ─────────────────────────────────────────────────────────
@@ -465,6 +491,7 @@ mod tests {
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
             circular_imports: Vec::new(),
+            workspaces: Vec::new(),
             languages,
             frameworks: vec!["React".to_string(), "Express".to_string()],
             databases: vec!["PostgreSQL".to_string()],

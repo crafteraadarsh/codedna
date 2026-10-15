@@ -34,6 +34,7 @@ It detects and reports:
 - Per-file framework import usage
 - Unused / dead code via dependency graph traversal
 - Circular imports (files that import each other)
+- Monorepo workspaces and their packages (npm, Yarn, Bun, pnpm, Lerna, Cargo, Go, uv)
 - Directory tree structure
 
 Supports both **local directories** and **remote Git repositories** (GitHub, GitLab, Bitbucket, etc.).

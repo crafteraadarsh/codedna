@@ -11,6 +11,7 @@ use crate::framework_detector;
 use crate::language_detector;
 use crate::loc_counter;
 use crate::scanner;
+use crate::workspaces::{self, Workspace};
 use rayon::prelude::*;
 
 use serde::{Deserialize, Serialize};
@@ -84,6 +85,10 @@ pub struct AnalysisResult {
     #[serde(default)]
     pub circular_imports: Vec<Vec<PathBuf>>,
 
+    /// Workspaces (monorepo packages) declared at the root, if any.
+    #[serde(default)]
+    pub workspaces: Vec<Workspace>,
+
     /// Directed import graph: `file → [files it imports]`.
     #[serde(serialize_with = "serialize_dep_graph")]
     #[serde(deserialize_with = "deserialize_dep_graph")]
@@ -139,6 +144,7 @@ pub(crate) fn is_lockfile(file: &Path) -> bool {
 /// 5. Build dependency graph from import/require statements
 /// 6. Detect dead code via BFS from entry points
 /// 7. Infer project type and architecture from collected signals
+/// 8. List workspace packages declared at the root
 pub fn analyze(root: &Path) -> AnalysisResult {
     // ── 1. Scan ──────────────────────────────────────────────────────────────
     let files = scanner::scan_repository(root);
@@ -265,6 +271,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         dead_code,
         dead_code_details,
         circular_imports,
+        workspaces: workspaces::detect(root),
         dependency_graph,
         file_breakdown,
     }
