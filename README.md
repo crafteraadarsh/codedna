@@ -25,6 +25,7 @@ This repository is primarily a **Rust CLI tool**. It also ships agent integratio
 ## Table of Contents
 
 - [Install](#install)
+- [Use With AI Agents](#use-with-ai-agents)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
 - [Example Output](#example-output)
@@ -89,76 +90,52 @@ codedna --version
 ```
 ---
 
-## Agent Support
+## Use With AI Agents
 
-CodeDna integrates with agents using their native distribution paths:
+CodeDna works with any agent that can run a shell command, and connects natively to agents that support MCP or skills.
 
-- `Codex`: packaged skill in `skill/codedna/`
-- `OpenCode`: native skill in `.opencode/skills/codedna/`
-- `Claude`: plugin marketplace at `.claude-plugin/marketplace.json`
-
-## Install Codex Skill
-
-If you want Codex to use CodeDna as a real skill, use the dedicated package in `skill/codedna/`.
-
-- `skill/codedna/SKILL.md` contains the trigger description and workflow
-- `skill/codedna/agents/openai.yaml` contains Codex UI metadata
-
-Install it with:
+**1. Context in one command.** Any agent can run:
 
 ```bash
-./scripts/install-codex-skill.sh
+codedna context .
 ```
 
-Package it as a distributable tarball with:
+It prints a short Markdown briefing (project type, stack, architecture, entry points, key files, directory map) sized for an agent's context window. `--max-tokens N` changes the budget; `--format json` gives the same data as JSON.
+
+**2. MCP server.** `codedna mcp` serves read-only tools over stdio: `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code` and `repo_map`.
+
+| Agent | Setup |
+|---|---|
+| Claude Code | `claude mcp add codedna -- codedna mcp` |
+| Codex | `codex mcp add codedna -- codedna mcp` |
+| OpenCode | add to `opencode.json`: `"mcp": { "codedna": { "type": "local", "command": ["codedna", "mcp"] } }` |
+| Antigravity | add to `~/.gemini/config/mcp_config.json`: `"mcpServers": { "codedna": { "command": "codedna", "args": ["mcp"] } }` |
+
+The server only reads folders inside the directory it was started in. To allow others, pass them explicitly: `codedna mcp --root ~/code`. Remote repositories must be public `https://` URLs.
+
+**3. Skill.** One skill file, [`skill/codedna/SKILL.md`](skill/codedna/SKILL.md), tells an agent when and how to use CodeDna.
+
+| Agent | Where the skill goes |
+|---|---|
+| Claude Code | `.claude/skills/codedna/`, or install the plugin (below) |
+| Codex | `~/.codex/skills/codedna/` (`./scripts/install-codex-skill.sh`) |
+| OpenCode | `.opencode/skills/codedna/` or `~/.config/opencode/skills/codedna/` (`./scripts/install-opencode-skill.sh`) |
+| Antigravity | `.agents/skills/codedna/` in your project |
+
+To add the skill to another repository for several agents at once:
 
 ```bash
-./scripts/package-codex-skill.sh
+./scripts/bootstrap-agent-files.sh /path/to/repo claude opencode agents
 ```
 
-## Bootstrap OpenCode And Claude
-
-To copy the OpenCode skill into another repository and add Claude bootstrap guidance:
-
-```bash
-./scripts/bootstrap-agent-files.sh /path/to/target-repo opencode claude
-```
-
-To install the Codex skill and bootstrap OpenCode plus Claude in one go:
-
-```bash
-./scripts/bootstrap-agent-files.sh /path/to/target-repo codex opencode claude
-```
-
-## Install OpenCode Skill
-
-Install the OpenCode skill globally with:
-
-```bash
-./scripts/install-opencode-skill.sh
-```
-
-OpenCode also discovers project-local skills from:
-
-```text
-.opencode/skills/codedna/SKILL.md
-```
-
-## Install Claude Plugin
-
-This repository now includes an official Claude plugin marketplace:
-
-```text
-.claude-plugin/marketplace.json
-plugins/codedna/.claude-plugin/plugin.json
-```
-
-In Claude Code, install it with:
+**Claude Code plugin** (skill and MCP server together):
 
 ```text
 /plugin marketplace add crafteraadarsh/codedna
 /plugin install codedna@codedna-marketplace
 ```
+
+All integrations need the `codedna` binary in your `PATH` (see [Install CLI](#install-cli)).
 
 ---
 
@@ -170,6 +147,9 @@ codedna analyze .
 
 # Full intelligence report (remote — auto-clones)
 codedna analyze https://github.com/vercel/next.js
+
+# Short briefing for AI agents
+codedna context .
 
 # JSON for AI agents
 codedna json . --compact
@@ -191,10 +171,11 @@ codedna framework react .
 
 ## Commands
 
-All commands accept a **local path** or a **Git URL**.
+All analysis commands accept a **local path** or a **Git URL**.
 
 | Command | Description |
 |---|---|
+| `codedna context [path\|url]` | Short briefing for AI agents (`--max-tokens N`, `--format json`) |
 | `codedna analyze [path\|url]` | Full intelligence report |
 | `codedna analyze [path\|url] --time` | Report with elapsed time |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
@@ -207,6 +188,7 @@ All commands accept a **local path** or a **Git URL**.
 | `codedna json [path\|url]` | Full analysis as JSON |
 | `codedna json [path\|url] --compact` | Single-line JSON |
 | `codedna json [path\|url] --time` | JSON with elapsed time |
+| `codedna mcp [--root DIR]` | MCP server for AI agents (stdio) |
 
 ---
 
@@ -487,10 +469,9 @@ CodeDna is designed as the **first command any AI agent runs on a new codebase**
 codedna/
 ├── .claude-plugin/
 │   └── marketplace.json         ← Claude plugin marketplace definition
-├── .opencode/
-│   └── skills/
-│       └── codedna/
-│           └── SKILL.md         ← native OpenCode skill
+├── .agents/skills/codedna/      ← skill copy (Antigravity, Codex)
+├── .claude/skills/codedna/      ← skill copy (Claude Code)
+├── .opencode/skills/codedna/    ← skill copy (OpenCode)
 ├── skills/
 │   └── codedna-analyzer/
 │       ├── SKILL.md              ← full portable skill specification
@@ -499,11 +480,12 @@ codedna/
 │           └── remote-analysis.md
 ├── skill/
 │   └── codedna/
-│       ├── SKILL.md              ← valid Codex skill package
+│       ├── SKILL.md              ← canonical skill (copies must match)
 │       └── agents/openai.yaml    ← Codex skill metadata
 ├── plugins/
 │   └── codedna/
 │       ├── .claude-plugin/plugin.json
+│       ├── .mcp.json             ← MCP server for the Claude plugin
 │       └── skills/codedna/SKILL.md
 ├── templates/
 │   └── CLAUDE.md                 ← portable Claude template
@@ -514,11 +496,11 @@ codedna/
 │   └── bootstrap-agent-files.sh
 ├── AGENTS.md                     ← OpenCode / Codex CLI
 ├── CLAUDE.md                     ← Claude Code
-├── GEMINI.md                     ← Gemini CLI
+├── GEMINI.md                     ← Gemini CLI / Antigravity
 └── .cursorrules                  ← Cursor
 ```
 
-The detailed, portable reference lives in [`skills/codedna-analyzer/SKILL.md`](skills/codedna-analyzer/SKILL.md). The valid Codex skill package lives in [`skill/codedna/`](skill/codedna/).
+The canonical skill is [`skill/codedna/SKILL.md`](skill/codedna/SKILL.md); CI checks that every copy matches it. The detailed reference lives in [`skills/codedna-analyzer/SKILL.md`](skills/codedna-analyzer/SKILL.md).
 
 ### Agent Files In This Repo
 
@@ -528,22 +510,28 @@ The detailed, portable reference lives in [`skills/codedna-analyzer/SKILL.md`](s
 | `CLAUDE.md` | Claude Code bootstrap for this repository |
 | `GEMINI.md` | Gemini CLI bootstrap for this repository |
 | `.cursorrules` | Cursor guidance for this repository |
-| `.opencode/skills/codedna/SKILL.md` | Native OpenCode skill |
+| `.agents/skills/codedna/SKILL.md` | Skill for Antigravity and Codex |
+| `.claude/skills/codedna/SKILL.md` | Skill for Claude Code |
+| `.opencode/skills/codedna/SKILL.md` | Skill for OpenCode |
 | `.claude-plugin/marketplace.json` | Claude marketplace definition |
 | `plugins/codedna/.claude-plugin/plugin.json` | Claude plugin manifest |
-| `plugins/codedna/skills/codedna/SKILL.md` | Claude-packaged CodeDna skill |
-| `skill/codedna/SKILL.md` | Codex skill trigger and workflow |
+| `plugins/codedna/skills/codedna/SKILL.md` | Skill in the Claude plugin |
+| `plugins/codedna/.mcp.json` | MCP server in the Claude plugin |
+| `skill/codedna/SKILL.md` | Canonical skill |
 | `skill/codedna/agents/openai.yaml` | Codex UI metadata for the skill |
 | `templates/CLAUDE.md` | Portable Claude bootstrap template |
 | `scripts/install-opencode-skill.sh` | Installs the OpenCode skill globally |
 | `scripts/bootstrap-agent-files.sh` | Copies/install skills into a target repository |
 
-Each config file instructs the agent to run `codedna json . --compact` before any task and use the output to understand the project.
+Each file tells the agent to run `codedna context .` (or call `get_context`) before a task and use the result to understand the project.
 
 ### One-Liner for Any Agent
 
 ```bash
-# Get compact context
+# Short briefing
+codedna context .
+
+# Selected fields as JSON
 codedna json . --compact | jq -c '{project_type,frameworks,databases,infrastructure,architecture,total_loc}'
 
 # Or for a remote repo
@@ -568,6 +556,8 @@ See [`skills/codedna-analyzer/SKILL.md`](skills/codedna-analyzer/SKILL.md) for t
 src/
 ├── main.rs                 — entry point, module declarations
 ├── cli.rs                  — clap CLI definitions and command dispatch
+├── context.rs              — token-budgeted briefing for AI agents
+├── mcp.rs                  — MCP server (JSON-RPC over stdio)
 ├── git_handler.rs          — Git URL detection, shallow clone, temp dir management
 ├── analysis.rs             — analysis pipeline orchestration
 ├── scanner.rs              — recursive file walker (walkdir)
@@ -577,6 +567,8 @@ src/
 ├── dependency_graph.rs     — import/require/mod statement parsing
 ├── dead_code_detector.rs   — BFS reachability from entry points
 ├── reporter.rs             — CLI report + JSON output formatting
+├── rules.rs                — loads the detection rules (rules.toml)
+├── safe_text.rs            — strips control characters from repo-supplied text
 └── repo_map.rs             — tree-style directory rendering
 ```
 

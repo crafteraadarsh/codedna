@@ -84,6 +84,25 @@ Trigger this skill when the user asks any of the following:
 
 All commands accept either a **local path** or a **Git URL**.
 
+### Agent Briefing (start here)
+
+```bash
+codedna context .
+codedna context . --max-tokens 1000
+codedna context . --format json
+```
+
+A short Markdown briefing sized for a context window: project type, architecture, size, stack, entry points, most imported files, largest files and a trimmed directory map. Default budget: 2000 tokens (minimum 300).
+
+### MCP Server
+
+```bash
+codedna mcp
+codedna mcp --root ~/code
+```
+
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+
 ### Full Intelligence Analysis
 
 ```bash
