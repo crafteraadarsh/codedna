@@ -14,6 +14,7 @@ mod repo_map;
 mod report;
 mod reporter;
 mod rules;
+mod runbook;
 mod safe_text;
 mod scanner;
 

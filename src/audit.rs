@@ -462,7 +462,7 @@ const PEM_PRIVATE: &str = "PRIVATE KEY-----";
 
 /// Kinds of secret that appear on the line. The values themselves are
 /// never returned.
-fn find_secrets(line: &str) -> Vec<&'static str> {
+pub(crate) fn find_secrets(line: &str) -> Vec<&'static str> {
     let mut kinds: Vec<&'static str> = Vec::new();
     let bytes = line.as_bytes();
     for rule in SECRET_RULES {

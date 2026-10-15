@@ -76,6 +76,8 @@ Trigger this skill when the user asks any of the following:
 | "Show me the directory structure" | `codedna map .` |
 | "Give me machine-readable output" | `codedna json .` |
 | "Is this repo safe to install?" | `codedna audit <url>` |
+| "How do I run this project?" | `codedna runbook .` |
+| "Which env vars / API routes does it have?" | `codedna runbook .` |
 | "Analyze this GitHub repo" | `codedna analyze <url>` |
 | "What does this remote repo use?" | `codedna stack <url>` |
 
@@ -135,6 +137,21 @@ An offline scan for red flags that often show up in malicious or compromised rep
 
 The risk score adds 25 per high, 10 per medium and 2 per low finding, capped at 100. `--fail-on low|medium|high` exits with status 1 when a finding reaches that level, for CI. Findings are leads to review, not a malware verdict: clean code can trip a check and a careful attacker can avoid them all.
 
+### Runbook
+
+```bash
+codedna runbook .
+codedna runbook https://github.com/user/repo --json
+```
+
+How to run a project, read from its files:
+
+- **Commands**: `package.json` scripts (with npm, pnpm, yarn or bun picked from the lockfile), Make and just targets, Dockerfiles (exposed ports and start command), Compose services, Cargo binaries, `pyproject.toml` scripts, Django `manage.py` and Procfile entries.
+- **Environment variables**: names read by code (`process.env`, `import.meta.env`, `os.getenv`, `os.environ`, `std::env::var`, Go `os.Getenv`, Ruby `ENV`, PHP `getenv`, Java `System.getenv`, .NET `GetEnvironmentVariable`, Deno and Bun) and names listed in example files such as `.env.example`. Each is marked as documented or not.
+- **API routes**: Express, Fastify, Hono, NestJS, Next.js (`app/**/route.ts` and `pages/api`), Flask, FastAPI, Django, Spring, actix, Rocket, axum, Gin, Echo, chi, net/http, Laravel and Rails.
+
+Nothing is run. Environment variables are reported by name only: `.env` files are never opened, example files contribute only the text before `=`, and a command that looks like it contains a credential is hidden. Routes come from common framework patterns, so the list can be incomplete.
+
 ### MCP Server
 
 ```bash
@@ -142,7 +159,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`, `find_hotspots`, `audit_repo`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 
