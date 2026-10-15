@@ -71,11 +71,36 @@ pub struct AnalysisResult {
 // Public API
 // ---------------------------------------------------------------------------
 
+/// Lockfiles written by package managers. They are generated, so counting
+/// them would swamp the real code in line totals and language shares.
+const LOCKFILES: &[&str] = &[
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lock",
+    "Cargo.lock",
+    "poetry.lock",
+    "Pipfile.lock",
+    "uv.lock",
+    "composer.lock",
+    "Gemfile.lock",
+    "go.sum",
+    "flake.lock",
+];
+
+/// Whether `file` is a package-manager lockfile.
+fn is_lockfile(file: &Path) -> bool {
+    file.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| LOCKFILES.contains(&n))
+}
+
 /// Run the full analysis pipeline on `root` and return an `AnalysisResult`.
 ///
 /// # Pipeline steps
 /// 1. Scan repository files (respecting ignore rules)
-/// 2. Count LOC per file; skip binary / unreadable files
+/// 2. Count LOC per file; skip lockfiles and binary / unreadable files
 /// 3. Detect language per file; build aggregated language LOC map
 /// 4. Detect frameworks and databases from manifest files
 /// 5. Build dependency graph from import/require statements
@@ -89,6 +114,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     // Each file is processed independently — ideal for rayon par_iter.
     let per_file: Vec<(PathBuf, usize, String)> = files
         .par_iter()
+        .filter(|file| !is_lockfile(file))
         .filter_map(|file| {
             let loc = loc_counter::count_lines(file)?;
             let language = language_detector::detect_language(file)
@@ -569,6 +595,22 @@ mod tests {
 
         // Dependency graph has entries
         assert!(!result.dependency_graph.is_empty());
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn analyze_leaves_lockfiles_out_of_line_counts() {
+        let root = unique_temp_dir("codedna_analysis_lockfile");
+        write_file(&root.join("index.js"), "console.log('hello');");
+        write_file(&root.join("package-lock.json"), "{\n  \"lockfileVersion\": 3\n}");
+        write_file(&root.join("web").join("yarn.lock"), "# yarn lockfile v1");
+
+        let result = analyze(&root);
+
+        assert_eq!(result.total_loc, 1);
+        assert!(!result.languages.contains_key("JSON"));
+        assert_eq!(result.file_breakdown.len(), 1);
 
         fs::remove_dir_all(root).ok();
     }
