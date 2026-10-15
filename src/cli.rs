@@ -167,6 +167,20 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Compare two versions of a project: stack, languages, size and files
+    Diff {
+        /// Earlier version: a snapshot saved with `codedna json`, a path or a Git URL
+        before: String,
+
+        /// Later version: a snapshot, a path or a Git URL
+        #[arg(default_value = ".")]
+        after: String,
+
+        /// Output JSON instead of a summary
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Run an MCP server on stdio so AI agents can call CodeDna as tools
     Mcp {
         /// Folder the server may read (repeatable; default: current folder)
@@ -222,6 +236,23 @@ fn resolve_with_depth(input: &str, depth: i32) -> (PathBuf, Option<tempfile::Tem
 /// characters replaced.
 fn shown(input: &str) -> String {
     crate::safe_text::sanitize(&crate::git_handler::redact_url(input))
+}
+
+/// Load a saved snapshot, or analyse a folder or repository.
+fn load_side(input: &str) -> crate::analysis::AnalysisResult {
+    if crate::diff::is_snapshot(input) {
+        match crate::diff::load_snapshot(std::path::Path::new(input)) {
+            Ok(result) => result,
+            Err(msg) => {
+                eprintln!("error: {msg}");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        eprintln!("Analyzing {}…", shown(input));
+        let (local_path, _guard) = resolve(input);
+        crate::analysis::analyze(&local_path)
+    }
 }
 
 /// Parse CLI arguments and dispatch to the appropriate module.
@@ -439,6 +470,25 @@ pub fn run() {
             }
         }
 
+        // ── diff ──────────────────────────────────────────────────────────────
+        Commands::Diff {
+            before,
+            after,
+            json,
+        } => {
+            let old = load_side(&before);
+            let new = load_side(&after);
+            let d = crate::diff::diff(&old, &new);
+            if json {
+                match serde_json::to_string_pretty(&d) {
+                    Ok(text) => println!("{text}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                }
+            } else {
+                print!("{}", crate::diff::render_text(&d));
+            }
+        }
+
         // ── mcp ───────────────────────────────────────────────────────────────
         Commands::Mcp { roots } => {
             if let Err(e) = crate::mcp::serve(&roots) {
@@ -545,6 +595,21 @@ mod tests {
             cli.command,
             Commands::Runbook { ref path, json: true } if path == "x"
         ));
+    }
+
+    #[test]
+    fn parses_diff() {
+        let cli = Cli::try_parse_from(["codedna", "diff", "old.json"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Diff { ref before, ref after, json: false } if before == "old.json" && after == "."
+        ));
+        let cli = Cli::try_parse_from(["codedna", "diff", "a", "b", "--json"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Diff { ref before, ref after, json: true } if before == "a" && after == "b"
+        ));
+        assert!(Cli::try_parse_from(["codedna", "diff"]).is_err());
     }
 
     #[test]

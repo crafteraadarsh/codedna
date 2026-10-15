@@ -4,6 +4,7 @@ mod cli;
 mod context;
 mod dead_code_detector;
 mod dependency_graph;
+mod diff;
 mod framework_detector;
 mod git_handler;
 mod hotspots;

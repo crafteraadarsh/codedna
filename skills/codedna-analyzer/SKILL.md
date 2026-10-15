@@ -78,6 +78,7 @@ Trigger this skill when the user asks any of the following:
 | "Is this repo safe to install?" | `codedna audit <url>` |
 | "How do I run this project?" | `codedna runbook .` |
 | "Which env vars / API routes does it have?" | `codedna runbook .` |
+| "What did this change do to the project?" | `codedna diff before.json .` |
 | "Analyze this GitHub repo" | `codedna analyze <url>` |
 | "What does this remote repo use?" | `codedna stack <url>` |
 
@@ -153,6 +154,16 @@ How to run a project, read from its files:
 - **API routes**: Express, Fastify, Hono, NestJS, Next.js (`app/**/route.ts` and `pages/api`), Flask, FastAPI, Django, Spring, actix, Rocket, axum, Gin, Echo, chi, net/http, Laravel and Rails.
 
 Nothing is run. Environment variables are reported by name only: `.env` files are never opened, example files contribute only the text before `=`, and a command that looks like it contains a credential is hidden. Routes come from common framework patterns, so the list can be incomplete.
+
+### Diff
+
+```bash
+codedna json . > before.json   # save a snapshot
+codedna diff before.json .     # compare it with the folder now
+codedna diff old.json new.json --json
+```
+
+Compares two versions of a project. Each side is a snapshot saved with `codedna json`, a folder or a Git URL (the second defaults to `.`). It shows lines of code and file counts before and after, project type and architecture changes, frameworks, databases and infrastructure added or removed, per-language line changes, files added, removed or resized (25 of each, largest first, with totals) and files that newly look unused. Snapshot files over 64 MB are refused, and every name read from one is sanitized before it is printed.
 
 ### MCP Server
 
