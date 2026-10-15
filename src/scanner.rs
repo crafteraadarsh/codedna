@@ -123,7 +123,10 @@ mod tests {
         File::create(&small).unwrap();
         let huge = root.join("huge.json");
         // Sparse file: takes no real disk space.
-        File::create(&huge).unwrap().set_len(MAX_FILE_BYTES + 1).unwrap();
+        File::create(&huge)
+            .unwrap()
+            .set_len(MAX_FILE_BYTES + 1)
+            .unwrap();
 
         let result = scan_repository(&root);
 

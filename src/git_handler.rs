@@ -210,13 +210,19 @@ mod tests {
     fn leaves_urls_without_credentials_alone() {
         let url = "https://github.com/user/repo";
         assert_eq!(redact_url(url), url);
-        assert_eq!(redact_url("git@github.com:user/repo.git"), "git@github.com:user/repo.git");
+        assert_eq!(
+            redact_url("git@github.com:user/repo.git"),
+            "git@github.com:user/repo.git"
+        );
         assert_eq!(redact_url("./local/path"), "./local/path");
     }
 
     #[test]
     fn redacts_short_credentials_without_touching_the_scheme() {
-        assert_eq!(redact_url("https://h@example.com/r"), "https://***@example.com/r");
+        assert_eq!(
+            redact_url("https://h@example.com/r"),
+            "https://***@example.com/r"
+        );
     }
 
     #[test]
