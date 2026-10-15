@@ -263,11 +263,12 @@ impl Server {
                 let result = analysis::analyze(&root);
                 let report = crate::hotspots::analyze(&root, &result, days, limit)?;
                 Ok(pretty(&json!({
-                    "note": "Files ranked by commits in the window × lines of code. Large files that change often are where bugs and refactoring effort usually gather.",
+                    "note": "Files ranked by commits in the window × lines of code. Large files that change often are where bugs and refactoring effort usually gather. coupling lists source files usually changed in the same commit (percent = share of the less active file's commits).",
                     "days": report.days,
                     "commits_scanned": report.commits_scanned,
                     "truncated": report.truncated,
                     "hotspots": report.hotspots,
+                    "coupling": report.coupling,
                 })))
             }
             "audit_repo" => {

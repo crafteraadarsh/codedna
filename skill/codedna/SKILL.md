@@ -27,14 +27,14 @@ This prints a short Markdown briefing: project type, stack, architecture, entry 
 | Where is a framework used? | `find_framework_usage` | `codedna framework <name> .` |
 | Possibly unused files | `find_dead_code` | `codedna deadcode .` |
 | Folder layout | `repo_map` | `codedna map . --depth 3` |
-| Risky files: large and changed often | `find_hotspots` | `codedna hotspots .` |
+| Risky files: large and changed often, plus files that change together | `find_hotspots` | `codedna hotspots .` |
 | Supply-chain red flags | `audit_repo` | `codedna audit .` |
 | How to run it: scripts, env var names, API routes | `get_runbook` | `codedna runbook .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
 When the user wants something to share or keep, write a report: `codedna report . -o report.md`, or `codedna report . --format html -o report.html` (open it in a browser and print to PDF).
 
-Before a refactor, or when asked where the risky code is, check hotspots: files that are large and changed often in Git history. Start with those, and expect them to need extra care and tests.
+Before a refactor, or when asked where the risky code is, check hotspots: files that are large and changed often in Git history. Start with those, and expect them to need extra care and tests. When changing a file, check whether it is coupled to another: a pair that usually changes together often needs both edited.
 
 Before installing or running an unfamiliar repository, run the audit. Report findings as red flags to check, not proof of malware, and never repeat a secret it points to.
 

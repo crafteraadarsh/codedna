@@ -115,6 +115,8 @@ codedna hotspots . --days 90 --limit 20 --json
 
 Ranks source files by the number of Git commits that changed them in the last N days (default 365) multiplied by their lines of code. Large files that change often are where bugs and refactoring effort usually gather. Merge commits are skipped, renames are not followed, and at most 5,000 commits are read. History is read from Git objects only; nothing is checked out and no hooks or filters run. A remote URL is cloned with up to 1,000 commits of history.
 
+The same history gives **files that change together** (co-change coupling): source-file pairs changed in the same commit at least 3 times, where that covers at least half of the less active file's commits. These often point to a hidden dependency: a change to one usually needs a change to both. Commits touching more than 30 files are skipped for coupling, so bulk renames and formatting passes don't pair everything. The top 10 pairs are shown, and in JSON they are under `coupling`.
+
 ### Supply-Chain Audit
 
 ```bash

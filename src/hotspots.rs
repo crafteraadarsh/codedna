@@ -4,6 +4,9 @@
 //! commits that touched it in a time window multiplied by its lines of code.
 //! Bugs and refactoring effort tend to gather in these files.
 //!
+//! The same history gives co-change coupling: pairs of files that are
+//! usually changed in the same commit, often a sign of a hidden dependency.
+//!
 //! History is read with `git2` tree-to-tree diffs only: nothing is checked
 //! out and no hooks, filters or external diff drivers run, so nothing from
 //! the repository is executed.
@@ -11,7 +14,7 @@
 use crate::analysis::AnalysisResult;
 use crate::safe_text::sanitize;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -23,6 +26,15 @@ pub const DEFAULT_LIMIT: usize = 15;
 pub const MAX_COMMITS: usize = 5_000;
 /// History depth fetched when a remote repository is cloned for hotspots.
 pub const CLONE_DEPTH: i32 = 1_000;
+/// Number of coupled file pairs shown.
+pub const COUPLING_LIMIT: usize = 10;
+/// Commits changing more files than this are skipped for coupling: bulk
+/// renames and formatting passes would otherwise pair everything.
+pub const MAX_FILES_PER_COMMIT: usize = 30;
+/// A pair needs at least this many shared commits to count as coupled.
+pub const MIN_SHARED: usize = 3;
+/// …and must share at least this percentage of the less active file's commits.
+pub const MIN_PERCENT: usize = 50;
 
 /// One ranked file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -37,6 +49,17 @@ pub struct Hotspot {
     pub score: usize,
 }
 
+/// Two files that are usually changed in the same commit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Coupling {
+    pub file: String,
+    pub other: String,
+    /// Commits in the window that changed both files.
+    pub shared: usize,
+    /// `shared` as a percentage of the commits that changed the less active file.
+    pub percent: usize,
+}
+
 /// Ranked hotspots plus how much history they were based on.
 #[derive(Debug, Clone, Serialize)]
 pub struct HotspotReport {
@@ -47,12 +70,16 @@ pub struct HotspotReport {
     /// `true` when the walk stopped at `MAX_COMMITS`.
     pub truncated: bool,
     pub hotspots: Vec<Hotspot>,
+    /// Source files that usually change together, most shared commits first.
+    pub coupling: Vec<Coupling>,
 }
 
 /// Commit counts per file, relative to the analysed folder.
 #[derive(Debug, Default)]
 pub struct Churn {
     pub counts: HashMap<PathBuf, usize>,
+    /// Commits that changed both files of a pair; the pair is sorted.
+    pub pairs: HashMap<(PathBuf, PathBuf), usize>,
     pub commits: usize,
     pub truncated: bool,
 }
@@ -113,12 +140,22 @@ pub fn churn(root: &Path, days: u64) -> Result<Churn, String> {
         let Ok(diff) = repo.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), None) else {
             continue;
         };
-        for delta in diff.deltas() {
-            let Some(path) = delta.new_file().path() else {
-                continue;
-            };
-            if let Ok(relative) = path.strip_prefix(&prefix) {
-                *churn.counts.entry(relative.to_path_buf()).or_insert(0) += 1;
+        let mut changed: Vec<PathBuf> = diff
+            .deltas()
+            .filter_map(|delta| delta.new_file().path())
+            .filter_map(|path| path.strip_prefix(&prefix).ok())
+            .map(Path::to_path_buf)
+            .collect();
+        changed.sort();
+        changed.dedup();
+        for path in &changed {
+            *churn.counts.entry(path.clone()).or_insert(0) += 1;
+        }
+        if changed.len() <= MAX_FILES_PER_COMMIT {
+            for (i, a) in changed.iter().enumerate() {
+                for b in &changed[i + 1..] {
+                    *churn.pairs.entry((a.clone(), b.clone())).or_insert(0) += 1;
+                }
             }
         }
     }
@@ -135,7 +172,7 @@ pub fn rank(result: &AnalysisResult, churn: &Churn, limit: usize) -> Vec<Hotspot
             let path = f.file.strip_prefix(".").unwrap_or(&f.file);
             let commits = *churn.counts.get(path)?;
             Some(Hotspot {
-                file: sanitize(&path.to_string_lossy().replace('\\', "/")),
+                file: show(path),
                 commits,
                 loc: f.loc,
                 score: commits.saturating_mul(f.loc),
@@ -146,6 +183,46 @@ pub fn rank(result: &AnalysisResult, churn: &Churn, limit: usize) -> Vec<Hotspot
     hotspots.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.file.cmp(&b.file)));
     hotspots.truncate(limit);
     hotspots
+}
+
+/// Source-file pairs from `result` that usually change together, most shared
+/// commits first.
+pub fn couple(result: &AnalysisResult, churn: &Churn, limit: usize) -> Vec<Coupling> {
+    let source: HashSet<&Path> = result
+        .file_breakdown
+        .iter()
+        .map(|f| f.file.strip_prefix(".").unwrap_or(&f.file))
+        .collect();
+    let mut pairs: Vec<Coupling> = churn
+        .pairs
+        .iter()
+        .filter(|((a, b), shared)| {
+            **shared >= MIN_SHARED && source.contains(a.as_path()) && source.contains(b.as_path())
+        })
+        .filter_map(|((a, b), &shared)| {
+            let fewer = (*churn.counts.get(a)?).min(*churn.counts.get(b)?).max(1);
+            let percent = shared.saturating_mul(100) / fewer;
+            (percent >= MIN_PERCENT).then(|| Coupling {
+                file: show(a),
+                other: show(b),
+                shared,
+                percent,
+            })
+        })
+        .collect();
+    pairs.sort_by(|x, y| {
+        y.shared
+            .cmp(&x.shared)
+            .then(y.percent.cmp(&x.percent))
+            .then_with(|| x.file.cmp(&y.file))
+            .then_with(|| x.other.cmp(&y.other))
+    });
+    pairs.truncate(limit);
+    pairs
+}
+
+fn show(path: &Path) -> String {
+    sanitize(&path.to_string_lossy().replace('\\', "/"))
 }
 
 /// Read history under `root` and rank the files in `result`.
@@ -161,6 +238,7 @@ pub fn analyze(
         commits_scanned: churn.commits,
         truncated: churn.truncated,
         hotspots: rank(result, &churn, limit),
+        coupling: couple(result, &churn, COUPLING_LIMIT),
     })
 }
 
@@ -198,6 +276,19 @@ pub fn render_text(report: &HotspotReport) -> String {
     }
     out.push_str("\n  Ranked by commits × lines of code. Large files that change often\n");
     out.push_str("  are where bugs and refactoring effort usually gather.\n\n");
+    if !report.coupling.is_empty() {
+        out.push_str("  Files that change together\n\n");
+        out.push_str(&format!("  {:>6}  {:>8}  Files\n", "Shared", "Together"));
+        out.push_str(&format!("  {}\n", "─".repeat(40)));
+        for c in &report.coupling {
+            out.push_str(&format!(
+                "  {:>6}  {:>7}%  {} + {}\n",
+                c.shared, c.percent, c.file, c.other
+            ));
+        }
+        out.push_str("\n  Shared commits, and how often the less active file changed with\n");
+        out.push_str("  the other. A change to one usually needs a change to both.\n\n");
+    }
     out
 }
 
@@ -315,6 +406,66 @@ mod tests {
     }
 
     #[test]
+    fn counts_files_changed_together() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+        commit(&repo, &[("a.rs", "0"), ("b.rs", "0"), ("c.rs", "0")], 6);
+        for (i, day) in [5, 4, 3].into_iter().enumerate() {
+            let body = format!("v{i}");
+            commit(
+                &repo,
+                &[("a.rs", body.as_str()), ("b.rs", body.as_str())],
+                day,
+            );
+        }
+        commit(&repo, &[("a.rs", "x"), ("c.rs", "x")], 1);
+
+        let churn = churn(dir.path(), 365).unwrap();
+        let ab = (PathBuf::from("a.rs"), PathBuf::from("b.rs"));
+        let ac = (PathBuf::from("a.rs"), PathBuf::from("c.rs"));
+        assert_eq!(churn.pairs.get(&ab), Some(&3));
+        assert_eq!(churn.pairs.get(&ac), Some(&1));
+
+        let result = result(&[("./a.rs", 10), ("./b.rs", 10), ("./c.rs", 10)]);
+        let coupled = couple(&result, &churn, 10);
+        assert_eq!(
+            coupled,
+            [Coupling {
+                file: "a.rs".to_string(),
+                other: "b.rs".to_string(),
+                shared: 3,
+                percent: 100,
+            }]
+        );
+    }
+
+    #[test]
+    fn coupling_needs_shared_history_and_source_files() {
+        let mut churn = Churn::default();
+        churn.counts.insert(PathBuf::from("a.rs"), 10);
+        churn.counts.insert(PathBuf::from("b.rs"), 10);
+        churn.counts.insert(PathBuf::from("c.rs"), 4);
+        churn.counts.insert(PathBuf::from("README.md"), 5);
+        churn
+            .pairs
+            .insert((PathBuf::from("a.rs"), PathBuf::from("b.rs")), 3);
+        churn
+            .pairs
+            .insert((PathBuf::from("a.rs"), PathBuf::from("c.rs")), 4);
+        churn
+            .pairs
+            .insert((PathBuf::from("README.md"), PathBuf::from("a.rs")), 5);
+        let result = result(&[("a.rs", 1), ("b.rs", 1), ("c.rs", 1)]);
+
+        let coupled = couple(&result, &churn, 10);
+        assert_eq!(coupled.len(), 1);
+        assert_eq!(
+            (coupled[0].other.as_str(), coupled[0].percent),
+            ("c.rs", 100)
+        );
+    }
+
+    #[test]
     fn folder_without_history_is_an_error() {
         let dir = tempfile::tempdir().unwrap();
         let empty = Repository::init(dir.path().join("empty")).unwrap();
@@ -335,9 +486,16 @@ mod tests {
                 loc: 120,
                 score: 480,
             }],
+            coupling: vec![Coupling {
+                file: "src/main.rs".to_string(),
+                other: "src/cli.rs".to_string(),
+                shared: 4,
+                percent: 80,
+            }],
         };
         let text = render_text(&report);
         assert!(text.contains("last 30 days, 4 commits"));
         assert!(text.contains("src/main.rs"));
+        assert!(text.contains("80%  src/main.rs + src/cli.rs"));
     }
 }
