@@ -444,21 +444,7 @@ codedna json . | jq '.dead_code[]'
 
 ## ⚙️ How it works
 
-```mermaid
-flowchart LR
-    A["Path or Git URL"] --> B["Git handler<br/><sub>shallow clone if remote</sub>"]
-    B --> C["Scanner<br/><sub>skips vendored and build dirs</sub>"]
-    C --> D["Languages and LOC"]
-    C --> E["Frameworks, databases<br/>and infrastructure"]
-    C --> F["Dependency graph"]
-    F --> G["Dead code<br/><sub>reachability from entry points</sub>"]
-    D --> H(["Analysis result"])
-    E --> H
-    G --> H
-    H --> I["Terminal report"]
-    H --> J["JSON / Markdown / HTML"]
-    H --> K["MCP tools"]
-```
+<p align="center"><img src="assets/architecture.svg" alt="How CodeDna works: a path or Git URL goes through the Git handler and scanner, then languages, frameworks and the dependency graph are analyzed in parallel, dead code is found by reachability, and the combined result is shown in the terminal, as JSON, Markdown or HTML reports, or through MCP tools" width="100%"></p>
 
 File-level work runs in parallel on every CPU core with [rayon](https://github.com/rayon-rs/rayon). Remote repositories are cloned into a temporary folder that is deleted when the run ends.
 
