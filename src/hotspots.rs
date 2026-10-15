@@ -333,6 +333,7 @@ mod tests {
             total_loc: files.iter().map(|f| f.1).sum(),
             comment_lines: 0,
             blank_lines: 0,
+            architecture_details: Default::default(),
             languages: HashMap::new(),
             frameworks: vec![],
             databases: vec![],

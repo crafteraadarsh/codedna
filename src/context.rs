@@ -58,6 +58,8 @@ pub struct SizedFile {
 pub struct ContextPack {
     pub project_type: String,
     pub architecture: String,
+    /// Layers found in the code with a confidence level, or empty.
+    pub code_layers: String,
     pub total_loc: usize,
     pub file_count: usize,
     pub languages: Vec<LanguageShare>,
@@ -81,6 +83,7 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
     let mut pack = ContextPack {
         project_type: result.project_type.clone(),
         architecture: result.architecture.clone(),
+        code_layers: code_layers(result),
         total_loc: result.total_loc,
         file_count: result.file_breakdown.len(),
         languages: languages(result),
@@ -124,12 +127,25 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
     pack
 }
 
+/// `"Routes → Services → Data (high confidence)"`, or empty when the code
+/// has no recognisable layers.
+fn code_layers(result: &AnalysisResult) -> String {
+    let details = &result.architecture_details;
+    details
+        .layer_chain()
+        .map(|chain| format!("{chain} ({} confidence)", details.confidence.as_str()))
+        .unwrap_or_default()
+}
+
 /// Render a context pack as Markdown.
 pub fn render_markdown(pack: &ContextPack) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "# Codebase context\n");
     let _ = writeln!(out, "- Project type: {}", pack.project_type);
     let _ = writeln!(out, "- Architecture: {}", pack.architecture);
+    if !pack.code_layers.is_empty() {
+        let _ = writeln!(out, "- Code layers: {}", pack.code_layers);
+    }
     let _ = writeln!(
         out,
         "- Size: {} lines of code in {} files",
@@ -306,6 +322,7 @@ mod tests {
             total_loc: 1000,
             comment_lines: 0,
             blank_lines: 0,
+            architecture_details: Default::default(),
             languages,
             frameworks: vec![],
             databases: vec![],
