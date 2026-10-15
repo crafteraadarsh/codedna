@@ -22,6 +22,8 @@ exclude = [
     "CLAUDE.md",
     "GEMINI.md",
     ".cursorrules",
+    "install.sh",
+    "install.ps1",
 ]
 
 [[bin]]
