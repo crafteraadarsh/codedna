@@ -15,6 +15,7 @@
 use crate::safe_text::sanitize;
 use rayon::prelude::*;
 use serde::Serialize;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -726,6 +727,8 @@ fn routes(file: &str, text: &str) -> Vec<Route> {
         if line.len() > MAX_LINE {
             continue;
         }
+        let joined = continued(&lines, i);
+        let line: &str = &joined;
         let mut push =
             |method: &str, path: &str| out.push((i + 1, method.to_string(), path.to_string()));
         match ext {
@@ -805,6 +808,23 @@ fn routes(file: &str, text: &str) -> Vec<Route> {
             line,
         })
         .collect()
+}
+
+/// A line ending in an open call, joined to the next non-empty line so
+/// `router.get(` followed by `'/x',` reads as one call.
+fn continued<'a>(lines: &[&'a str], i: usize) -> Cow<'a, str> {
+    let line = lines[i];
+    if !line.trim_end().ends_with('(') {
+        return Cow::Borrowed(line);
+    }
+    match lines[i + 1..]
+        .iter()
+        .map(|l| l.trim())
+        .find(|l| !l.is_empty())
+    {
+        Some(next) if next.len() <= MAX_LINE => Cow::Owned(format!("{}{next}", line.trim_end())),
+        _ => Cow::Borrowed(line),
+    }
 }
 
 /// `/a` + `b/` → `/a/b`.
@@ -1289,6 +1309,20 @@ mod tests {
 
         let go = routes_of("main.go", "r.GET(\"/ping\", h)\nhttp.HandleFunc(\"POST /items\", h)\nmux.Handle(\"/static/\", fs)\n");
         assert_eq!(go, ["GET /ping", "POST /items", "ANY /static/"]);
+    }
+
+    #[test]
+    fn finds_routes_split_across_lines() {
+        let ts = "router.get(\n  '/articles/feed',\n  auth.required,\n  handler,\n);\nrouter.post(\n\n  \"/articles\", h)\n";
+        let found = routes("src/article.controller.ts", ts);
+        let found: Vec<(usize, &str, &str)> = found
+            .iter()
+            .map(|r| (r.line, r.method.as_str(), r.path.as_str()))
+            .collect();
+        assert_eq!(
+            found,
+            [(1, "GET", "/articles/feed"), (6, "POST", "/articles")]
+        );
     }
 
     /// Routes as `METHOD path`.

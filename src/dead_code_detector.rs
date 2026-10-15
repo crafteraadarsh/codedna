@@ -34,7 +34,10 @@ const ENTRY_POINT_NAMES: &[&str] = &[
     "app.ts",
     "app.js",
     "main.ts",
+    "main.tsx",
     "main.js",
+    "main.jsx",
+    "main.mjs",
     "vite.config.ts",
     "vite.config.js",
     "next.config.ts",
@@ -137,18 +140,66 @@ pub fn is_entry_point(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Whether a test runner or the compiler loads the file, so nothing imports
-/// it: tests and TypeScript declaration files.
+/// File stems that Next.js loads by convention from `app/`, or from the
+/// project root.
+const NEXT_CONVENTION_STEMS: &[&str] = &[
+    "page",
+    "layout",
+    "loading",
+    "error",
+    "not-found",
+    "route",
+    "template",
+    "default",
+    "global-error",
+    "middleware",
+    "instrumentation",
+];
+
+/// Whether a test runner, compiler or framework loads the file, so nothing
+/// imports it: tests, declaration files, Cargo targets, tool configs and
+/// file-based routes.
 fn is_loaded_by_tooling(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
-    name.contains(".test.")
+    if name.contains(".test.")
         || name.contains(".spec.")
+        || name.contains(".stories.")
+        || name.contains(".config.")
         || name.ends_with(".d.ts")
         || name == "conftest.py"
         || (name.starts_with("test_") && name.ends_with(".py"))
         || name.ends_with("_test.py")
+    {
+        return true;
+    }
+
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let dirs: Vec<&str> = path
+        .parent()
+        .map(|p| p.iter().filter_map(|c| c.to_str()).collect())
+        .unwrap_or_default();
+
+    if ext == "rs" {
+        // Cargo compiles every file in these directories as its own crate.
+        let target_dir = dirs.last().copied().unwrap_or("");
+        let in_target_dir = matches!(
+            target_dir,
+            "tests" | "benches" | "examples" | "fuzz_targets"
+        );
+        let in_bin = dirs.ends_with(&["src", "bin"]);
+        return in_target_dir || in_bin;
+    }
+
+    if matches!(ext, "ts" | "tsx" | "js" | "jsx" | "mjs") {
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        let file_routes =
+            dirs.contains(&"pages") || dirs.windows(2).any(|w| w == ["app", "routes"]);
+        return NEXT_CONVENTION_STEMS.contains(&stem) || file_routes;
+    }
+
+    false
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +227,30 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    fn recognises_cargo_targets() {
+        assert!(is_loaded_by_tooling(&p("tests/cli.rs")));
+        assert!(is_loaded_by_tooling(&p("crates/core/benches/speed.rs")));
+        assert!(is_loaded_by_tooling(&p("examples/basic.rs")));
+        assert!(is_loaded_by_tooling(&p("src/bin/tool.rs")));
+        assert!(!is_loaded_by_tooling(&p("src/scanner.rs")));
+        assert!(!is_loaded_by_tooling(&p("src/bin/helpers/x.rs")));
+    }
+
+    #[test]
+    fn recognises_framework_conventions() {
+        assert!(is_loaded_by_tooling(&p("app/dashboard/page.tsx")));
+        assert!(is_loaded_by_tooling(&p("app/layout.tsx")));
+        assert!(is_loaded_by_tooling(&p("app/api/users/route.ts")));
+        assert!(is_loaded_by_tooling(&p("middleware.ts")));
+        assert!(is_loaded_by_tooling(&p("src/pages/about.tsx")));
+        assert!(is_loaded_by_tooling(&p("app/routes/_index.tsx")));
+        assert!(is_loaded_by_tooling(&p("postcss.config.mjs")));
+        assert!(is_loaded_by_tooling(&p("src/Button.stories.tsx")));
+        assert!(!is_loaded_by_tooling(&p("src/components/Button.tsx")));
+        assert!(!is_loaded_by_tooling(&p("src/page.py")));
+    }
+
+    #[test]
     fn recognises_rust_entry_points() {
         assert!(is_entry_point(&p("src/main.rs")));
         assert!(is_entry_point(&p("src/lib.rs")));
@@ -190,6 +265,8 @@ mod tests {
         assert!(is_entry_point(&p("src/server.ts")));
         assert!(is_entry_point(&p("app.ts")));
         assert!(is_entry_point(&p("app.js")));
+        assert!(is_entry_point(&p("src/main.tsx")));
+        assert!(is_entry_point(&p("src/main.jsx")));
         assert!(is_entry_point(&p("main.ts")));
     }
 
