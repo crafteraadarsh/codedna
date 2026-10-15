@@ -141,6 +141,21 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Scan for supply-chain red flags: secrets, install scripts, obfuscation
+    Audit {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output JSON instead of a list
+        #[arg(long, default_value_t = false)]
+        json: bool,
+
+        /// Exit with status 1 if any finding is at or above this severity
+        #[arg(long, value_name = "LEVEL", value_parser = ["low", "medium", "high"])]
+        fail_on: Option<String>,
+    },
+
     /// Run an MCP server on stdio so AI agents can call CodeDna as tools
     Mcp {
         /// Folder the server may read (repeatable; default: current folder)
@@ -373,6 +388,31 @@ pub fn run() {
             }
         }
 
+        // ── audit ─────────────────────────────────────────────────────────────
+        Commands::Audit {
+            path,
+            json,
+            fail_on,
+        } => {
+            eprintln!("Auditing {}…", shown(&path));
+            let (local_path, _guard) = resolve(&path);
+            let report = crate::audit::audit(&local_path);
+            if json {
+                match serde_json::to_string_pretty(&report) {
+                    Ok(text) => println!("{text}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                }
+            } else {
+                print!("{}", crate::audit::render_text(&report));
+            }
+            let threshold = fail_on
+                .as_deref()
+                .and_then(crate::audit::Severity::from_name);
+            if threshold.is_some_and(|level| report.has_at_least(level)) {
+                std::process::exit(1);
+            }
+        }
+
         // ── mcp ───────────────────────────────────────────────────────────────
         Commands::Mcp { roots } => {
             if let Err(e) = crate::mcp::serve(&roots) {
@@ -437,6 +477,34 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn parses_audit() {
+        let cli = Cli::try_parse_from(["codedna", "audit"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Audit {
+                json: false,
+                fail_on: None,
+                ..
+            }
+        ));
+        let cli =
+            Cli::try_parse_from(["codedna", "audit", "x", "--json", "--fail-on", "high"]).unwrap();
+        match cli.command {
+            Commands::Audit {
+                path,
+                json,
+                fail_on,
+            } => {
+                assert_eq!(path, "x");
+                assert!(json);
+                assert_eq!(fail_on.as_deref(), Some("high"));
+            }
+            _ => panic!("expected audit command"),
+        }
+        assert!(Cli::try_parse_from(["codedna", "audit", "--fail-on", "severe"]).is_err());
     }
 
     #[test]

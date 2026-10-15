@@ -1,6 +1,6 @@
 ---
 name: codedna
-description: Understand a repository fast with the `codedna` CLI or its MCP tools before reading files by hand. Use when you need the tech stack, architecture, entry points, key files, framework usage, dead code, directory layout or LOC breakdown of a local or remote codebase.
+description: Understand a repository fast with the `codedna` CLI or its MCP tools before reading files by hand. Use when you need the tech stack, architecture, entry points, key files, framework usage, dead code, hotspots, supply-chain red flags, directory layout or LOC breakdown of a local or remote codebase.
 ---
 
 # CodeDna
@@ -28,11 +28,14 @@ This prints a short Markdown briefing: project type, stack, architecture, entry 
 | Possibly unused files | `find_dead_code` | `codedna deadcode .` |
 | Folder layout | `repo_map` | `codedna map . --depth 3` |
 | Risky files: large and changed often | `find_hotspots` | `codedna hotspots .` |
+| Supply-chain red flags | `audit_repo` | `codedna audit .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
 When the user wants something to share or keep, write a report: `codedna report . -o report.md`, or `codedna report . --format html -o report.html` (open it in a browser and print to PDF).
 
 Before a refactor, or when asked where the risky code is, check hotspots: files that are large and changed often in Git history. Start with those, and expect them to need extra care and tests.
+
+Before installing or running an unfamiliar repository, run the audit. Report findings as red flags to check, not proof of malware, and never repeat a secret it points to.
 
 Every command also accepts a public `https://` Git URL instead of `.`.
 
