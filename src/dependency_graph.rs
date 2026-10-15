@@ -171,8 +171,10 @@ fn extract_first_quoted(s: &str) -> Option<&str> {
 ///
 /// Tries in order:
 /// 1. Exact path (already has extension)
-/// 2. `<path>.ts`, `<path>.tsx`, `<path>.js`, `<path>.jsx`, `<path>.mjs`
-/// 3. `<path>/index.ts`, `<path>/index.js`, etc.
+/// 2. `<path>.ts`, `<path>.tsx`, `<path>.js`, `<path>.jsx`, `<path>.mjs`,
+///    appended so dotted names like `./user.service` keep their full name
+/// 3. A `.js` specifier pointing at TypeScript (`./routes.js` → `routes.ts`)
+/// 4. `<path>/index.ts`, `<path>/index.js`, etc.
 fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
     let base = parent.join(specifier);
 
@@ -181,15 +183,29 @@ fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
         return Some(normalize(&base));
     }
 
-    // 2. With extension
+    // 2. With extension appended
     for ext in &["ts", "tsx", "js", "jsx", "mjs"] {
-        let candidate = base.with_extension(ext);
+        let candidate = append_extension(&base, ext);
         if candidate.is_file() {
             return Some(normalize(&candidate));
         }
     }
 
-    // 3. Index file inside directory
+    // 3. JavaScript extension standing in for TypeScript
+    let js_like = base
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| matches!(e, "js" | "jsx" | "mjs" | "cjs"));
+    if js_like {
+        for ext in &["ts", "tsx"] {
+            let candidate = base.with_extension(ext);
+            if candidate.is_file() {
+                return Some(normalize(&candidate));
+            }
+        }
+    }
+
+    // 4. Index file inside directory
     for ext in &["ts", "tsx", "js", "jsx", "mjs"] {
         let candidate = base.join(format!("index.{ext}"));
         if candidate.is_file() {
@@ -200,16 +216,26 @@ fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
     None
 }
 
+/// Append `.ext` to `path` without replacing a dotted suffix it already has.
+fn append_extension(path: &Path, ext: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_os_string();
+    name.push(".");
+    name.push(ext);
+    PathBuf::from(name)
+}
+
 // ---------------------------------------------------------------------------
 // Python parser
 // ---------------------------------------------------------------------------
 
-/// Parse Python relative imports and return resolved paths.
+/// Parse Python imports and return the files they load.
 ///
-/// Patterns matched (relative only):
-/// - `from .module import ...`
-/// - `from ..module import ...`
-/// - `from . import something`
+/// Patterns matched:
+/// - `from .module import ...` and `from ..module import ...`
+/// - `from . import module`
+/// - `from package.module import ...` and `import package.module`
+///
+/// Third-party and stdlib imports find no matching file and are ignored.
 fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
     let content = match fs::read_to_string(file) {
         Ok(c) => c,
@@ -231,12 +257,9 @@ fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
             continue;
         }
 
-        // Match `from .xxx import yyy` or `from ..xxx import yyy`
-        if trimmed.starts_with("from .") {
-            if let Some(resolved) = resolve_python_relative(parent, trimmed) {
-                if !deps.contains(&resolved) {
-                    deps.push(resolved);
-                }
+        for resolved in resolve_python_import(parent, trimmed) {
+            if !deps.contains(&resolved) {
+                deps.push(resolved);
             }
         }
     }
@@ -244,55 +267,105 @@ fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
     deps
 }
 
-/// Resolve a `from .module import ...` statement to an absolute path.
-///
-/// Counts leading dots to determine how many directories to go up.
-fn resolve_python_relative(file_parent: &Path, line: &str) -> Option<PathBuf> {
-    // Strip `from ` prefix
-    let rest = line.strip_prefix("from ")?.trim_start();
+/// Resolve one `from ... import ...` or `import ...` line to files on disk.
+fn resolve_python_import(file_parent: &Path, line: &str) -> Vec<PathBuf> {
+    let line = line.split('#').next().unwrap_or("").trim();
 
-    // Count leading dots
-    let dot_count = rest.chars().take_while(|&c| c == '.').count();
-    let after_dots = &rest[dot_count..];
-
-    // Module name is everything up to the first space
-    let module = after_dots
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .trim_end_matches('.');
-
-    // Walk up `dot_count - 1` directories (one dot = same package)
-    let mut base = file_parent.to_path_buf();
-    for _ in 1..dot_count {
-        base = base.parent()?.to_path_buf();
+    if let Some(rest) = line.strip_prefix("from ") {
+        let Some((module, names)) = rest.split_once(" import ") else {
+            return Vec::new();
+        };
+        let names: Vec<&str> = names
+            .split(',')
+            .map(|n| n.trim().trim_start_matches('(').trim_end_matches(')'))
+            .filter_map(|n| n.split_whitespace().next())
+            .filter(|n| *n != "*" && *n != "\\")
+            .collect();
+        return resolve_python_module_in(file_parent, module.trim(), &names);
     }
 
-    if module.is_empty() {
-        // `from . import something` — refers to __init__.py of current package
-        let candidate = base.join("__init__.py");
-        if candidate.is_file() {
-            return Some(normalize(&candidate));
+    if let Some(rest) = line.strip_prefix("import ") {
+        let mut deps = Vec::new();
+        for module in rest.split(',') {
+            if let Some(module) = module.split_whitespace().next() {
+                deps.extend(resolve_python_module_in(file_parent, module, &[]));
+            }
         }
-        return None;
+        return deps;
     }
 
-    // Convert dotted module path to filesystem path
-    let module_path = module.replace('.', std::path::MAIN_SEPARATOR_STR);
+    Vec::new()
+}
 
-    // Try as a module file
-    let as_file = base.join(format!("{module_path}.py"));
-    if as_file.is_file() {
-        return Some(normalize(&as_file));
+/// Find the files a module import loads, starting from the importing file.
+///
+/// Relative modules (leading dots) start from the file's own package and walk
+/// up one directory per extra dot. Absolute modules are tried from each
+/// enclosing directory, so `from app.core import db` in `backend/app/main.py`
+/// finds `backend/app/core/db.py`.
+fn resolve_python_module_in(file_parent: &Path, module: &str, names: &[&str]) -> Vec<PathBuf> {
+    let dot_count = module.chars().take_while(|&c| c == '.').count();
+    let dotted = &module[dot_count..];
+
+    if dot_count > 0 {
+        return file_parent
+            .ancestors()
+            .nth(dot_count - 1)
+            .and_then(|root| resolve_python_module(root, dotted, names))
+            .unwrap_or_default();
     }
 
-    // Try as a package directory
-    let as_pkg = base.join(&module_path).join("__init__.py");
-    if as_pkg.is_file() {
-        return Some(normalize(&as_pkg));
+    file_parent
+        .ancestors()
+        .find_map(|root| resolve_python_module(root, dotted, names))
+        .unwrap_or_default()
+}
+
+/// Resolve a dotted module under `root`, or `None` when `root` lacks it.
+///
+/// Returns the module's file plus every package `__init__.py` passed on the
+/// way, since Python runs those too. Imported names that are submodules
+/// (`from . import utils`) resolve to their own files.
+fn resolve_python_module(root: &Path, dotted: &str, names: &[&str]) -> Option<Vec<PathBuf>> {
+    let segments: Vec<&str> = dotted.split('.').filter(|s| !s.is_empty()).collect();
+    let mut dir = root.to_path_buf();
+    let mut files = Vec::new();
+
+    if segments.is_empty() {
+        push_if_file(&mut files, &dir.join("__init__.py"));
     }
 
-    None
+    for (i, segment) in segments.iter().enumerate() {
+        let as_file = dir.join(format!("{segment}.py"));
+        if i + 1 == segments.len() && as_file.is_file() {
+            files.push(normalize(&as_file));
+            return Some(files);
+        }
+
+        dir = dir.join(segment);
+        if !dir.is_dir() {
+            return None;
+        }
+        push_if_file(&mut files, &dir.join("__init__.py"));
+    }
+
+    for name in names {
+        let as_file = dir.join(format!("{name}.py"));
+        if as_file.is_file() {
+            files.push(normalize(&as_file));
+        } else {
+            push_if_file(&mut files, &dir.join(name).join("__init__.py"));
+        }
+    }
+
+    Some(files)
+}
+
+/// Push `candidate` onto `files` when it exists.
+fn push_if_file(files: &mut Vec<PathBuf>, candidate: &Path) {
+    if candidate.is_file() {
+        files.push(normalize(candidate));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +543,38 @@ mod tests {
     }
 
     #[test]
+    fn resolves_ts_import_of_dotted_file_name() {
+        let dir = unique_temp_dir("codedna_dg_ts_dotted");
+        let service = dir.join("user.service.ts");
+        write_file(&service, "export const s = 1;");
+        let user = dir.join("user.ts");
+        write_file(&user, "export const u = 1;");
+
+        let controller = dir.join("user.controller.ts");
+        write_file(&controller, r#"import { s } from "./user.service";"#);
+
+        let deps = parse_dependencies(&controller);
+        assert_eq!(deps, vec![normalize(&service)]);
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn resolves_js_specifier_to_ts_file() {
+        let dir = unique_temp_dir("codedna_dg_ts_js_spec");
+        let routes = dir.join("routes.ts");
+        write_file(&routes, "export const r = 1;");
+
+        let server = dir.join("server.ts");
+        write_file(&server, r#"import { r } from "./routes.js";"#);
+
+        let deps = parse_dependencies(&server);
+        assert!(deps.contains(&normalize(&routes)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
     fn resolves_js_require_call() {
         let dir = unique_temp_dir("codedna_dg_js_require");
         let utils = dir.join("utils.js");
@@ -579,6 +684,65 @@ mod tests {
 
         let deps = parse_dependencies(&routes);
         assert!(deps.contains(&normalize(&shared)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn resolves_python_absolute_import_from_enclosing_directory() {
+        let dir = unique_temp_dir("codedna_dg_py_abs_local");
+        let app = dir.join("backend").join("app");
+        let init = app.join("__init__.py");
+        write_file(&init, "");
+        let core_init = app.join("core").join("__init__.py");
+        write_file(&core_init, "");
+        let config = app.join("core").join("config.py");
+        write_file(&config, "settings = 1");
+
+        let main = app.join("main.py");
+        write_file(&main, "from app.core.config import settings");
+
+        let deps = parse_dependencies(&main);
+        assert!(deps.contains(&normalize(&config)));
+        assert!(deps.contains(&normalize(&core_init)));
+        assert!(deps.contains(&normalize(&init)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn resolves_python_imported_submodules() {
+        let dir = unique_temp_dir("codedna_dg_py_submodule");
+        let routes = dir.join("api").join("routes");
+        let items = routes.join("items.py");
+        write_file(&items, "router = 1");
+        let users = routes.join("users.py");
+        write_file(&users, "router = 1");
+
+        let main = dir.join("api").join("main.py");
+        write_file(
+            &main,
+            "from api.routes import items, users\nimport api.routes.items",
+        );
+
+        let deps = parse_dependencies(&main);
+        assert!(deps.contains(&normalize(&items)));
+        assert!(deps.contains(&normalize(&users)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn resolves_python_from_dot_import_module() {
+        let dir = unique_temp_dir("codedna_dg_py_dot_module");
+        let utils = dir.join("utils.py");
+        write_file(&utils, "def helper(): pass");
+
+        let main = dir.join("main.py");
+        write_file(&main, "from . import utils");
+
+        let deps = parse_dependencies(&main);
+        assert!(deps.contains(&normalize(&utils)));
 
         fs::remove_dir_all(dir).ok();
     }
