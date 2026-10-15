@@ -10,6 +10,10 @@ env:
   CARGO_TERM_COLOR: always
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# Workflows only need to read the code.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (${{ matrix.os }})
@@ -22,6 +26,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -49,6 +55,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Rust stable with clippy
         uses: dtolnay/rust-toolchain@stable
@@ -73,6 +81,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Rust stable with rustfmt
         uses: dtolnay/rust-toolchain@stable
@@ -82,11 +92,28 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Check dependencies for known vulnerabilities
+        run: cargo audit
+
   release:
     name: Build release binary (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    needs: [test, clippy, fmt]
+    needs: [test, clippy, fmt, audit]
     strategy:
       matrix:
         include:
@@ -106,6 +133,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable

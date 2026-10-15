@@ -15,7 +15,7 @@
 //!     └── helpers.ts
 //! ```
 
-use std::ffi::OsStr;
+use crate::safe_text::sanitize;
 use std::fmt::Write as FmtWrite;
 use std::path::Path;
 
@@ -46,7 +46,10 @@ pub fn render_tree(root: &Path, max_depth: usize) -> String {
     let mut out = String::new();
 
     // Print the root label.
-    let root_label = root.file_name().and_then(OsStr::to_str).unwrap_or(".");
+    let root_label = root
+        .file_name()
+        .map(|n| sanitize(&n.to_string_lossy()))
+        .unwrap_or_else(|| ".".to_string());
 
     let _ = writeln!(out, "{root_label}/");
 
@@ -103,8 +106,7 @@ fn render_dir(dir: &Path, prefix: &str, depth_remaining: usize, out: &mut String
         let connector = if is_last { "└── " } else { "├── " };
         let extension = if is_last { "    " } else { "│   " };
 
-        let name = entry.file_name();
-        let name_str = name.to_str().unwrap_or("?");
+        let name_str = sanitize(&entry.file_name().to_string_lossy());
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
 
         if is_dir {
@@ -315,6 +317,20 @@ mod tests {
             tree.contains("│"),
             "continuation pipe │ should appear:\n{tree}"
         );
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn replaces_escape_sequences_in_file_names() {
+        let dir = unique_temp_dir("codedna_map_escape");
+        touch(&dir.join("evil\u{1b}[2J.rs"));
+
+        let tree = render_tree(&dir, DEFAULT_MAX_DEPTH);
+
+        assert!(!tree.contains('\u{1b}'), "escape leaked into tree:\n{tree}");
+        assert!(tree.contains("evil?[2J.rs"));
 
         fs::remove_dir_all(dir).ok();
     }

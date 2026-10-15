@@ -110,6 +110,12 @@ fn resolve(input: &str) -> (PathBuf, Option<tempfile::TempDir>) {
     }
 }
 
+/// The CLI input as it is safe to print: credentials removed, control
+/// characters replaced.
+fn shown(input: &str) -> String {
+    crate::safe_text::sanitize(&crate::git_handler::redact_url(input))
+}
+
 /// Parse CLI arguments and dispatch to the appropriate module.
 pub fn run() {
     let cli = Cli::parse();
@@ -124,7 +130,7 @@ pub fn run() {
                 "  Scanned {} file{} in '{}'",
                 files.len(),
                 if files.len() == 1 { "" } else { "s" },
-                path
+                shown(&path)
             );
             println!();
             for f in &files {
@@ -135,7 +141,7 @@ pub fn run() {
 
         // ── stack ─────────────────────────────────────────────────────────────
         Commands::Stack { path } => {
-            eprintln!("Analysing '{path}'…");
+            eprintln!("Analysing '{}'…", shown(&path));
             let (local_path, _guard) = resolve(&path);
             let result = crate::analysis::analyze(&local_path);
             crate::reporter::print_stack(&result);
@@ -143,7 +149,7 @@ pub fn run() {
 
         // ── files ─────────────────────────────────────────────────────────────
         Commands::Files { path } => {
-            eprintln!("Analysing '{path}'…");
+            eprintln!("Analysing '{}'…", shown(&path));
             let (local_path, _guard) = resolve(&path);
             let result = crate::analysis::analyze(&local_path);
             crate::reporter::print_files(&result);
@@ -151,7 +157,7 @@ pub fn run() {
 
         // ── framework ─────────────────────────────────────────────────────────
         Commands::Framework { name, path } => {
-            eprintln!("Analysing '{path}'…");
+            eprintln!("Analysing '{}'…", shown(&path));
             let (local_path, _guard) = resolve(&path);
             let files = crate::scanner::scan_repository(&local_path);
             let matching = crate::framework_detector::detect_files_using_framework(&files, &name);
@@ -160,7 +166,7 @@ pub fn run() {
 
         // ── deadcode ──────────────────────────────────────────────────────────
         Commands::Deadcode { path } => {
-            eprintln!("Analysing '{path}'…");
+            eprintln!("Analysing '{}'…", shown(&path));
             let (local_path, _guard) = resolve(&path);
             let result = crate::analysis::analyze(&local_path);
             crate::reporter::print_dead_code(&result);
@@ -168,7 +174,7 @@ pub fn run() {
 
         // ── analyze ───────────────────────────────────────────────────────────
         Commands::Analyze { path, time } => {
-            eprintln!("Analysing '{path}'…");
+            eprintln!("Analysing '{}'…", shown(&path));
             let t0 = std::time::Instant::now();
             let (local_path, _guard) = resolve(&path);
             let result = crate::analysis::analyze(&local_path);

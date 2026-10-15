@@ -9,6 +9,7 @@ mod loc_counter;
 mod repo_map;
 mod reporter;
 mod rules;
+mod safe_text;
 mod scanner;
 
 fn main() {
