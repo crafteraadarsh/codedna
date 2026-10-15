@@ -240,15 +240,15 @@ impl Server {
             "find_dead_code" => {
                 let result = analysis::analyze(&root);
                 let limit = limit_arg(args)?;
-                let files: Vec<String> = result
-                    .dead_code
-                    .iter()
-                    .take(limit)
-                    .map(|f| show(f.as_path()))
-                    .collect();
+                let candidates = result.dead_code_candidates();
+                let files: Vec<Value> = candidates.iter().take(limit).map(dead_code_json).collect();
                 Ok(pretty(&json!({
-                    "note": "Heuristic: files not reachable from a detected entry point. Verify before deleting.",
-                    "total": result.dead_code.len(),
+                    "note": "Heuristic: files not reachable from a detected entry point, most certain first. \
+                             high: no other file mentions the name; medium: the name appears elsewhere or \
+                             modules are loaded dynamically; low: probably loaded by convention or a dynamic \
+                             import. Verify before deleting.",
+                    "total": candidates.len(),
+                    "summary": crate::dead_code_detector::confidence_summary(&candidates),
                     "files": files,
                 })))
             }
@@ -541,11 +541,11 @@ fn summary(result: &AnalysisResult, limit: usize) -> Value {
         .take(limit)
         .map(|f| json!({ "file": show(&f.file), "loc": f.loc, "language": f.language }))
         .collect();
-    let dead: Vec<String> = result
-        .dead_code
+    let dead: Vec<Value> = result
+        .dead_code_candidates()
         .iter()
         .take(limit)
-        .map(|f| show(f.as_path()))
+        .map(dead_code_json)
         .collect();
     json!({
         "project_type": result.project_type,
@@ -560,6 +560,14 @@ fn summary(result: &AnalysisResult, limit: usize) -> Value {
         "largest_files": largest,
         "dead_code_total": result.dead_code.len(),
         "dead_code": dead,
+    })
+}
+
+fn dead_code_json(c: &crate::dead_code_detector::DeadCodeCandidate) -> Value {
+    json!({
+        "file": show(&c.file),
+        "confidence": c.confidence.as_str(),
+        "reason": sanitize(&c.reason),
     })
 }
 

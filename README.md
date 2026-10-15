@@ -414,6 +414,9 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
     "jest.preset.js",
     "src/prisma/seed.ts"
   ],
+  "dead_code_details": [
+    { "file": "src/prisma/seed.ts", "confidence": "medium", "reason": "Nothing imports it, but \"seed\" is mentioned in 1 other file(s)" }
+  ],
   "dependency_graph": { "...": ["..."] },
   "file_breakdown": [
     { "file": "./src/app/routes/article/article.service.ts", "loc": 590, "language": "TypeScript" }
@@ -434,6 +437,7 @@ Output from CodeDna v0.1.1 on [`gothinkster/node-express-realworld-example-app`]
 | `architecture` | string | Architecture summary from detected frameworks and databases |
 | `architecture_details` | object | Layers found in the code (`layers`), import counts between them (`flows`), `confidence` (`high`/`medium`/`low`) and `evidence` |
 | `dead_code` | string[] | Files nothing reaches from an entry point |
+| `dead_code_details` | object[] | Per file `{ file, confidence, reason }`: how likely it is to be really unused, and why |
 | `dependency_graph` | object | File → imported files |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` |
 
@@ -518,7 +522,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 - **Architecture** comes from two sources. The summary line uses detected frameworks and databases. `architecture_details` then checks the code: files are grouped into layers by folder and file name (`routes/`, `user.controller.ts`, `services/`, `models.py`, …), tests are left out, and imports between layers are counted. Confidence is high when layers import each other top-down, medium when the folders exist without supporting imports, and low when no layers are found.
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
-- **Dead code is a heuristic.** A file is listed when nothing reaches it through imports from an entry point. Tests, declaration files and common tool configs count as entry points, but dynamic imports, path aliases and framework conventions can still hide real usage. Check before deleting anything.
+- **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. Check before deleting anything, even at high confidence.
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.
 
 </details>

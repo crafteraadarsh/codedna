@@ -31,6 +31,7 @@ name = "codedna"
 path = "src/main.rs"
 
 [dependencies]
+aho-corasick = "1"
 clap = { version = "4", features = ["derive"] }
 ignore = "0.4"
 serde = { version = "1", features = ["derive"] }

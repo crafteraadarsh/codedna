@@ -4,7 +4,7 @@
 //! that represents the complete intelligence report for a repository.
 
 use crate::architecture::{self, ArchitectureInsight};
-use crate::dead_code_detector;
+use crate::dead_code_detector::{self, DeadCodeCandidate};
 use crate::dependency_graph;
 use crate::framework_detector;
 use crate::language_detector;
@@ -73,6 +73,11 @@ pub struct AnalysisResult {
     /// Files unreachable from any entry point via dependency graph traversal.
     pub dead_code: Vec<PathBuf>,
 
+    /// The same files with a confidence level and the reason for it, most
+    /// certain first.
+    #[serde(default)]
+    pub dead_code_details: Vec<DeadCodeCandidate>,
+
     /// Directed import graph: `file → [files it imports]`.
     #[serde(serialize_with = "serialize_dep_graph")]
     #[serde(deserialize_with = "deserialize_dep_graph")]
@@ -80,6 +85,13 @@ pub struct AnalysisResult {
 
     /// Per-file breakdown, sorted by LOC descending.
     pub file_breakdown: Vec<FileInfo>,
+}
+
+impl AnalysisResult {
+    /// Dead-code candidates with confidence, most certain first.
+    pub fn dead_code_candidates(&self) -> Vec<DeadCodeCandidate> {
+        dead_code_detector::candidates_of(&self.dead_code, &self.dead_code_details)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +117,7 @@ const LOCKFILES: &[&str] = &[
 ];
 
 /// Whether `file` is a package-manager lockfile.
-fn is_lockfile(file: &Path) -> bool {
+pub(crate) fn is_lockfile(file: &Path) -> bool {
     file.file_name()
         .and_then(|n| n.to_str())
         .is_some_and(|n| LOCKFILES.contains(&n))
@@ -205,6 +217,13 @@ pub fn analyze(root: &Path) -> AnalysisResult {
             .unwrap_or_else(|_| p.to_path_buf())
     };
 
+    let dead_code_details = dead_code_detector::assess(root, &dead_code, &files)
+        .into_iter()
+        .map(|c| DeadCodeCandidate {
+            file: make_relative(&c.file),
+            ..c
+        })
+        .collect();
     let dead_code = dead_code.into_iter().map(|p| make_relative(&p)).collect();
 
     let dependency_graph: HashMap<PathBuf, Vec<PathBuf>> = dep_graph
@@ -237,6 +256,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         architecture,
         architecture_details,
         dead_code,
+        dead_code_details,
         dependency_graph,
         file_breakdown,
     }

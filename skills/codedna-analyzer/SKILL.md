@@ -339,13 +339,14 @@ User-friendly messages for:
 | Field | Type | Description |
 |---|---|---|
 | `project_type` | string | High-level project classification |
-| `total_loc` | number | Total non-empty lines of code |
+| `total_loc` | number | Lines of code, excluding comments, blank lines and lockfiles |
 | `languages` | object | Language -> LOC count map |
 | `frameworks` | string[] | Detected application frameworks |
 | `databases` | string[] | Detected databases / ORMs |
 | `infrastructure` | string[] | Detected DevOps tooling |
 | `architecture` | string | Inferred architecture pattern |
 | `dead_code` | string[] | Unreachable file paths |
+| `dead_code_details` | object[] | Per file `{ file, confidence, reason }`; confidence is `high`, `medium` or `low` |
 | `dependency_graph` | object | File -> imported files map |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` entries |
 

@@ -10,7 +10,14 @@
 //! Entry points are files whose names match well-known patterns:
 //! `main.rs`, `index.ts`, `index.js`, `app.py`, `manage.py`, etc.
 
+use crate::analysis::is_lockfile;
+use crate::architecture::{is_test, Confidence};
+use crate::safe_text::sanitize;
+use aho_corasick::AhoCorasick;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 // ---------------------------------------------------------------------------
@@ -203,6 +210,412 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Confidence
+// ---------------------------------------------------------------------------
+
+/// A dead-code candidate with how sure CodeDna is and why.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeadCodeCandidate {
+    pub file: PathBuf,
+    pub confidence: Confidence,
+    pub reason: String,
+}
+
+/// Candidates with confidence, falling back to the plain list for results
+/// saved before confidence was recorded.
+pub fn candidates_of(dead: &[PathBuf], details: &[DeadCodeCandidate]) -> Vec<DeadCodeCandidate> {
+    if !details.is_empty() || dead.is_empty() {
+        return details.to_vec();
+    }
+    dead.iter()
+        .map(|file| DeadCodeCandidate {
+            file: file.clone(),
+            confidence: Confidence::Medium,
+            reason: "Nothing imports it; no confidence was recorded".to_string(),
+        })
+        .collect()
+}
+
+/// "2 high, 1 medium, 3 low" — the levels present, most certain first.
+pub fn confidence_summary(candidates: &[DeadCodeCandidate]) -> String {
+    [Confidence::High, Confidence::Medium, Confidence::Low]
+        .iter()
+        .filter_map(|level| {
+            let n = candidates.iter().filter(|c| c.confidence == *level).count();
+            (n > 0).then(|| format!("{n} {}", level.as_str()))
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Folders that frameworks and tools load by convention, without imports.
+const CONVENTION_DIRS: &[&str] = &[
+    "migrations",
+    "migration",
+    "alembic",
+    ".github",
+    ".husky",
+    "seeds",
+    "seeders",
+    "fixtures",
+    "plugins",
+    "commands",
+    "management",
+    "scripts",
+    "bin",
+    "cron",
+    "tasks",
+    "jobs",
+    "listeners",
+    "subscribers",
+    "locales",
+    "i18n",
+    "public",
+    "static",
+];
+
+/// Modules Django (and similar frameworks) import from every installed app
+/// package without an explicit import.
+const APP_AUTOLOADED: &[&str] = &[
+    "models",
+    "admin",
+    "apps",
+    "signals",
+    "receivers",
+    "tasks",
+    "checks",
+    "translation",
+];
+
+/// File stems too common for a name search to say anything.
+const GENERIC_STEMS: &[&str] = &[
+    "index",
+    "mod",
+    "main",
+    "init",
+    "__init__",
+    "utils",
+    "util",
+    "helpers",
+    "types",
+    "constants",
+    "config",
+    "common",
+    "base",
+    "core",
+    "app",
+    "server",
+    "client",
+    "api",
+    "test",
+    "setup",
+];
+
+/// Folder names too common to tie a dynamic loader to a candidate.
+const GENERIC_DIRS: &[&str] = &[".", "src", "lib", "app", "source", "pkg", "internal"];
+
+/// Files larger than this are not searched for names or loaders.
+const MAX_SEARCH_BYTES: u64 = 1024 * 1024;
+
+/// Longest loader line kept in a reason.
+const MAX_LOADER_TEXT: usize = 60;
+
+/// What one file contributes: `(candidate index, file is unused)` for each
+/// name it mentions, plus its dynamic loaders.
+type FileFindings = (Vec<(usize, bool)>, Vec<Loader>);
+
+/// A line that loads modules by a computed name.
+struct Loader {
+    file: PathBuf,
+    line: usize,
+    text: String,
+}
+
+/// Rate each unreachable file:
+///
+/// - **low**: it sits in a folder loaded by convention (`migrations/`,
+///   `plugins/`, …), or a dynamic loader mentions its folder or name.
+/// - **medium**: its name appears in another reachable file, or the repo
+///   loads modules dynamically, or its name is too generic to check.
+/// - **high**: nothing imports it and its name appears nowhere else.
+///
+/// `files` are all scanned files; their contents are searched for loaders
+/// and for each candidate's name.
+pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeCandidate> {
+    if dead.is_empty() {
+        return Vec::new();
+    }
+
+    let dead_set: HashSet<&PathBuf> = dead.iter().collect();
+    let stems: Vec<String> = dead.iter().map(|f| stem_of(f)).collect();
+    let searchable: Vec<(usize, &str)> = stems
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.len() >= 3 && !GENERIC_STEMS.contains(&s.as_str()))
+        .map(|(i, s)| (i, s.as_str()))
+        .collect();
+    let matcher = AhoCorasick::builder()
+        .ascii_case_insensitive(true)
+        .build(searchable.iter().map(|(_, s)| *s))
+        .ok();
+
+    // Per candidate: files that mention its name, split by whether the
+    // mentioning file is itself unreachable.
+    let per_file: Vec<FileFindings> = files
+        .par_iter()
+        .filter(|file| !is_lockfile(file))
+        .filter(|file| fs::metadata(file).is_ok_and(|m| m.len() <= MAX_SEARCH_BYTES))
+        .filter_map(|file| {
+            let bytes = fs::read(file).ok()?;
+            let text = std::str::from_utf8(&bytes).ok()?;
+            let mut mentions: Vec<(usize, bool)> = Vec::new();
+            if let Some(m) = &matcher {
+                let from_dead = dead_set.contains(file);
+                let mut seen: HashSet<usize> = HashSet::new();
+                for hit in m.find_overlapping_iter(text) {
+                    let index = searchable[hit.pattern().as_usize()].0;
+                    if &dead[index] == file || !is_word(text, hit.start(), hit.end()) {
+                        continue;
+                    }
+                    if seen.insert(index) {
+                        mentions.push((index, from_dead));
+                    }
+                }
+            }
+            Some((mentions, find_loaders(file, text)))
+        })
+        .collect();
+
+    let mut live_mentions = vec![0usize; dead.len()];
+    let mut dead_mentions = vec![0usize; dead.len()];
+    let mut loaders: Vec<Loader> = Vec::new();
+    for (mentions, file_loaders) in per_file {
+        for (index, from_dead) in mentions {
+            if from_dead {
+                dead_mentions[index] += 1;
+            } else {
+                live_mentions[index] += 1;
+            }
+        }
+        loaders.extend(file_loaders);
+    }
+    loaders.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+
+    let live_packages: HashSet<PathBuf> = files
+        .iter()
+        .filter(|f| f.file_name().is_some_and(|n| n == "__init__.py") && !dead_set.contains(f))
+        .filter_map(|f| f.parent().map(Path::to_path_buf))
+        .collect();
+
+    let mut candidates: Vec<DeadCodeCandidate> = dead
+        .iter()
+        .enumerate()
+        .map(|(index, file)| {
+            let relative = file.strip_prefix(root).unwrap_or(file);
+            let in_live_package = file.parent().is_some_and(|p| live_packages.contains(p));
+            let (confidence, reason) = rate(
+                relative,
+                in_live_package,
+                &stems[index],
+                live_mentions[index],
+                dead_mentions[index],
+                &loaders,
+            );
+            DeadCodeCandidate {
+                file: file.clone(),
+                confidence,
+                reason,
+            }
+        })
+        .collect();
+    // Most certain first, then by path.
+    candidates.sort_by(|a, b| b.confidence.cmp(&a.confidence).then(a.file.cmp(&b.file)));
+    candidates
+}
+
+fn rate(
+    file: &Path,
+    in_live_package: bool,
+    stem: &str,
+    live_mentions: usize,
+    dead_mentions: usize,
+    loaders: &[Loader],
+) -> (Confidence, String) {
+    let dirs: Vec<String> = file
+        .parent()
+        .map(|p| {
+            p.iter()
+                .filter_map(|c| c.to_str())
+                .map(str::to_ascii_lowercase)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if let Some(dir) = dirs.iter().find(|d| CONVENTION_DIRS.contains(&d.as_str())) {
+        return (
+            Confidence::Low,
+            format!("In {dir}/, a folder tools and frameworks often load by convention"),
+        );
+    }
+
+    if is_test(file) || stem == "conftest" {
+        return (
+            Confidence::Low,
+            "A test file, run by the test runner rather than imported".to_string(),
+        );
+    }
+
+    let is_python = file.extension().is_some_and(|e| e == "py");
+    if is_python && in_live_package && APP_AUTOLOADED.contains(&stem) {
+        return (
+            Confidence::Low,
+            format!("Frameworks such as Django load {stem}.py from every installed app"),
+        );
+    }
+
+    let parent = dirs.last().map(String::as_str).unwrap_or(".");
+    let generic_stem = stem.len() < 3 || GENERIC_STEMS.contains(&stem);
+    let related = loaders.iter().find(|l| {
+        let text = l.text.to_ascii_lowercase();
+        (!GENERIC_DIRS.contains(&parent) && text.contains(parent))
+            || (!generic_stem && text.contains(stem))
+    });
+    if let Some(l) = related {
+        return (
+            Confidence::Low,
+            format!(
+                "May be loaded dynamically: \"{}\" ({}:{})",
+                l.text,
+                file_name(&l.file),
+                l.line
+            ),
+        );
+    }
+
+    if generic_stem {
+        return (
+            Confidence::Medium,
+            format!("Nothing imports it; the name \"{stem}\" is too common to search for"),
+        );
+    }
+    if live_mentions > 0 {
+        return (
+            Confidence::Medium,
+            format!(
+                "Nothing imports it, but \"{stem}\" is mentioned in {live_mentions} other file{}",
+                if live_mentions == 1 { "" } else { "s" }
+            ),
+        );
+    }
+    if let Some(l) = loaders.first() {
+        return (
+            Confidence::Medium,
+            format!(
+                "Nothing imports it, but the repository loads modules dynamically ({}:{})",
+                file_name(&l.file),
+                l.line
+            ),
+        );
+    }
+    if dead_mentions > 0 {
+        return (
+            Confidence::High,
+            format!("Nothing imports it; \"{stem}\" appears only in other unused files"),
+        );
+    }
+    (
+        Confidence::High,
+        format!("Nothing imports it and \"{stem}\" appears in no other file"),
+    )
+}
+
+/// Lower-cased file stem without secondary extensions (`user.service.ts` →
+/// `user.service`).
+fn stem_of(file: &Path) -> String {
+    file.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+}
+
+fn file_name(path: &Path) -> String {
+    sanitize(
+        &path
+            .file_name()
+            .map(|n| n.to_string_lossy())
+            .unwrap_or_default(),
+    )
+}
+
+/// Whether `text[start..end]` is not part of a longer identifier.
+fn is_word(text: &str, start: usize, end: usize) -> bool {
+    let ident = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    let before = text[..start].chars().next_back().is_none_or(|c| !ident(c));
+    let after = text[end..].chars().next().is_none_or(|c| !ident(c));
+    before && after
+}
+
+/// Lines that load modules by a computed name: `import(name)`,
+/// `require(path)`, `require.context`, `import.meta.glob`,
+/// `importlib.import_module` and `__import__`.
+fn find_loaders(file: &Path, text: &str) -> Vec<Loader> {
+    let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let js = matches!(
+        ext,
+        "js" | "jsx" | "mjs" | "cjs" | "ts" | "tsx" | "mts" | "cts" | "vue" | "svelte"
+    );
+    let py = ext == "py";
+    if !js && !py {
+        return Vec::new();
+    }
+
+    let mut found = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('#') || trimmed.starts_with('*') {
+            continue;
+        }
+        let dynamic = if js {
+            trimmed.contains("require.context(")
+                || trimmed.contains("import.meta.glob")
+                || computed_call(trimmed, "import(")
+                || computed_call(trimmed, "require(")
+        } else {
+            trimmed.contains("import_module(") || trimmed.contains("__import__(")
+        };
+        if dynamic {
+            let mut text: String = sanitize(trimmed).chars().take(MAX_LOADER_TEXT).collect();
+            if trimmed.chars().count() > MAX_LOADER_TEXT {
+                text.push('…');
+            }
+            found.push(Loader {
+                file: file.to_path_buf(),
+                line: i + 1,
+                text: text.replace('`', "'"),
+            });
+        }
+    }
+    found
+}
+
+/// Whether `call` appears with an argument that is not a plain string
+/// literal: `import(name)` or `` import(`./x/${name}`) ``.
+fn computed_call(line: &str, call: &str) -> bool {
+    line.match_indices(call).any(|(at, _)| {
+        let before = line[..at].chars().next_back();
+        if before.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.') {
+            return false;
+        }
+        let arg = line[at + call.len()..].trim_start();
+        match arg.chars().next() {
+            Some('"' | '\'') | Some(')') | None => false,
+            Some('`') => arg.contains("${"),
+            Some(_) => true,
+        }
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -220,6 +633,156 @@ mod tests {
             .iter()
             .map(|(file, deps)| (p(file), deps.iter().map(|d| p(d)).collect()))
             .collect()
+    }
+
+    // -----------------------------------------------------------------------
+    // assess
+    // -----------------------------------------------------------------------
+
+    fn temp_repo(prefix: &str, files: &[(&str, &str)]) -> (PathBuf, Vec<PathBuf>) {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock went backwards")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("{prefix}_{nanos}"));
+        let mut paths = Vec::new();
+        for (name, content) in files {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+            fs::write(&path, content).expect("write");
+            paths.push(path);
+        }
+        (root, paths)
+    }
+
+    fn rated<'a>(c: &'a [DeadCodeCandidate], root: &Path, name: &str) -> &'a DeadCodeCandidate {
+        c.iter()
+            .find(|c| c.file == root.join(name))
+            .unwrap_or_else(|| panic!("{name} not rated"))
+    }
+
+    #[test]
+    fn assess_rates_by_evidence() {
+        let (root, files) = temp_repo(
+            "codedna_dead_assess",
+            &[
+                ("src/index.ts", "import { a } from './live';\n"),
+                ("src/live.ts", "// see legacyParser for the old way\n"),
+                ("src/orphan.ts", "export const x = 1;\n"),
+                ("src/legacyParser.ts", "export const y = 2;\n"),
+                ("src/dusty.ts", "import './orphan';\n"),
+                ("src/utils.ts", "export const z = 3;\n"),
+                ("db/migrations/001_init.ts", "export const up = 1;\n"),
+                ("src/live.test.ts", "test('x', () => {});\n"),
+            ],
+        );
+        let dead: Vec<PathBuf> = files
+            .iter()
+            .filter(|f| !f.ends_with("index.ts") && !f.ends_with("live.ts"))
+            .cloned()
+            .collect();
+        let c = assess(&root, &dead, &files);
+
+        let legacy = rated(&c, &root, "src/legacyParser.ts");
+        assert_eq!(legacy.confidence, Confidence::Medium, "{}", legacy.reason);
+        assert!(legacy.reason.contains("mentioned in 1 other file"));
+
+        let orphan = rated(&c, &root, "src/orphan.ts");
+        assert_eq!(orphan.confidence, Confidence::High, "{}", orphan.reason);
+        assert!(orphan.reason.contains("only in other unused files"));
+
+        assert_eq!(
+            rated(&c, &root, "src/dusty.ts").confidence,
+            Confidence::High
+        );
+        assert_eq!(
+            rated(&c, &root, "src/utils.ts").confidence,
+            Confidence::Medium
+        );
+        assert_eq!(
+            rated(&c, &root, "db/migrations/001_init.ts").confidence,
+            Confidence::Low
+        );
+        assert_eq!(
+            rated(&c, &root, "src/live.test.ts").confidence,
+            Confidence::Low
+        );
+
+        // Most certain first.
+        assert!(c.windows(2).all(|w| w[0].confidence >= w[1].confidence));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn dynamic_loaders_lower_confidence() {
+        let (root, files) = temp_repo(
+            "codedna_dead_dynamic",
+            &[
+                ("src/index.js", "const h = require(`./handlers/${name}`);\n"),
+                ("src/handlers/refund.js", "module.exports = 1;\n"),
+                ("src/other/stray.js", "module.exports = 2;\n"),
+            ],
+        );
+        let dead = vec![files[1].clone(), files[2].clone()];
+        let c = assess(&root, &dead, &files);
+
+        let refund = rated(&c, &root, "src/handlers/refund.js");
+        assert_eq!(refund.confidence, Confidence::Low, "{}", refund.reason);
+        assert!(refund.reason.contains("index.js:1"));
+
+        let stray = rated(&c, &root, "src/other/stray.js");
+        assert_eq!(stray.confidence, Confidence::Medium, "{}", stray.reason);
+        assert!(stray.reason.contains("dynamically"));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn django_app_modules_are_low() {
+        let (root, files) = temp_repo(
+            "codedna_dead_django",
+            &[
+                ("shop/__init__.py", ""),
+                ("shop/admin.py", "admin.site.register(X)\n"),
+                ("shop/forms_unused.py", "class F: pass\n"),
+            ],
+        );
+        let dead = vec![files[1].clone(), files[2].clone()];
+        let c = assess(&root, &dead, &files);
+        assert_eq!(
+            rated(&c, &root, "shop/admin.py").confidence,
+            Confidence::Low
+        );
+        assert_eq!(
+            rated(&c, &root, "shop/forms_unused.py").confidence,
+            Confidence::High
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn computed_call_ignores_literals() {
+        assert!(computed_call("const m = await import(name);", "import("));
+        assert!(computed_call("require(`./x/${a}`)", "require("));
+        assert!(!computed_call("const m = await import('./x');", "import("));
+        assert!(!computed_call("require(\"fs\")", "require("));
+        assert!(!computed_call("my_require(x)", "require("));
+        assert!(!computed_call("require(`./plain`)", "require("));
+    }
+
+    #[test]
+    fn word_boundaries() {
+        assert!(is_word("see legacy here", 4, 10));
+        assert!(!is_word("seelegacy here", 3, 9));
+        assert!(!is_word("legacy_x", 0, 6));
+    }
+
+    #[test]
+    fn summary_and_fallback() {
+        let dead = vec![p("./a.ts"), p("./b.ts")];
+        let c = candidates_of(&dead, &[]);
+        assert_eq!(c.len(), 2);
+        assert_eq!(confidence_summary(&c), "2 medium");
+        assert_eq!(confidence_summary(&[]), "");
     }
 
     // -----------------------------------------------------------------------

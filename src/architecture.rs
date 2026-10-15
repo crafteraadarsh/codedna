@@ -328,7 +328,7 @@ fn classify(path: &Path) -> Option<usize> {
 }
 
 /// Whether a path is a test file or lives in a test folder.
-fn is_test(path: &Path) -> bool {
+pub(crate) fn is_test(path: &Path) -> bool {
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
