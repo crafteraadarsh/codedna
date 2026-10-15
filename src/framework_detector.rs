@@ -1049,7 +1049,10 @@ mod tests {
             PathBuf::from("/repo/docker-compose.yml"),
         ];
         let infra = detect_infrastructure(&files);
-        assert_eq!(infra, vec!["Docker".to_string(), "Docker Compose".to_string()]);
+        assert_eq!(
+            infra,
+            vec!["Docker".to_string(), "Docker Compose".to_string()]
+        );
     }
 
     #[test]
@@ -1058,7 +1061,10 @@ mod tests {
             PathBuf::from("/repo/.github/workflows/ci.yml"),
             PathBuf::from("/repo/.github/workflows/release.yml"),
         ];
-        assert_eq!(detect_infrastructure(&files), vec!["GitHub Actions".to_string()]);
+        assert_eq!(
+            detect_infrastructure(&files),
+            vec!["GitHub Actions".to_string()]
+        );
     }
 
     #[test]
@@ -1073,7 +1079,10 @@ mod tests {
     #[test]
     fn handles_windows_separators_for_infra() {
         let files = vec![PathBuf::from("C:\\repo\\.github\\workflows\\ci.yml")];
-        assert_eq!(detect_infrastructure(&files), vec!["GitHub Actions".to_string()]);
+        assert_eq!(
+            detect_infrastructure(&files),
+            vec!["GitHub Actions".to_string()]
+        );
     }
 
     #[test]

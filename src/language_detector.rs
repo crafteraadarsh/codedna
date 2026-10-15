@@ -68,8 +68,14 @@ mod tests {
 
     #[test]
     fn detects_javascript_variants() {
-        assert_eq!(detect_language(&p("index.js")), Some(Language("JavaScript")));
-        assert_eq!(detect_language(&p("index.jsx")), Some(Language("JavaScript")));
+        assert_eq!(
+            detect_language(&p("index.js")),
+            Some(Language("JavaScript"))
+        );
+        assert_eq!(
+            detect_language(&p("index.jsx")),
+            Some(Language("JavaScript"))
+        );
         assert_eq!(detect_language(&p("mod.mjs")), Some(Language("JavaScript")));
     }
 

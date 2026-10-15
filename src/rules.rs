@@ -135,11 +135,28 @@ mod tests {
         let mut seen = HashSet::new();
         for lang in &rules().languages {
             assert!(!lang.name.trim().is_empty(), "language with empty name");
-            assert!(!lang.extensions.is_empty(), "{} has no extensions", lang.name);
+            assert!(
+                !lang.extensions.is_empty(),
+                "{} has no extensions",
+                lang.name
+            );
             for ext in &lang.extensions {
-                assert_eq!(ext, &ext.to_lowercase(), "{}: `{ext}` must be lowercase", lang.name);
-                assert!(!ext.starts_with('.'), "{}: write `{}` without the dot", lang.name, ext.trim_start_matches('.'));
-                assert!(seen.insert(ext.clone()), "extension `{ext}` is listed under two languages");
+                assert_eq!(
+                    ext,
+                    &ext.to_lowercase(),
+                    "{}: `{ext}` must be lowercase",
+                    lang.name
+                );
+                assert!(
+                    !ext.starts_with('.'),
+                    "{}: write `{}` without the dot",
+                    lang.name,
+                    ext.trim_start_matches('.')
+                );
+                assert!(
+                    seen.insert(ext.clone()),
+                    "extension `{ext}` is listed under two languages"
+                );
             }
         }
     }
@@ -147,10 +164,18 @@ mod tests {
     #[test]
     fn package_labels_are_not_empty() {
         let r = rules();
-        for (ecosystem, pkgs) in [("npm", &r.npm), ("pypi", &r.pypi), ("cargo", &r.cargo), ("go", &r.go)] {
+        for (ecosystem, pkgs) in [
+            ("npm", &r.npm),
+            ("pypi", &r.pypi),
+            ("cargo", &r.cargo),
+            ("go", &r.go),
+        ] {
             for (name, label) in pkgs.frameworks.iter().chain(pkgs.databases.iter()) {
                 assert!(!name.trim().is_empty(), "{ecosystem}: empty package name");
-                assert!(!label.trim().is_empty(), "{ecosystem}: `{name}` has an empty label");
+                assert!(
+                    !label.trim().is_empty(),
+                    "{ecosystem}: `{name}` has an empty label"
+                );
             }
         }
     }
@@ -159,18 +184,36 @@ mod tests {
     fn pypi_package_names_are_lowercase() {
         let pypi = &rules().pypi;
         for name in pypi.frameworks.keys().chain(pypi.databases.keys()) {
-            assert_eq!(name, &name.to_lowercase(), "pypi: `{name}` must be lowercase");
+            assert_eq!(
+                name,
+                &name.to_lowercase(),
+                "pypi: `{name}` must be lowercase"
+            );
         }
     }
 
     #[test]
     fn file_patterns_are_well_formed() {
         for p in &rules().file_patterns {
-            assert_eq!(p.framework, p.framework.to_lowercase(), "framework `{}` must be lowercase", p.framework);
-            assert!(!p.extensions.is_empty(), "{} has no extensions", p.framework);
+            assert_eq!(
+                p.framework,
+                p.framework.to_lowercase(),
+                "framework `{}` must be lowercase",
+                p.framework
+            );
+            assert!(
+                !p.extensions.is_empty(),
+                "{} has no extensions",
+                p.framework
+            );
             assert!(!p.imports.is_empty(), "{} has no imports", p.framework);
             for ext in &p.extensions {
-                assert_eq!(ext, &ext.to_lowercase(), "{}: `{ext}` must be lowercase", p.framework);
+                assert_eq!(
+                    ext,
+                    &ext.to_lowercase(),
+                    "{}: `{ext}` must be lowercase",
+                    p.framework
+                );
             }
         }
     }
