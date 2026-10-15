@@ -72,7 +72,7 @@ const ENTRY_POINT_NAMES: &[&str] = &[
 /// # Algorithm
 ///
 /// 1. Collect all files present as keys in the graph.
-/// 2. Identify entry points by filename.
+/// 2. Identify entry points by filename, plus tests and declaration files.
 /// 3. BFS from all entry points, marking every transitively reachable file.
 /// 4. Files in the graph that were never marked are dead code.
 ///
@@ -86,7 +86,7 @@ pub fn detect_dead_code(graph: &HashMap<PathBuf, Vec<PathBuf>>) -> Vec<PathBuf> 
     let entry_points: Vec<&PathBuf> = all_files
         .iter()
         .copied()
-        .filter(|f| is_entry_point(f))
+        .filter(|f| is_entry_point(f) || is_loaded_by_tooling(f))
         .collect();
 
     let reachable = bfs_reachable(graph, &entry_points);
@@ -135,6 +135,20 @@ pub fn is_entry_point(path: &Path) -> bool {
         .and_then(|n| n.to_str())
         .map(|name| ENTRY_POINT_NAMES.contains(&name))
         .unwrap_or(false)
+}
+
+/// Whether a test runner or the compiler loads the file, so nothing imports
+/// it: tests and TypeScript declaration files.
+fn is_loaded_by_tooling(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    name.contains(".test.")
+        || name.contains(".spec.")
+        || name.ends_with(".d.ts")
+        || name == "conftest.py"
+        || (name.starts_with("test_") && name.ends_with(".py"))
+        || name.ends_with("_test.py")
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +209,17 @@ mod tests {
         assert!(is_entry_point(&p("next.config.js")));
         assert!(is_entry_point(&p("jest.config.ts")));
         assert!(is_entry_point(&p("vitest.config.ts")));
+    }
+
+    #[test]
+    fn recognises_files_loaded_by_tooling() {
+        assert!(is_loaded_by_tooling(&p("src/app.test.ts")));
+        assert!(is_loaded_by_tooling(&p("e2e/server.spec.ts")));
+        assert!(is_loaded_by_tooling(&p("src/types/user-request.d.ts")));
+        assert!(is_loaded_by_tooling(&p("tests/test_users.py")));
+        assert!(is_loaded_by_tooling(&p("tests/users_test.py")));
+        assert!(is_loaded_by_tooling(&p("tests/conftest.py")));
+        assert!(!is_loaded_by_tooling(&p("src/utils.ts")));
     }
 
     #[test]
