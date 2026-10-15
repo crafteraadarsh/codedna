@@ -1344,7 +1344,7 @@ mod tests {
         let route = "export async function GET(req) {}\nexport const POST = h;\n";
         assert_eq!(
             routes_of("src/app/api/(admin)/users/[id]/route.ts", route),
-            [("GET", "/api/users/[id]"), ("POST", "/api/users/[id]")]
+            ["GET /api/users/[id]", "POST /api/users/[id]"]
         );
         assert_eq!(
             routes_of("pages/api/hello.ts", "export default h"),
