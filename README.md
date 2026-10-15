@@ -148,6 +148,10 @@ codedna analyze .
 # Full intelligence report (remote — auto-clones)
 codedna analyze https://github.com/vercel/next.js
 
+# Shareable report (Markdown, or HTML you can print to PDF)
+codedna report . -o report.md
+codedna report . --format html -o report.html
+
 # Short briefing for AI agents
 codedna context .
 
@@ -177,6 +181,8 @@ All analysis commands accept a **local path** or a **Git URL**.
 |---|---|
 | `codedna context [path\|url]` | Short briefing for AI agents (`--max-tokens N`, `--format json`) |
 | `codedna analyze [path\|url]` | Full intelligence report |
+| `codedna report [path\|url] -o FILE` | Shareable Markdown report |
+| `codedna report [path\|url] --format html -o FILE` | Self-contained HTML report (print to PDF from a browser) |
 | `codedna analyze [path\|url] --time` | Report with elapsed time |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Per-file LOC breakdown |
@@ -566,6 +572,7 @@ src/
 ├── framework_detector.rs   — manifest parsing + per-file import scanning
 ├── dependency_graph.rs     — import/require/mod statement parsing
 ├── dead_code_detector.rs   — BFS reachability from entry points
+├── report.rs               — shareable Markdown / HTML reports
 ├── reporter.rs             — CLI report + JSON output formatting
 ├── rules.rs                — loads the detection rules (rules.toml)
 ├── safe_text.rs            — strips control characters from repo-supplied text
