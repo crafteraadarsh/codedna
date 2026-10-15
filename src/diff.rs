@@ -374,6 +374,183 @@ pub fn render_text(d: &Diff) -> String {
     out
 }
 
+/// First line of every Markdown diff, so a CI job can find and update its
+/// own pull request comment instead of adding a new one each push.
+pub const MARKDOWN_MARKER: &str = "<!-- codedna-diff -->";
+
+/// Make a name safe to place in Markdown: no HTML, no formatting, no table
+/// breaks and no @mentions. Names come from file paths and snapshots, which a
+/// pull request author controls.
+fn md(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            // A zero-width space after @ keeps GitHub from pinging anyone.
+            '@' => out.push_str("@\u{200B}"),
+            // Only what changes meaning mid-line: emphasis, code, links,
+            // tables and autolinked URLs.
+            '\\' | '`' | '*' | '_' | '[' | ']' | '|' | '~' | ':' => {
+                out.push('\\');
+                out.push(c);
+            }
+            '\n' | '\r' => out.push(' '),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Markdown for a pull request comment or a CI job summary.
+pub fn render_markdown(d: &Diff) -> String {
+    let mut out =
+        format!("{MARKDOWN_MARKER}\n### CodeDna: what this change does to the codebase\n\n");
+    if d.is_empty() {
+        out.push_str("No changes to the stack, languages, size or files.\n");
+        out.push_str(&md_footer());
+        return out;
+    }
+
+    out.push_str("| | Before | After | Change |\n|---|---:|---:|---:|\n");
+    out.push_str(&format!(
+        "| Lines of code | {} | {} | {} |\n",
+        d.loc_before,
+        d.loc_after,
+        signed(d.loc_before, d.loc_after)
+    ));
+    out.push_str(&format!(
+        "| Source files | {} | {} | {} |\n",
+        d.files_before,
+        d.files_after,
+        signed(d.files_before, d.files_after)
+    ));
+    if let Some(c) = &d.project_type {
+        out.push_str(&format!(
+            "| Project type | {} | {} | |\n",
+            md(&c.before),
+            md(&c.after)
+        ));
+    }
+    if let Some(c) = &d.architecture {
+        out.push_str(&format!(
+            "| Architecture | {} | {} | |\n",
+            md(&c.before),
+            md(&c.after)
+        ));
+    }
+
+    let mut stack = Vec::new();
+    for (label, delta) in [
+        ("framework", &d.frameworks),
+        ("database", &d.databases),
+        ("infrastructure", &d.infrastructure),
+    ] {
+        for name in &delta.added {
+            stack.push(format!("- Added {label}: **{}**", md(name)));
+        }
+        for name in &delta.removed {
+            stack.push(format!("- Removed {label}: **{}**", md(name)));
+        }
+    }
+    if !stack.is_empty() {
+        out.push_str("\n**Stack**\n\n");
+        for line in stack {
+            out.push_str(&line);
+            out.push('\n');
+        }
+    }
+
+    if !d.new_dead_code.is_empty() {
+        out.push_str("\n**New possibly unused files** (a heuristic: check before deleting)\n\n");
+        for f in &d.new_dead_code {
+            out.push_str(&format!("- {}\n", md(f)));
+        }
+    }
+
+    if !d.languages.is_empty() {
+        out.push_str("\n<details><summary>Languages (lines of code)</summary>\n\n");
+        out.push_str("| Language | Before | After | Change |\n|---|---:|---:|---:|\n");
+        for l in &d.languages {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                md(&l.language),
+                l.before,
+                l.after,
+                signed(l.before, l.after)
+            ));
+        }
+        out.push_str("\n</details>\n");
+    }
+
+    let more = |shown: usize, total: usize| {
+        if total > shown {
+            format!("\n…and {} more\n", total - shown)
+        } else {
+            String::new()
+        }
+    };
+    if !d.files_added.is_empty() {
+        out.push_str(&format!(
+            "\n<details><summary>Files added ({})</summary>\n\n",
+            d.files_added_total
+        ));
+        for f in &d.files_added {
+            out.push_str(&format!("- {} ({})\n", md(&f.file), lines(f.loc)));
+        }
+        out.push_str(&more(d.files_added.len(), d.files_added_total));
+        out.push_str("\n</details>\n");
+    }
+    if !d.files_removed.is_empty() {
+        out.push_str(&format!(
+            "\n<details><summary>Files removed ({})</summary>\n\n",
+            d.files_removed_total
+        ));
+        for f in &d.files_removed {
+            out.push_str(&format!("- {} ({})\n", md(&f.file), lines(f.loc)));
+        }
+        out.push_str(&more(d.files_removed.len(), d.files_removed_total));
+        out.push_str("\n</details>\n");
+    }
+    if !d.files_changed.is_empty() {
+        out.push_str(&format!(
+            "\n<details><summary>Files that changed size ({})</summary>\n\n",
+            d.files_changed_total
+        ));
+        out.push_str("| File | Before | After | Change |\n|---|---:|---:|---:|\n");
+        for f in &d.files_changed {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                md(&f.file),
+                f.before,
+                f.after,
+                signed(f.before, f.after)
+            ));
+        }
+        out.push_str(&more(d.files_changed.len(), d.files_changed_total));
+        out.push_str("\n</details>\n");
+    }
+    out.push_str(&md_footer());
+    out
+}
+
+fn lines(n: usize) -> String {
+    if n == 1 {
+        "1 line".to_string()
+    } else {
+        format!("{n} lines")
+    }
+}
+
+fn md_footer() -> String {
+    format!(
+        "\n<sub>CodeDna {} · lines of code exclude comments and blank lines · findings are heuristics</sub>\n",
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -484,6 +661,39 @@ mod tests {
         let d = diff(&before, &after);
         assert_eq!(d.files_added[0].file, "a?[2J.rs");
         assert_eq!(d.frameworks.added, ["X?Y"]);
+    }
+
+    #[test]
+    fn markdown_summarises_changes() {
+        let before = result(&[("./a.rs", 10), ("./gone.rs", 5)], &["Axum"]);
+        let mut after = result(&[("a.rs", 40), ("./new.rs", 7)], &["Axum", "Tokio"]);
+        after.dead_code = vec![PathBuf::from("./new.rs")];
+        let text = render_markdown(&diff(&before, &after));
+        assert!(text.starts_with(MARKDOWN_MARKER));
+        assert!(text.contains("| Lines of code | 15 | 47 | +32 |"));
+        assert!(text.contains("- Added framework: **Tokio**"));
+        assert!(text.contains("Files removed (1)"));
+        assert!(text.contains("- gone.rs (5 lines)"));
+        assert!(text.contains("**New possibly unused files**"));
+
+        let same = render_markdown(&diff(&before, &before.clone()));
+        assert!(same.contains("No changes"));
+    }
+
+    #[test]
+    fn markdown_escapes_untrusted_names() {
+        let before = result(&[], &[]);
+        let after = result(
+            &[("./<img src=x>|@octocat](http://x).rs", 3)],
+            &["**bold**"],
+        );
+        let text = render_markdown(&diff(&before, &after));
+        assert!(!text.contains("<img"));
+        assert!(text.contains("&lt;img"));
+        assert!(!text.contains("@octocat"));
+        assert!(text.contains("\\|"));
+        assert!(text.contains("\\](http\\:"));
+        assert!(text.contains("\\*\\*bold\\*\\*"));
     }
 
     #[test]

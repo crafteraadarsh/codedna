@@ -1262,7 +1262,7 @@ mod tests {
     #[test]
     fn build_graph_handles_unreadable_file_gracefully() {
         let missing = PathBuf::from("/no/such/file/ever/codedna_missing.ts");
-        let graph = build_dependency_graph(&[missing.clone()]);
+        let graph = build_dependency_graph(std::slice::from_ref(&missing));
 
         assert!(graph.contains_key(&missing));
         assert!(graph[&missing].is_empty());

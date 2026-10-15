@@ -16,6 +16,11 @@ const IGNORED_DIRS: &[&str] = &[
 pub const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
 
 fn is_ignored_dir(entry: &DirEntry) -> bool {
+    // In a git worktree or submodule, `.git` is a small file pointing at the
+    // real repository. It is git metadata, not part of the project.
+    if entry.file_name() == ".git" {
+        return true;
+    }
     entry.file_type().is_some_and(|t| t.is_dir())
         && entry
             .file_name()
@@ -28,7 +33,8 @@ fn is_ignored_dir(entry: &DirEntry) -> bool {
 ///
 /// Rules:
 /// - Traverses recursively from `root`
-/// - Skips directories in `IGNORED_DIRS`
+/// - Skips directories in `IGNORED_DIRS`, and a `.git` file (worktrees,
+///   submodules)
 /// - Honours `.gitignore`, `.ignore` and `.git/info/exclude` the way git
 ///   does, including nested ignore files and `!` re-includes, whether or not
 ///   the directory is a git checkout.  The user's global git excludes are not
@@ -140,8 +146,11 @@ mod tests {
         fs::write(root.join("pkg/main.ts"), "x").unwrap();
         fs::create_dir_all(root.join(".github")).unwrap();
         fs::write(root.join(".github/ci.yml"), "x").unwrap();
+        // A worktree or submodule has a `.git` file instead of a folder.
+        fs::write(root.join(".git"), "gitdir: /elsewhere\n").unwrap();
 
         let result = scan_repository(&root);
+        assert!(!result.contains(&root.join(".git")));
 
         assert!(!result.contains(&root.join("generated/out.js")));
         assert!(!result.contains(&root.join("debug.log")));

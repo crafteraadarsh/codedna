@@ -1,0 +1,97 @@
+name: CodeDna diff
+description: Comment on each pull request with what it changes in the codebase - stack, languages, size, files and possibly unused code.
+author: crafteraadarsh
+branding:
+  icon: git-pull-request
+  color: purple
+
+inputs:
+  version:
+    description: CodeDna release to install, e.g. v0.2.0. Ignored when `binary` is set.
+    default: latest
+  binary:
+    description: Path to a codedna binary to use instead of downloading a release.
+    default: ""
+  comment:
+    description: Post the result as a pull request comment ("true") or only write the job summary ("false").
+    default: "true"
+  github-token:
+    description: Token used to post the comment. Needs `pull-requests write`.
+    default: ${{ github.token }}
+
+outputs:
+  markdown-file:
+    description: Path of the Markdown summary.
+    value: ${{ steps.diff.outputs.markdown-file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install CodeDna
+      id: install
+      shell: bash
+      env:
+        CODEDNA_VERSION: ${{ inputs.version }}
+        CODEDNA_BINARY: ${{ inputs.binary }}
+      run: |
+        set -euo pipefail
+        if [ -n "$CODEDNA_BINARY" ]; then
+          bin="$(cd "$(dirname "$CODEDNA_BINARY")" && pwd)/$(basename "$CODEDNA_BINARY")"
+        else
+          export CODEDNA_INSTALL_DIR="$RUNNER_TEMP/codedna-bin"
+          sh "$GITHUB_ACTION_PATH/install.sh"
+          bin="$CODEDNA_INSTALL_DIR/codedna"
+        fi
+        "$bin" --version
+        echo "bin=$bin" >> "$GITHUB_OUTPUT"
+
+    - name: Compare with the base branch
+      id: diff
+      shell: bash
+      env:
+        CODEDNA: ${{ steps.install.outputs.bin }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      run: |
+        set -euo pipefail
+        if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          echo "::error::No base commit to compare with. Run this action on pull_request events."
+          exit 1
+        fi
+        case "$BASE_SHA" in
+          *[!0-9a-f]*) echo "::error::Unexpected base commit id."; exit 1 ;;
+        esac
+        out="$RUNNER_TEMP/codedna"
+        rm -rf "$out"
+        mkdir -p "$out"
+        # Only the base commit is needed; a shallow checkout works.
+        git fetch --no-tags --depth=1 origin "$BASE_SHA"
+        git worktree add --detach "$out/base" "$BASE_SHA" >/dev/null
+        (cd "$out/base" && "$CODEDNA" json . > "$out/before.json")
+        git worktree remove --force "$out/base"
+        "$CODEDNA" diff "$out/before.json" . --markdown > "$out/diff.md"
+        cat "$out/diff.md" >> "$GITHUB_STEP_SUMMARY"
+        echo "markdown-file=$out/diff.md" >> "$GITHUB_OUTPUT"
+
+    - name: Comment on the pull request
+      if: inputs.comment == 'true' && github.event.pull_request.number
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR: ${{ github.event.pull_request.number }}
+        BODY_FILE: ${{ steps.diff.outputs.markdown-file }}
+      run: |
+        set -uo pipefail
+        marker='<!-- codedna-diff -->'
+        # Update our earlier comment instead of adding one per push.
+        id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+          --jq ".[] | select(.user.type == \"Bot\" and (.body | startswith(\"$marker\"))) | .id" 2>/dev/null | tail -n 1)"
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$BODY_FILE" >/dev/null && ok=1
+        else
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F "body=@$BODY_FILE" >/dev/null && ok=1
+        fi
+        if [ -z "${ok:-}" ]; then
+          # Pull requests from forks get a read-only token. The job summary
+          # still has the result.
+          echo "::warning::Could not comment on the pull request (pull requests from forks get a read-only token). The result is in the job summary."
+        fi

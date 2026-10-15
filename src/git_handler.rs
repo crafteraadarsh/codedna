@@ -375,7 +375,7 @@ mod tests {
 
         // Should detect Rust as a language (this IS a Rust project)
         assert!(
-            result.languages.keys().any(|l| format!("{l}") == "Rust"),
+            result.languages.keys().any(|l| l == "Rust"),
             "expected Rust in languages"
         );
 
