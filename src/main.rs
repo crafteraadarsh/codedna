@@ -8,6 +8,7 @@ mod language_detector;
 mod loc_counter;
 mod repo_map;
 mod reporter;
+mod rules;
 mod scanner;
 
 fn main() {

@@ -95,11 +95,7 @@ pub fn print_report(result: &AnalysisResult) {
 
         const BAR_WIDTH: usize = 28;
         for (lang, loc) in &langs {
-            let pct = if result.total_loc > 0 {
-                (**loc * 100) / result.total_loc
-            } else {
-                0
-            };
+            let pct = (**loc * 100).checked_div(result.total_loc).unwrap_or(0);
             let filled = (pct * BAR_WIDTH) / 100;
             let empty = BAR_WIDTH - filled;
             let bar = format!(
@@ -158,11 +154,7 @@ pub fn print_stack(result: &AnalysisResult) {
         langs.sort_by(|a, b| b.1.cmp(a.1));
         println!("  Languages:");
         for (lang, loc) in langs {
-            let pct = if result.total_loc > 0 {
-                (loc * 100) / result.total_loc
-            } else {
-                0
-            };
+            let pct = (loc * 100).checked_div(result.total_loc).unwrap_or(0);
             println!("    {:<18} {:>7} LOC   ({}%)", lang, format_loc(*loc), pct);
         }
         println!();

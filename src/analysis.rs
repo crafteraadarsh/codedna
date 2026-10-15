@@ -111,7 +111,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     }
 
     // Sort file breakdown by LOC descending for at-a-glance readability.
-    file_breakdown.sort_unstable_by(|a, b| b.loc.cmp(&a.loc));
+    file_breakdown.sort_unstable_by_key(|a| std::cmp::Reverse(a.loc));
 
     // Build language → total LOC map.
     let lang_map = language_detector::build_language_map(&file_loc_pairs);

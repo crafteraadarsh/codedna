@@ -1,0 +1,36 @@
+name: Detector request
+description: Ask CodeDna to recognise a language, framework, database or tool
+labels: ["detector", "good first issue"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What should be detected?
+      options:
+        - Language (file extension)
+        - Framework
+        - Database / ORM
+        - Infrastructure / tooling
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Name as it should appear in the report
+      placeholder: Angular
+    validations:
+      required: true
+  - type: textarea
+    id: signal
+    attributes:
+      label: How to recognise it
+      description: Package name, manifest file, file extension or file path
+      placeholder: "`@angular/core` in package.json dependencies"
+    validations:
+      required: true
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to open the PR for this myself

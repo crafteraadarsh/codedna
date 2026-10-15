@@ -252,10 +252,7 @@ fn resolve_python_relative(file_parent: &Path, line: &str) -> Option<PathBuf> {
     // Walk up `dot_count - 1` directories (one dot = same package)
     let mut base = file_parent.to_path_buf();
     for _ in 1..dot_count {
-        base = match base.parent() {
-            Some(p) => p.to_path_buf(),
-            None => return None,
-        };
+        base = base.parent()?.to_path_buf();
     }
 
     if module.is_empty() {

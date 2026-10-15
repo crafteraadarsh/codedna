@@ -1,0 +1,394 @@
+# CodeDna detection rules.
+#
+# Everything CodeDna recognises — languages, frameworks, databases,
+# per-file imports and infrastructure — is defined here. The file is
+# embedded into the binary at build time, so a change here plus a test
+# is all a new detector needs. See CONTRIBUTING.md for a walkthrough.
+
+# ---------------------------------------------------------------------------
+# Languages: file extension (lowercase, no dot) -> language name.
+# An extension may belong to only one language.
+# ---------------------------------------------------------------------------
+
+[[language]]
+name = "Rust"
+extensions = ["rs"]
+
+[[language]]
+name = "TypeScript"
+extensions = ["ts", "tsx"]
+
+[[language]]
+name = "JavaScript"
+extensions = ["js", "jsx", "mjs"]
+
+[[language]]
+name = "Python"
+extensions = ["py"]
+
+[[language]]
+name = "Go"
+extensions = ["go"]
+
+[[language]]
+name = "Solidity"
+extensions = ["sol"]
+
+[[language]]
+name = "CSS"
+extensions = ["css", "scss", "sass"]
+
+[[language]]
+name = "HTML"
+extensions = ["html", "htm"]
+
+[[language]]
+name = "TOML"
+extensions = ["toml"]
+
+[[language]]
+name = "JSON"
+extensions = ["json"]
+
+[[language]]
+name = "YAML"
+extensions = ["yml", "yaml"]
+
+[[language]]
+name = "Markdown"
+extensions = ["md", "markdown"]
+
+[[language]]
+name = "Shell"
+extensions = ["sh", "bash", "zsh"]
+
+# ---------------------------------------------------------------------------
+# Manifest dependencies: package name -> display label.
+#
+#   npm   -> package.json (dependencies, devDependencies, peerDependencies)
+#   pypi  -> requirements.txt (names must be lowercase)
+#   cargo -> Cargo.toml ([dependencies], [dev-dependencies], ...)
+#   go    -> go.mod (key is matched as a substring of each line)
+#
+# Several packages may share a label (pg and postgres -> PostgreSQL);
+# the label is reported once.
+# ---------------------------------------------------------------------------
+
+[npm.frameworks]
+react = "React"
+next = "Next.js"
+express = "Express"
+vite = "Vite"
+vue = "Vue"
+nuxt = "Nuxt"
+svelte = "Svelte"
+astro = "Astro"
+"@nestjs/core" = "NestJS"
+fastify = "Fastify"
+koa = "Koa"
+hapi = "Hapi"
+remix = "Remix"
+gatsby = "Gatsby"
+
+[npm.databases]
+pg = "PostgreSQL"
+postgres = "PostgreSQL"
+mongoose = "MongoDB"
+mongodb = "MongoDB"
+mysql = "MySQL"
+mysql2 = "MySQL"
+redis = "Redis"
+ioredis = "Redis"
+prisma = "Prisma"
+"@prisma/client" = "Prisma"
+better-sqlite3 = "SQLite"
+sqlite3 = "SQLite"
+knex = "Knex"
+sequelize = "Sequelize"
+typeorm = "TypeORM"
+drizzle-orm = "Drizzle ORM"
+cassandra-driver = "Cassandra"
+couchdb = "CouchDB"
+"@elastic/elasticsearch" = "Elasticsearch"
+dynamoose = "DynamoDB"
+
+[pypi.frameworks]
+fastapi = "FastAPI"
+django = "Django"
+flask = "Flask"
+starlette = "Starlette"
+tornado = "Tornado"
+aiohttp = "aiohttp"
+pyramid = "Pyramid"
+sanic = "Sanic"
+litestar = "Litestar"
+
+[pypi.databases]
+sqlalchemy = "SQLAlchemy"
+psycopg2 = "PostgreSQL"
+psycopg2-binary = "PostgreSQL"
+psycopg = "PostgreSQL"
+asyncpg = "PostgreSQL"
+pymongo = "MongoDB"
+motor = "MongoDB"
+redis = "Redis"
+aioredis = "Redis"
+pymysql = "MySQL"
+aiomysql = "MySQL"
+mysqlclient = "MySQL"
+tortoise-orm = "Tortoise ORM"
+peewee = "Peewee"
+databases = "Databases"
+elasticsearch = "Elasticsearch"
+cassandra-driver = "Cassandra"
+
+[cargo.frameworks]
+tokio = "Tokio"
+axum = "Axum"
+actix-web = "Actix-web"
+rocket = "Rocket"
+warp = "Warp"
+tonic = "Tonic"
+poem = "Poem"
+salvo = "Salvo"
+tide = "Tide"
+hyper = "Hyper"
+tauri = "Tauri"
+leptos = "Leptos"
+dioxus = "Dioxus"
+yew = "Yew"
+
+[cargo.databases]
+sqlx = "SQLx"
+diesel = "Diesel"
+sea-orm = "SeaORM"
+tokio-postgres = "PostgreSQL"
+postgres = "PostgreSQL"
+mongodb = "MongoDB"
+redis = "Redis"
+rusqlite = "SQLite"
+sled = "Sled"
+elasticsearch = "Elasticsearch"
+
+[go.frameworks]
+"github.com/gin-gonic/gin" = "Gin"
+"github.com/labstack/echo" = "Echo"
+"github.com/gofiber/fiber" = "Fiber"
+"github.com/gorilla/mux" = "Gorilla Mux"
+"github.com/beego/beego" = "Beego"
+"github.com/go-chi/chi" = "Chi"
+"github.com/revel/revel" = "Revel"
+"go.uber.org/fx" = "Uber FX"
+
+# ---------------------------------------------------------------------------
+# Per-file imports, used by `codedna framework <name>`.
+#
+# A file matches when its extension is listed and one of the import
+# substrings appears on a non-comment line. `framework` is lowercase.
+# Single-quoted TOML strings are literal, which keeps quotes readable.
+# ---------------------------------------------------------------------------
+
+# JavaScript / TypeScript
+
+[[file_pattern]]
+framework = "react"
+extensions = ["ts", "tsx", "js", "jsx", "mjs"]
+imports = [
+    "from 'react'", 'from "react"',
+    "from 'react-dom'", 'from "react-dom"',
+    "require('react')", 'require("react")',
+]
+
+[[file_pattern]]
+framework = "next.js"
+extensions = ["ts", "tsx", "js", "jsx"]
+imports = [
+    "from 'next'", 'from "next"',
+    "from 'next/", 'from "next/',
+    "require('next')", 'require("next")',
+]
+
+[[file_pattern]]
+framework = "express"
+extensions = ["ts", "js", "mjs"]
+imports = ["from 'express'", 'from "express"', "require('express')", 'require("express")']
+
+[[file_pattern]]
+framework = "vite"
+extensions = ["ts", "js", "mjs"]
+imports = ["from 'vite'", 'from "vite"', "from 'vite/", 'from "vite/']
+
+[[file_pattern]]
+framework = "vue"
+extensions = ["ts", "tsx", "js", "jsx", "vue"]
+imports = ["from 'vue'", 'from "vue"', "require('vue')", 'require("vue")']
+
+[[file_pattern]]
+framework = "svelte"
+extensions = ["ts", "js", "svelte"]
+imports = ["from 'svelte'", 'from "svelte"', "from 'svelte/", 'from "svelte/']
+
+[[file_pattern]]
+framework = "nestjs"
+extensions = ["ts", "js"]
+imports = ["from '@nestjs/", 'from "@nestjs/']
+
+[[file_pattern]]
+framework = "fastify"
+extensions = ["ts", "js", "mjs"]
+imports = ["from 'fastify'", 'from "fastify"', "require('fastify')", 'require("fastify")']
+
+[[file_pattern]]
+framework = "koa"
+extensions = ["ts", "js", "mjs"]
+imports = ["from 'koa'", 'from "koa"', "require('koa')", 'require("koa")']
+
+[[file_pattern]]
+framework = "remix"
+extensions = ["ts", "tsx", "js", "jsx"]
+imports = ["from '@remix-run/", 'from "@remix-run/']
+
+[[file_pattern]]
+framework = "gatsby"
+extensions = ["ts", "tsx", "js", "jsx"]
+imports = ["from 'gatsby'", 'from "gatsby"']
+
+[[file_pattern]]
+framework = "nuxt"
+extensions = ["ts", "js", "vue"]
+imports = ["from 'nuxt'", 'from "nuxt"', "from '#app'", 'from "#app"']
+
+[[file_pattern]]
+framework = "astro"
+extensions = ["ts", "js", "astro"]
+imports = ["from 'astro'", 'from "astro"', "from 'astro/", 'from "astro/']
+
+# Python
+
+[[file_pattern]]
+framework = "fastapi"
+extensions = ["py"]
+imports = ["from fastapi", "import fastapi"]
+
+[[file_pattern]]
+framework = "django"
+extensions = ["py"]
+imports = ["from django", "import django"]
+
+[[file_pattern]]
+framework = "flask"
+extensions = ["py"]
+imports = ["from flask", "import flask"]
+
+[[file_pattern]]
+framework = "starlette"
+extensions = ["py"]
+imports = ["from starlette", "import starlette"]
+
+[[file_pattern]]
+framework = "aiohttp"
+extensions = ["py"]
+imports = ["from aiohttp", "import aiohttp"]
+
+# Rust
+
+[[file_pattern]]
+framework = "tokio"
+extensions = ["rs"]
+imports = ["use tokio", "tokio::"]
+
+[[file_pattern]]
+framework = "axum"
+extensions = ["rs"]
+imports = ["use axum", "axum::"]
+
+[[file_pattern]]
+framework = "actix-web"
+extensions = ["rs"]
+imports = ["use actix_web", "actix_web::"]
+
+[[file_pattern]]
+framework = "rocket"
+extensions = ["rs"]
+imports = ["use rocket", "rocket::"]
+
+[[file_pattern]]
+framework = "warp"
+extensions = ["rs"]
+imports = ["use warp", "warp::"]
+
+[[file_pattern]]
+framework = "leptos"
+extensions = ["rs"]
+imports = ["use leptos", "leptos::"]
+
+[[file_pattern]]
+framework = "dioxus"
+extensions = ["rs"]
+imports = ["use dioxus", "dioxus::"]
+
+[[file_pattern]]
+framework = "yew"
+extensions = ["rs"]
+imports = ["use yew", "yew::"]
+
+[[file_pattern]]
+framework = "tauri"
+extensions = ["rs"]
+imports = ["use tauri", "tauri::"]
+
+# Go
+
+[[file_pattern]]
+framework = "gin"
+extensions = ["go"]
+imports = ['"github.com/gin-gonic/gin"']
+
+[[file_pattern]]
+framework = "echo"
+extensions = ["go"]
+imports = ['"github.com/labstack/echo']
+
+[[file_pattern]]
+framework = "fiber"
+extensions = ["go"]
+imports = ['"github.com/gofiber/fiber']
+
+[[file_pattern]]
+framework = "chi"
+extensions = ["go"]
+imports = ['"github.com/go-chi/chi']
+
+# ---------------------------------------------------------------------------
+# Infrastructure and DevOps tooling.
+#
+#   files      -> exact file names (e.g. "Dockerfile")
+#   dirs       -> the file sits somewhere under this directory path
+#   extensions -> the file must also have one of these extensions
+#
+# A rule matches when the file is named in `files` or sits under one of
+# `dirs` (or both lists are empty), and its extension is in `extensions`
+# (when that list is given). For example, `extensions = ["tf"]` alone
+# matches every Terraform file.
+# ---------------------------------------------------------------------------
+
+[[infra]]
+name = "Docker"
+files = ["Dockerfile"]
+
+[[infra]]
+name = "Docker Compose"
+files = ["docker-compose.yml", "docker-compose.yaml"]
+
+[[infra]]
+name = "Makefile"
+files = ["Makefile"]
+
+[[infra]]
+name = "GitHub Actions"
+dirs = [".github/workflows"]
+
+[[infra]]
+name = "Kubernetes"
+dirs = ["k8s", "kubernetes"]
+extensions = ["yaml", "yml"]
