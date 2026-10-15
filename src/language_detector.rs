@@ -1,48 +1,23 @@
 //! Language detection module.
 //!
-//! Maps file extensions to programming languages and produces
+//! Maps file extensions to programming languages (from `rules.toml`) and produces
 //! an aggregated language map (language → total LOC) across a repository.
 
+use crate::rules;
 use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
 
-/// Supported programming/markup languages.
+/// A detected programming or markup language.
+///
+/// Languages and their extensions are defined by the `[[language]]` rules in
+/// `rules.toml`; the wrapped value is the language's display name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Language {
-    Rust,
-    TypeScript,
-    JavaScript,
-    Python,
-    Go,
-    Solidity,
-    Css,
-    Html,
-    Toml,
-    Json,
-    Yaml,
-    Markdown,
-    Shell,
-}
+pub struct Language(&'static str);
 
 impl fmt::Display for Language {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match self {
-            Language::Rust => "Rust",
-            Language::TypeScript => "TypeScript",
-            Language::JavaScript => "JavaScript",
-            Language::Python => "Python",
-            Language::Go => "Go",
-            Language::Solidity => "Solidity",
-            Language::Css => "CSS",
-            Language::Html => "HTML",
-            Language::Toml => "TOML",
-            Language::Json => "JSON",
-            Language::Yaml => "YAML",
-            Language::Markdown => "Markdown",
-            Language::Shell => "Shell",
-        };
-        write!(f, "{name}")
+        f.write_str(self.0)
     }
 }
 
@@ -51,25 +26,7 @@ impl fmt::Display for Language {
 /// Returns `None` for unknown or extension-less files.
 pub fn detect_language(path: &Path) -> Option<Language> {
     let ext = path.extension()?.to_str()?.to_lowercase();
-
-    let lang = match ext.as_str() {
-        "rs" => Language::Rust,
-        "ts" | "tsx" => Language::TypeScript,
-        "js" | "jsx" | "mjs" => Language::JavaScript,
-        "py" => Language::Python,
-        "go" => Language::Go,
-        "sol" => Language::Solidity,
-        "css" | "scss" | "sass" => Language::Css,
-        "html" | "htm" => Language::Html,
-        "toml" => Language::Toml,
-        "json" => Language::Json,
-        "yml" | "yaml" => Language::Yaml,
-        "md" | "markdown" => Language::Markdown,
-        "sh" | "bash" | "zsh" => Language::Shell,
-        _ => return None,
-    };
-
-    Some(lang)
+    rules::language_for_extension(&ext).map(Language)
 }
 
 /// Build a map of `Language → total LOC` from a list of (path, loc) pairs.
@@ -100,80 +57,80 @@ mod tests {
 
     #[test]
     fn detects_rust() {
-        assert_eq!(detect_language(&p("main.rs")), Some(Language::Rust));
+        assert_eq!(detect_language(&p("main.rs")), Some(Language("Rust")));
     }
 
     #[test]
     fn detects_typescript_and_tsx() {
-        assert_eq!(detect_language(&p("app.ts")), Some(Language::TypeScript));
-        assert_eq!(detect_language(&p("app.tsx")), Some(Language::TypeScript));
+        assert_eq!(detect_language(&p("app.ts")), Some(Language("TypeScript")));
+        assert_eq!(detect_language(&p("app.tsx")), Some(Language("TypeScript")));
     }
 
     #[test]
     fn detects_javascript_variants() {
-        assert_eq!(detect_language(&p("index.js")), Some(Language::JavaScript));
-        assert_eq!(detect_language(&p("index.jsx")), Some(Language::JavaScript));
-        assert_eq!(detect_language(&p("mod.mjs")), Some(Language::JavaScript));
+        assert_eq!(detect_language(&p("index.js")), Some(Language("JavaScript")));
+        assert_eq!(detect_language(&p("index.jsx")), Some(Language("JavaScript")));
+        assert_eq!(detect_language(&p("mod.mjs")), Some(Language("JavaScript")));
     }
 
     #[test]
     fn detects_python() {
-        assert_eq!(detect_language(&p("server.py")), Some(Language::Python));
+        assert_eq!(detect_language(&p("server.py")), Some(Language("Python")));
     }
 
     #[test]
     fn detects_go() {
-        assert_eq!(detect_language(&p("main.go")), Some(Language::Go));
+        assert_eq!(detect_language(&p("main.go")), Some(Language("Go")));
     }
 
     #[test]
     fn detects_solidity() {
-        assert_eq!(detect_language(&p("Token.sol")), Some(Language::Solidity));
+        assert_eq!(detect_language(&p("Token.sol")), Some(Language("Solidity")));
     }
 
     #[test]
     fn detects_css_variants() {
-        assert_eq!(detect_language(&p("styles.css")), Some(Language::Css));
-        assert_eq!(detect_language(&p("styles.scss")), Some(Language::Css));
-        assert_eq!(detect_language(&p("styles.sass")), Some(Language::Css));
+        assert_eq!(detect_language(&p("styles.css")), Some(Language("CSS")));
+        assert_eq!(detect_language(&p("styles.scss")), Some(Language("CSS")));
+        assert_eq!(detect_language(&p("styles.sass")), Some(Language("CSS")));
     }
 
     #[test]
     fn detects_html() {
-        assert_eq!(detect_language(&p("index.html")), Some(Language::Html));
-        assert_eq!(detect_language(&p("index.htm")), Some(Language::Html));
+        assert_eq!(detect_language(&p("index.html")), Some(Language("HTML")));
+        assert_eq!(detect_language(&p("index.htm")), Some(Language("HTML")));
     }
 
     #[test]
     fn detects_toml() {
-        assert_eq!(detect_language(&p("Cargo.toml")), Some(Language::Toml));
+        assert_eq!(detect_language(&p("Cargo.toml")), Some(Language("TOML")));
     }
 
     #[test]
     fn detects_json() {
-        assert_eq!(detect_language(&p("package.json")), Some(Language::Json));
+        assert_eq!(detect_language(&p("package.json")), Some(Language("JSON")));
     }
 
     #[test]
     fn detects_yaml() {
-        assert_eq!(detect_language(&p("config.yml")), Some(Language::Yaml));
-        assert_eq!(detect_language(&p("config.yaml")), Some(Language::Yaml));
+        assert_eq!(detect_language(&p("config.yml")), Some(Language("YAML")));
+        assert_eq!(detect_language(&p("config.yaml")), Some(Language("YAML")));
     }
 
     #[test]
     fn detects_markdown() {
-        assert_eq!(detect_language(&p("README.md")), Some(Language::Markdown));
+        assert_eq!(detect_language(&p("README.md")), Some(Language("Markdown")));
         assert_eq!(
             detect_language(&p("CONTRIBUTING.markdown")),
-            Some(Language::Markdown)
+            Some(Language("Markdown"))
         );
     }
 
     #[test]
     fn detects_shell() {
-        assert_eq!(detect_language(&p("install.sh")), Some(Language::Shell));
-        assert_eq!(detect_language(&p("install.bash")), Some(Language::Shell));
-        assert_eq!(detect_language(&p("rc.zsh")), Some(Language::Shell));
+        assert_eq!(detect_language(&p("install.sh")), Some(Language("Shell")));
+        assert_eq!(detect_language(&p("install.bash")), Some(Language("Shell")));
+        assert_eq!(detect_language(&p("rc.zsh")), Some(Language("Shell")));
     }
 
     #[test]
@@ -203,24 +160,24 @@ mod tests {
 
         let map = build_language_map(&files);
 
-        assert_eq!(map.get(&Language::Rust), Some(&150));
-        assert_eq!(map.get(&Language::TypeScript), Some(&200));
-        assert_eq!(map.get(&Language::JavaScript), Some(&80));
-        assert_eq!(map.get(&Language::Css), Some(&30));
-        assert!(!map.contains_key(&Language::Python)); // not present
+        assert_eq!(map.get(&Language("Rust")), Some(&150));
+        assert_eq!(map.get(&Language("TypeScript")), Some(&200));
+        assert_eq!(map.get(&Language("JavaScript")), Some(&80));
+        assert_eq!(map.get(&Language("CSS")), Some(&30));
+        assert!(!map.contains_key(&Language("Python"))); // not present
     }
 
     // --- Display ---
 
     #[test]
     fn language_display_names() {
-        assert_eq!(Language::Rust.to_string(), "Rust");
-        assert_eq!(Language::TypeScript.to_string(), "TypeScript");
-        assert_eq!(Language::JavaScript.to_string(), "JavaScript");
-        assert_eq!(Language::Python.to_string(), "Python");
-        assert_eq!(Language::Go.to_string(), "Go");
-        assert_eq!(Language::Solidity.to_string(), "Solidity");
-        assert_eq!(Language::Css.to_string(), "CSS");
-        assert_eq!(Language::Html.to_string(), "HTML");
+        assert_eq!(Language("Rust").to_string(), "Rust");
+        assert_eq!(Language("TypeScript").to_string(), "TypeScript");
+        assert_eq!(Language("JavaScript").to_string(), "JavaScript");
+        assert_eq!(Language("Python").to_string(), "Python");
+        assert_eq!(Language("Go").to_string(), "Go");
+        assert_eq!(Language("Solidity").to_string(), "Solidity");
+        assert_eq!(Language("CSS").to_string(), "CSS");
+        assert_eq!(Language("HTML").to_string(), "HTML");
     }
 }

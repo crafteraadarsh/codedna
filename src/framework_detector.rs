@@ -8,8 +8,10 @@
 //!
 //! Also provides `detect_files_using_framework` for per-file import analysis.
 //!
-//! Detection rules follow `Detectors.md`.
+//! Detection rules live in `rules.toml` at the repository root; see
+//! `CONTRIBUTING.md`.
 
+use crate::rules::{self, PackageRules};
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,27 +36,15 @@ pub fn detect_frameworks(files: &[PathBuf]) -> FrameworkDetectionResult {
     let mut databases: Vec<String> = Vec::new();
 
     for file in files {
-        match file.file_name().and_then(|n| n.to_str()) {
-            Some("package.json") => {
-                let (fw, db) = parse_package_json(file);
-                frameworks.extend(fw);
-                databases.extend(db);
-            }
-            Some("requirements.txt") => {
-                let (fw, db) = parse_requirements_txt(file);
-                frameworks.extend(fw);
-                databases.extend(db);
-            }
-            Some("Cargo.toml") => {
-                let (fw, db) = parse_cargo_toml(file);
-                frameworks.extend(fw);
-                databases.extend(db);
-            }
-            Some("go.mod") => {
-                frameworks.extend(parse_go_mod(file));
-            }
-            _ => {}
-        }
+        let (fw, db) = match file.file_name().and_then(|n| n.to_str()) {
+            Some("package.json") => parse_package_json(file),
+            Some("requirements.txt") => parse_requirements_txt(file),
+            Some("Cargo.toml") => parse_cargo_toml(file),
+            Some("go.mod") => parse_go_mod(file),
+            _ => continue,
+        };
+        frameworks.extend(fw);
+        databases.extend(db);
     }
 
     dedup_sorted(&mut frameworks);
@@ -68,41 +58,21 @@ pub fn detect_frameworks(files: &[PathBuf]) -> FrameworkDetectionResult {
 
 /// Detect infrastructure and DevOps tooling from a list of repository files.
 ///
-/// Detection targets (from `Detectors.md`):
-/// - Docker        — `Dockerfile` exists
-/// - Docker Compose — `docker-compose.yml` / `docker-compose.yaml` exists
-/// - GitHub Actions — any file inside `.github/workflows/`
-/// - Makefile       — `Makefile` exists
-/// - Kubernetes     — `*.yaml` files in a `k8s/` or `kubernetes/` directory
+/// Targets come from the `[[infra]]` rules in `rules.toml` (Docker, Docker
+/// Compose, GitHub Actions, Makefile, Kubernetes, ...).
 pub fn detect_infrastructure(files: &[PathBuf]) -> Vec<String> {
+    let rules = &rules::rules().infrastructure;
     let mut infra: Vec<String> = Vec::new();
 
     for file in files {
         let file_name = file.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let ext = lowercase_extension(file);
+        let path_str = file.to_string_lossy().replace('\\', "/");
 
-        match file_name {
-            "Dockerfile" => infra.push("Docker".to_string()),
-            "docker-compose.yml" | "docker-compose.yaml" => {
-                infra.push("Docker Compose".to_string())
+        for rule in rules {
+            if rule.matches(&path_str, file_name, &ext) {
+                infra.push(rule.name.clone());
             }
-            "Makefile" => infra.push("Makefile".to_string()),
-            _ => {}
-        }
-
-        // GitHub Actions: any file inside .github/workflows/
-        let path_str = file.display().to_string();
-        if (path_str.contains("/.github/workflows/") || path_str.contains("\\.github\\workflows\\"))
-            && !infra.contains(&"GitHub Actions".to_string())
-        {
-            infra.push("GitHub Actions".to_string());
-        }
-
-        // Kubernetes: yaml files in k8s/ or kubernetes/ directories
-        if (path_str.contains("/k8s/") || path_str.contains("/kubernetes/"))
-            && (file_name.ends_with(".yaml") || file_name.ends_with(".yml"))
-            && !infra.contains(&"Kubernetes".to_string())
-        {
-            infra.push("Kubernetes".to_string());
         }
     }
 
@@ -116,178 +86,34 @@ fn dedup_sorted(v: &mut Vec<String>) {
     v.dedup();
 }
 
+/// Lowercase file extension without the dot, or `""` when there is none.
+fn lowercase_extension(path: &Path) -> String {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase()
+}
+
 // ---------------------------------------------------------------------------
 // Per-file framework import detection
 // ---------------------------------------------------------------------------
 
-/// Maps a lowercase canonical framework name to a list of
-/// `(file_extensions, import_substrings)` matchers.
-///
-/// A file matches when its extension is in the extensions list AND at least
-/// one of the import substrings appears on a non-comment line of the file.
-const FRAMEWORK_FILE_PATTERNS: &[(&str, &[&str], &[&str])] = &[
-    // ── JavaScript / TypeScript ──────────────────────────────────────────────
-    (
-        "react",
-        &["ts", "tsx", "js", "jsx", "mjs"],
-        &[
-            "from 'react'",
-            "from \"react\"",
-            "from 'react-dom'",
-            "from \"react-dom\"",
-            "require('react')",
-            "require(\"react\")",
-        ],
-    ),
-    (
-        "next.js",
-        &["ts", "tsx", "js", "jsx"],
-        &[
-            "from 'next'",
-            "from \"next\"",
-            "from 'next/",
-            "from \"next/",
-            "require('next')",
-            "require(\"next\")",
-        ],
-    ),
-    (
-        "express",
-        &["ts", "js", "mjs"],
-        &[
-            "from 'express'",
-            "from \"express\"",
-            "require('express')",
-            "require(\"express\")",
-        ],
-    ),
-    (
-        "vite",
-        &["ts", "js", "mjs"],
-        &[
-            "from 'vite'",
-            "from \"vite\"",
-            "from 'vite/",
-            "from \"vite/",
-        ],
-    ),
-    (
-        "vue",
-        &["ts", "tsx", "js", "jsx", "vue"],
-        &[
-            "from 'vue'",
-            "from \"vue\"",
-            "require('vue')",
-            "require(\"vue\")",
-        ],
-    ),
-    (
-        "svelte",
-        &["ts", "js", "svelte"],
-        &[
-            "from 'svelte'",
-            "from \"svelte\"",
-            "from 'svelte/",
-            "from \"svelte/",
-        ],
-    ),
-    (
-        "nestjs",
-        &["ts", "js"],
-        &["from '@nestjs/", "from \"@nestjs/"],
-    ),
-    (
-        "fastify",
-        &["ts", "js", "mjs"],
-        &[
-            "from 'fastify'",
-            "from \"fastify\"",
-            "require('fastify')",
-            "require(\"fastify\")",
-        ],
-    ),
-    (
-        "koa",
-        &["ts", "js", "mjs"],
-        &[
-            "from 'koa'",
-            "from \"koa\"",
-            "require('koa')",
-            "require(\"koa\")",
-        ],
-    ),
-    (
-        "remix",
-        &["ts", "tsx", "js", "jsx"],
-        &["from '@remix-run/", "from \"@remix-run/"],
-    ),
-    (
-        "gatsby",
-        &["ts", "tsx", "js", "jsx"],
-        &["from 'gatsby'", "from \"gatsby\""],
-    ),
-    (
-        "nuxt",
-        &["ts", "js", "vue"],
-        &[
-            "from 'nuxt'",
-            "from \"nuxt\"",
-            "from '#app'",
-            "from \"#app\"",
-        ],
-    ),
-    (
-        "astro",
-        &["ts", "js", "astro"],
-        &[
-            "from 'astro'",
-            "from \"astro\"",
-            "from 'astro/",
-            "from \"astro/",
-        ],
-    ),
-    // ── Python ───────────────────────────────────────────────────────────────
-    ("fastapi", &["py"], &["from fastapi", "import fastapi"]),
-    ("django", &["py"], &["from django", "import django"]),
-    ("flask", &["py"], &["from flask", "import flask"]),
-    (
-        "starlette",
-        &["py"],
-        &["from starlette", "import starlette"],
-    ),
-    ("aiohttp", &["py"], &["from aiohttp", "import aiohttp"]),
-    // ── Rust ─────────────────────────────────────────────────────────────────
-    ("tokio", &["rs"], &["use tokio", "tokio::"]),
-    ("axum", &["rs"], &["use axum", "axum::"]),
-    ("actix-web", &["rs"], &["use actix_web", "actix_web::"]),
-    ("rocket", &["rs"], &["use rocket", "rocket::"]),
-    ("warp", &["rs"], &["use warp", "warp::"]),
-    ("leptos", &["rs"], &["use leptos", "leptos::"]),
-    ("dioxus", &["rs"], &["use dioxus", "dioxus::"]),
-    ("yew", &["rs"], &["use yew", "yew::"]),
-    ("tauri", &["rs"], &["use tauri", "tauri::"]),
-    // ── Go ───────────────────────────────────────────────────────────────────
-    ("gin", &["go"], &["\"github.com/gin-gonic/gin\""]),
-    ("echo", &["go"], &["\"github.com/labstack/echo"]),
-    ("fiber", &["go"], &["\"github.com/gofiber/fiber"]),
-    ("chi", &["go"], &["\"github.com/go-chi/chi"]),
-];
-
 /// Scan repository files and return those that contain import statements for
 /// the specified framework.
 ///
-/// `framework` is matched case-insensitively against the canonical names in
-/// `FRAMEWORK_FILE_PATTERNS`.
+/// `framework` is matched case-insensitively against the `[[file_pattern]]`
+/// rules in `rules.toml`. A file matches when its extension is listed AND at
+/// least one of the import substrings appears on a non-comment line.
 ///
 /// Returns a sorted `Vec<PathBuf>` of matching files.
 pub fn detect_files_using_framework(files: &[PathBuf], framework: &str) -> Vec<PathBuf> {
     let framework_lower = framework.to_lowercase();
 
     // Look up matchers for the requested framework.
-    let matchers: Vec<(&[&str], &[&str])> = FRAMEWORK_FILE_PATTERNS
+    let matchers: Vec<&rules::FilePatternRule> = rules::rules()
+        .file_patterns
         .iter()
-        .filter(|(name, _, _)| *name == framework_lower.as_str())
-        .map(|(_, exts, patterns)| (*exts, *patterns))
+        .filter(|p| p.framework == framework_lower)
         .collect();
 
     if matchers.is_empty() {
@@ -298,17 +124,13 @@ pub fn detect_files_using_framework(files: &[PathBuf], framework: &str) -> Vec<P
     let mut results: Vec<PathBuf> = files
         .par_iter()
         .filter(|file| {
-            let ext = file
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_lowercase();
+            let ext = lowercase_extension(file);
 
             // Find matchers whose extension list includes this file's extension.
-            let applicable: Vec<&[&str]> = matchers
+            let applicable: Vec<&[String]> = matchers
                 .iter()
-                .filter(|(exts, _)| exts.contains(&ext.as_str()))
-                .map(|(_, patterns)| *patterns)
+                .filter(|m| m.extensions.contains(&ext))
+                .map(|m| m.imports.as_slice())
                 .collect();
 
             if applicable.is_empty() {
@@ -336,9 +158,9 @@ pub fn detect_files_using_framework(files: &[PathBuf], framework: &str) -> Vec<P
                     continue;
                 }
 
-                for patterns in &applicable {
-                    for pattern in *patterns {
-                        if trimmed.contains(pattern) {
+                for imports in &applicable {
+                    for import in *imports {
+                        if trimmed.contains(import.as_str()) {
                             return true;
                         }
                     }
@@ -355,52 +177,34 @@ pub fn detect_files_using_framework(files: &[PathBuf], framework: &str) -> Vec<P
 }
 
 // ---------------------------------------------------------------------------
-// package.json — JavaScript / Node.js frameworks
+// Shared rule matching
 // ---------------------------------------------------------------------------
 
-/// JS framework detection rules: (package name, display label)
-const JS_FRAMEWORK_RULES: &[(&str, &str)] = &[
-    ("react", "React"),
-    ("next", "Next.js"),
-    ("express", "Express"),
-    ("vite", "Vite"),
-    ("vue", "Vue"),
-    ("nuxt", "Nuxt"),
-    ("svelte", "Svelte"),
-    ("astro", "Astro"),
-    ("@nestjs/core", "NestJS"),
-    ("fastify", "Fastify"),
-    ("koa", "Koa"),
-    ("hapi", "Hapi"),
-    ("remix", "Remix"),
-    ("gatsby", "Gatsby"),
-];
-
-/// JS database detection rules: (package name, display label)
+/// Append the framework and database labels for one dependency name.
 ///
-/// Rules from `Detectors.md`.
-const JS_DATABASE_RULES: &[(&str, &str)] = &[
-    ("pg", "PostgreSQL"),
-    ("postgres", "PostgreSQL"),
-    ("mongoose", "MongoDB"),
-    ("mongodb", "MongoDB"),
-    ("mysql", "MySQL"),
-    ("mysql2", "MySQL"),
-    ("redis", "Redis"),
-    ("ioredis", "Redis"),
-    ("prisma", "Prisma"),
-    ("@prisma/client", "Prisma"),
-    ("better-sqlite3", "SQLite"),
-    ("sqlite3", "SQLite"),
-    ("knex", "Knex"),
-    ("sequelize", "Sequelize"),
-    ("typeorm", "TypeORM"),
-    ("drizzle-orm", "Drizzle ORM"),
-    ("cassandra-driver", "Cassandra"),
-    ("couchdb", "CouchDB"),
-    ("@elastic/elasticsearch", "Elasticsearch"),
-    ("dynamoose", "DynamoDB"),
-];
+/// Labels are added once each, so several packages sharing a label
+/// (e.g. `pg` and `postgres` → PostgreSQL) are reported once.
+fn match_package(
+    rules: &PackageRules,
+    name: &str,
+    frameworks: &mut Vec<String>,
+    databases: &mut Vec<String>,
+) {
+    if let Some(label) = rules.frameworks.get(name) {
+        if !frameworks.contains(label) {
+            frameworks.push(label.clone());
+        }
+    }
+    if let Some(label) = rules.databases.get(name) {
+        if !databases.contains(label) {
+            databases.push(label.clone());
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// package.json — JavaScript / Node.js frameworks + databases (`[npm.*]`)
+// ---------------------------------------------------------------------------
 
 /// Parse `package.json` and return `(frameworks, databases)`.
 ///
@@ -416,29 +220,13 @@ fn parse_package_json(path: &Path) -> (Vec<String>, Vec<String>) {
         Err(_) => return (Vec::new(), Vec::new()),
     };
 
-    let deps = collect_package_json_keys(&json, "dependencies");
-    let dev_deps = collect_package_json_keys(&json, "devDependencies");
-    let peer_deps = collect_package_json_keys(&json, "peerDependencies");
-
-    let all_deps: Vec<&str> = deps
-        .iter()
-        .chain(dev_deps.iter())
-        .chain(peer_deps.iter())
-        .map(|s| s.as_str())
-        .collect();
-
+    let rules = &rules::rules().npm;
     let mut frameworks = Vec::new();
-    for (package, label) in JS_FRAMEWORK_RULES {
-        if all_deps.contains(package) {
-            frameworks.push(label.to_string());
-        }
-    }
+    let mut databases = Vec::new();
 
-    // Deduplicate databases (e.g. both "pg" and "postgres" → only one "PostgreSQL")
-    let mut databases: Vec<String> = Vec::new();
-    for (package, label) in JS_DATABASE_RULES {
-        if all_deps.contains(package) && !databases.contains(&label.to_string()) {
-            databases.push(label.to_string());
+    for section in ["dependencies", "devDependencies", "peerDependencies"] {
+        for name in collect_package_json_keys(&json, section) {
+            match_package(rules, &name, &mut frameworks, &mut databases);
         }
     }
 
@@ -454,44 +242,8 @@ fn collect_package_json_keys(json: &serde_json::Value, section: &str) -> Vec<Str
 }
 
 // ---------------------------------------------------------------------------
-// requirements.txt — Python frameworks + databases
+// requirements.txt — Python frameworks + databases (`[pypi.*]`)
 // ---------------------------------------------------------------------------
-
-/// Python framework detection rules: (lowercase package name, display label)
-const PYTHON_FRAMEWORK_RULES: &[(&str, &str)] = &[
-    ("fastapi", "FastAPI"),
-    ("django", "Django"),
-    ("flask", "Flask"),
-    ("starlette", "Starlette"),
-    ("tornado", "Tornado"),
-    ("aiohttp", "aiohttp"),
-    ("pyramid", "Pyramid"),
-    ("sanic", "Sanic"),
-    ("litestar", "Litestar"),
-];
-
-/// Python database detection rules: (lowercase package name, display label)
-///
-/// Rules from `Detectors.md`.
-const PYTHON_DATABASE_RULES: &[(&str, &str)] = &[
-    ("sqlalchemy", "SQLAlchemy"),
-    ("psycopg2", "PostgreSQL"),
-    ("psycopg2-binary", "PostgreSQL"),
-    ("psycopg", "PostgreSQL"),
-    ("asyncpg", "PostgreSQL"),
-    ("pymongo", "MongoDB"),
-    ("motor", "MongoDB"),
-    ("redis", "Redis"),
-    ("aioredis", "Redis"),
-    ("pymysql", "MySQL"),
-    ("aiomysql", "MySQL"),
-    ("mysqlclient", "MySQL"),
-    ("tortoise-orm", "Tortoise ORM"),
-    ("peewee", "Peewee"),
-    ("databases", "Databases"),
-    ("elasticsearch", "Elasticsearch"),
-    ("cassandra-driver", "Cassandra"),
-];
 
 /// Parse `requirements.txt` and return `(frameworks, databases)`.
 ///
@@ -502,6 +254,7 @@ fn parse_requirements_txt(path: &Path) -> (Vec<String>, Vec<String>) {
         Err(_) => return (Vec::new(), Vec::new()),
     };
 
+    let rules = &rules::rules().pypi;
     let mut frameworks = Vec::new();
     let mut databases = Vec::new();
 
@@ -521,59 +274,15 @@ fn parse_requirements_txt(path: &Path) -> (Vec<String>, Vec<String>) {
             .trim()
             .to_lowercase();
 
-        for (name, label) in PYTHON_FRAMEWORK_RULES {
-            if package_name == *name {
-                frameworks.push(label.to_string());
-                break;
-            }
-        }
-
-        for (name, label) in PYTHON_DATABASE_RULES {
-            if package_name == *name && !databases.contains(&label.to_string()) {
-                databases.push(label.to_string());
-                break;
-            }
-        }
+        match_package(rules, &package_name, &mut frameworks, &mut databases);
     }
 
     (frameworks, databases)
 }
 
 // ---------------------------------------------------------------------------
-// Cargo.toml — Rust frameworks / crates + databases
+// Cargo.toml — Rust frameworks / crates + databases (`[cargo.*]`)
 // ---------------------------------------------------------------------------
-
-/// Rust framework/crate detection rules: (crate name, display label)
-const RUST_CRATE_RULES: &[(&str, &str)] = &[
-    ("tokio", "Tokio"),
-    ("axum", "Axum"),
-    ("actix-web", "Actix-web"),
-    ("rocket", "Rocket"),
-    ("warp", "Warp"),
-    ("tonic", "Tonic"),
-    ("poem", "Poem"),
-    ("salvo", "Salvo"),
-    ("tide", "Tide"),
-    ("hyper", "Hyper"),
-    ("tauri", "Tauri"),
-    ("leptos", "Leptos"),
-    ("dioxus", "Dioxus"),
-    ("yew", "Yew"),
-];
-
-/// Rust database crate detection rules: (crate name, display label)
-const RUST_DATABASE_RULES: &[(&str, &str)] = &[
-    ("sqlx", "SQLx"),
-    ("diesel", "Diesel"),
-    ("sea-orm", "SeaORM"),
-    ("tokio-postgres", "PostgreSQL"),
-    ("postgres", "PostgreSQL"),
-    ("mongodb", "MongoDB"),
-    ("redis", "Redis"),
-    ("rusqlite", "SQLite"),
-    ("sled", "Sled"),
-    ("elasticsearch", "Elasticsearch"),
-];
 
 /// Parse `Cargo.toml` and return `(frameworks, databases)`.
 ///
@@ -584,6 +293,7 @@ fn parse_cargo_toml(path: &Path) -> (Vec<String>, Vec<String>) {
         Err(_) => return (Vec::new(), Vec::new()),
     };
 
+    let rules = &rules::rules().cargo;
     let mut frameworks = Vec::new();
     let mut databases = Vec::new();
     let mut in_dependencies = false;
@@ -615,60 +325,45 @@ fn parse_cargo_toml(path: &Path) -> (Vec<String>, Vec<String>) {
             .trim()
             .trim_matches('"');
 
-        for (crate_name, label) in RUST_CRATE_RULES {
-            if key == *crate_name {
-                frameworks.push(label.to_string());
-                break;
-            }
-        }
-
-        for (crate_name, label) in RUST_DATABASE_RULES {
-            if key == *crate_name && !databases.contains(&label.to_string()) {
-                databases.push(label.to_string());
-                break;
-            }
-        }
+        match_package(rules, key, &mut frameworks, &mut databases);
     }
 
     (frameworks, databases)
 }
 
 // ---------------------------------------------------------------------------
-// go.mod — Go modules / frameworks
+// go.mod — Go modules (`[go.*]`)
 // ---------------------------------------------------------------------------
 
-/// Go module detection rules: (module path substring, display label)
-const GO_MODULE_RULES: &[(&str, &str)] = &[
-    ("github.com/gin-gonic/gin", "Gin"),
-    ("github.com/labstack/echo", "Echo"),
-    ("github.com/gofiber/fiber", "Fiber"),
-    ("github.com/gorilla/mux", "Gorilla Mux"),
-    ("github.com/beego/beego", "Beego"),
-    ("github.com/go-chi/chi", "Chi"),
-    ("github.com/revel/revel", "Revel"),
-    ("go.uber.org/fx", "Uber FX"),
-];
-
-/// Parse `go.mod` and return detected Go framework names.
-fn parse_go_mod(path: &Path) -> Vec<String> {
+/// Parse `go.mod` and return `(frameworks, databases)`.
+///
+/// Go rule keys are module path prefixes, matched as substrings of each line
+/// so that versioned paths like `github.com/labstack/echo/v4` still match.
+fn parse_go_mod(path: &Path) -> (Vec<String>, Vec<String>) {
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(_) => return Vec::new(),
+        Err(_) => return (Vec::new(), Vec::new()),
     };
 
-    let mut detected = Vec::new();
+    let rules = &rules::rules().go;
+    let mut frameworks = Vec::new();
+    let mut databases = Vec::new();
 
     for line in content.lines() {
         let trimmed = line.trim();
-        for (module_path, label) in GO_MODULE_RULES {
-            if trimmed.contains(module_path) {
-                detected.push(label.to_string());
-                break;
+        for (module_path, label) in &rules.frameworks {
+            if trimmed.contains(module_path.as_str()) && !frameworks.contains(label) {
+                frameworks.push(label.clone());
+            }
+        }
+        for (module_path, label) in &rules.databases {
+            if trimmed.contains(module_path.as_str()) && !databases.contains(label) {
+                databases.push(label.clone());
             }
         }
     }
 
-    detected
+    (frameworks, databases)
 }
 
 // ---------------------------------------------------------------------------
@@ -1341,5 +1036,49 @@ mod tests {
             .count();
         assert_eq!(pg_count, 1, "PostgreSQL should appear only once");
         fs::remove_dir_all(dir).ok();
+    }
+
+    // -----------------------------------------------------------------------
+    // detect_infrastructure
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn detects_docker_and_compose() {
+        let files = vec![
+            PathBuf::from("/repo/Dockerfile"),
+            PathBuf::from("/repo/docker-compose.yml"),
+        ];
+        let infra = detect_infrastructure(&files);
+        assert_eq!(infra, vec!["Docker".to_string(), "Docker Compose".to_string()]);
+    }
+
+    #[test]
+    fn detects_github_actions_once() {
+        let files = vec![
+            PathBuf::from("/repo/.github/workflows/ci.yml"),
+            PathBuf::from("/repo/.github/workflows/release.yml"),
+        ];
+        assert_eq!(detect_infrastructure(&files), vec!["GitHub Actions".to_string()]);
+    }
+
+    #[test]
+    fn detects_kubernetes_yaml_only() {
+        let yaml = vec![PathBuf::from("/repo/k8s/deploy.yaml")];
+        assert_eq!(detect_infrastructure(&yaml), vec!["Kubernetes".to_string()]);
+
+        let readme = vec![PathBuf::from("/repo/k8s/README.md")];
+        assert!(detect_infrastructure(&readme).is_empty());
+    }
+
+    #[test]
+    fn handles_windows_separators_for_infra() {
+        let files = vec![PathBuf::from("C:\\repo\\.github\\workflows\\ci.yml")];
+        assert_eq!(detect_infrastructure(&files), vec!["GitHub Actions".to_string()]);
+    }
+
+    #[test]
+    fn detects_nothing_for_plain_source_files() {
+        let files = vec![PathBuf::from("/repo/src/main.rs")];
+        assert!(detect_infrastructure(&files).is_empty());
     }
 }

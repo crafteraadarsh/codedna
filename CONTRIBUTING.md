@@ -7,6 +7,7 @@ Thank you for your interest in contributing to CodeDna! This document covers eve
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
+- [Your First PR in 15 Minutes](#your-first-pr-in-15-minutes)
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [Project Structure](#project-structure)
@@ -24,6 +25,39 @@ Be respectful and constructive. We welcome contributors of all experience levels
 
 ---
 
+## Your First PR in 15 Minutes
+
+New to Rust or open source? Adding a detector is the easiest way in. Most are a one-line rule plus one test.
+
+1. Pick an issue labelled [`good first issue`](https://github.com/crafteraadarsh/codedna/labels/good%20first%20issue) and comment that you're taking it.
+2. Open `rules.toml` in the repo root, find the section the issue names (for example `[npm.frameworks]`) and add one line:
+
+   ```toml
+   "@angular/core" = "Angular"
+   ```
+
+   No Rust changes are needed. The rules are built into the binary.
+
+3. Copy the nearest existing test in `src/framework_detector.rs` (for example `detects_react_from_package_json`), rename it and change the package and label:
+
+   ```rust
+   #[test]
+   fn detects_angular_from_package_json() {
+       let dir = unique_temp_dir("codedna_fw_angular");
+       let file = dir.join("package.json");
+       fs::write(&file, r#"{ "dependencies": { "@angular/core": "^18.0.0" } }"#).unwrap();
+       let result = detect_frameworks(&[file]);
+       assert!(result.frameworks.contains(&"Angular".to_string()));
+       fs::remove_dir_all(dir).ok();
+   }
+   ```
+
+4. Run `cargo test && cargo clippy -- -D warnings && cargo fmt --check`, commit, and open a PR that says `Closes #<issue>`.
+
+Stuck? Comment on the issue. Questions are welcome.
+
+---
+
 ## Getting Started
 
 ### Prerequisites
@@ -34,8 +68,10 @@ Be respectful and constructive. We welcome contributors of all experience levels
 
 ### Clone and Build
 
+Fork the repository on GitHub, then:
+
 ```bash
-git clone https://github.com/your-org/codedna
+git clone https://github.com/<your-username>/codedna
 cd codedna
 cargo build
 cargo test
@@ -72,12 +108,14 @@ cargo fmt
 
 ```
 codedna/
+├── rules.toml                # All detection rules (languages, frameworks, databases, infra)
 ├── src/
 │   ├── main.rs               # Entry point — registers modules
+│   ├── rules.rs              # Loads and validates rules.toml
 │   ├── cli.rs                # clap CLI command definitions + dispatch
 │   ├── analysis.rs           # AnalysisResult struct + full pipeline
 │   ├── scanner.rs            # Recursive file walker (walkdir)
-│   ├── language_detector.rs  # File extension → Language enum
+│   ├── language_detector.rs  # File extension → Language (from rules.toml)
 │   ├── loc_counter.rs        # Non-empty line counter + binary detection
 │   ├── framework_detector.rs # Manifest parser + per-file import scanner
 │   ├── dependency_graph.rs   # Import/require/mod statement parser
@@ -99,34 +137,63 @@ codedna/
 | Type | Examples |
 |---|---|
 | Bug fixes | Incorrect detection, panics, wrong output |
-| New language support | Add extensions to `language_detector.rs` |
-| New framework detection | Add rules to `framework_detector.rs` per `Detectors.md` |
-| New database detection | Add rules to `JS_DATABASE_RULES` / `PYTHON_DATABASE_RULES` |
+| New language support | Add a `[[language]]` entry to `rules.toml` |
+| New framework detection | Add a line under `[<ecosystem>.frameworks]` in `rules.toml` |
+| New database detection | Add a line under `[<ecosystem>.databases]` in `rules.toml` |
+| New infrastructure detection | Add an `[[infra]]` entry to `rules.toml` |
 | Performance improvements | Faster scanning, lower memory usage |
 | Test coverage | More edge cases, real-world repo fixtures |
 | Documentation | README improvements, inline doc comments |
 | CLI improvements | New flags, better output formatting |
 
-### Adding a New Framework
+### Adding a New Framework or Database
 
-1. Add the package name and display label to the appropriate rule table in `framework_detector.rs`:
-   - `JS_FRAMEWORK_RULES` — for `package.json`
-   - `PYTHON_FRAMEWORK_RULES` — for `requirements.txt`
-   - `RUST_CRATE_RULES` — for `Cargo.toml`
-   - `GO_MODULE_RULES` — for `go.mod`
+1. Add `package = "Label"` to the right section of `rules.toml`:
+   - `[npm.frameworks]` / `[npm.databases]` for `package.json`
+   - `[pypi.frameworks]` / `[pypi.databases]` for `requirements.txt` (lowercase names)
+   - `[cargo.frameworks]` / `[cargo.databases]` for `Cargo.toml`
+   - `[go.frameworks]` / `[go.databases]` for `go.mod` (the key is a module path prefix)
 
-2. Add import patterns to `FRAMEWORK_FILE_PATTERNS` for per-file usage detection.
+   Quote keys that contain `@`, `/` or `.`, like `"@nestjs/core" = "NestJS"`.
 
-3. Add a unit test in the `#[cfg(test)]` block of `framework_detector.rs`.
+2. Optionally add a `[[file_pattern]]` entry so `codedna framework <name>` can find the files that import it.
 
-4. Update `Detectors.md` with the new detection rule.
+3. Add a unit test in the `#[cfg(test)]` block of `src/framework_detector.rs`.
+
+4. If it's a new manifest type, mention it in the README's detection list.
 
 ### Adding a New Language
 
-1. Add a variant to the `Language` enum in `language_detector.rs`.
-2. Add the extension mapping in the `match ext.as_str()` block.
-3. Add a `fmt::Display` arm.
-4. Add a unit test for the new extension.
+1. Add an entry to `rules.toml`:
+
+   ```toml
+   [[language]]
+   name = "Kotlin"
+   extensions = ["kt", "kts"]
+   ```
+
+   Extensions are lowercase, without the dot, and may belong to only one language.
+
+2. Add a unit test in `src/language_detector.rs`:
+
+   ```rust
+   #[test]
+   fn detects_kotlin() {
+       assert_eq!(detect_language(&p("Main.kt")), Some(Language("Kotlin")));
+   }
+   ```
+
+### Adding Infrastructure Detection
+
+Add an `[[infra]]` entry to `rules.toml` with any of `files` (exact file names), `dirs` (directories the file sits under) and `extensions`, then a test in `src/framework_detector.rs`:
+
+```toml
+[[infra]]
+name = "Terraform"
+extensions = ["tf"]
+```
+
+`cargo test` also checks `rules.toml` itself, so typos like a duplicated extension or an uppercase PyPI name fail with a clear message.
 
 ---
 
@@ -215,10 +282,9 @@ The test suite currently has **140+ tests** across all modules. All tests must p
 ### PR Checklist
 
 - [ ] `cargo test` passes with 0 failures
-- [ ] `cargo clippy` has no errors
+- [ ] `cargo clippy -- -D warnings` has no warnings
 - [ ] `cargo fmt` applied
 - [ ] New public functions have `///` doc comments
-- [ ] `DETECTORS.md` updated if adding a new detection rule
 - [ ] Tests added for new functionality
 
 ---
