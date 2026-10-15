@@ -14,7 +14,9 @@
 //! tests, docs, examples and fixtures are lowered one step on both, since
 //! that code is not what users of the project run.
 //!
-//! Files are only read, never executed, and nothing is sent over the network.
+//! Files are only read, never executed, and nothing is sent over the network
+//! unless dependency checking is asked for (see [`crate::vulns`]): then the
+//! names and versions in lockfiles, and nothing else, go to osv.dev.
 //! Secret values are never included in the output, only the kind of secret
 //! and its line.
 
@@ -44,6 +46,7 @@ pub const OBFUSCATION: &str = "obfuscation";
 pub const BINARY: &str = "binary";
 pub const MINIFIED: &str = "minified";
 pub const TYPOSQUAT: &str = "typosquat";
+pub const VULNERABLE_DEPENDENCY: &str = "vulnerable-dependency";
 
 /// How much a finding matters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -117,7 +120,22 @@ pub struct AuditReport {
     pub truncated: bool,
     /// Findings lowered because they are in tests, docs, examples or fixtures.
     pub lowered: usize,
+    /// Set when dependencies were checked against OSV.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependencies: Option<DependencySummary>,
     pub findings: Vec<Finding>,
+}
+
+/// What the dependency check covered.
+#[derive(Debug, Clone, Serialize)]
+pub struct DependencySummary {
+    /// Distinct package versions checked.
+    pub packages_checked: usize,
+    /// Lockfiles read, relative to the audited folder.
+    pub lockfiles: Vec<String>,
+    /// Set when the vulnerability database could not be reached.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 impl AuditReport {
@@ -127,8 +145,10 @@ impl AuditReport {
     }
 }
 
-/// Audit every file under `root` that the scanner would read.
-pub fn audit(root: &Path) -> AuditReport {
+/// Audit every file under `root` that the scanner would read. When
+/// `dependencies` is given, also check lockfile versions against that
+/// vulnerability database.
+pub fn audit(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> AuditReport {
     let files = crate::scanner::scan_repository(root);
     let findings: Vec<Finding> = files
         .par_iter()
@@ -148,7 +168,19 @@ pub fn audit(root: &Path) -> AuditReport {
             found
         })
         .collect();
-    finish(files.len(), findings)
+    let mut findings = findings;
+    let summary = dependencies.map(|source| {
+        let check = crate::vulns::check(root, source);
+        findings.extend(check.findings);
+        DependencySummary {
+            packages_checked: check.packages,
+            lockfiles: check.lockfiles,
+            error: check.error,
+        }
+    });
+    let mut report = finish(files.len(), findings);
+    report.dependencies = summary;
+    report
 }
 
 fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
@@ -178,6 +210,7 @@ fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
         total_findings,
         truncated,
         lowered,
+        dependencies: None,
         findings,
     }
 }
@@ -215,6 +248,7 @@ fn base_confidence(check: &str, severity: Severity) -> Confidence {
         (OBFUSCATION, Severity::Low) => Confidence::Low,
         (OBFUSCATION, _) => Confidence::Medium,
         (TYPOSQUAT, _) => Confidence::Medium,
+        (VULNERABLE_DEPENDENCY, _) => Confidence::High,
         (BINARY, _) => Confidence::Medium,
         _ => Confidence::Low,
     }
@@ -903,6 +937,24 @@ pub fn render_text(report: &AuditReport) -> String {
         report.risk_score,
         report.risk_level,
     ));
+    if let Some(deps) = &report.dependencies {
+        match &deps.error {
+            Some(error) => out.push_str(&format!("  Dependencies not checked. {error}\n\n")),
+            None if deps.lockfiles.is_empty() => {
+                out.push_str("  Dependencies not checked: no supported lockfile found.\n\n")
+            }
+            None => out.push_str(&format!(
+                "  Checked {} package version{} from {} against osv.dev.\n\n",
+                deps.packages_checked,
+                if deps.packages_checked == 1 { "" } else { "s" },
+                if deps.lockfiles.len() <= 3 {
+                    deps.lockfiles.join(", ")
+                } else {
+                    format!("{} lockfiles", deps.lockfiles.len())
+                },
+            )),
+        }
+    }
     if report.findings.is_empty() {
         out.push_str("  No red flags found. This is not a safety verdict: the scan only\n");
         out.push_str("  looks for known patterns.\n\n");
@@ -986,7 +1038,7 @@ mod tests {
         fs::create_dir_all(dir.path().join("tests")).unwrap();
         fs::write(dir.path().join("src/app.py"), format!("k = \"{key}\"\n")).unwrap();
         fs::write(dir.path().join("tests/fake.py"), format!("k = \"{key}\"\n")).unwrap();
-        let report = audit(dir.path());
+        let report = audit(dir.path(), None);
         assert_eq!(report.findings.len(), 2);
         assert_eq!(report.findings[0].file, "src/app.py");
         assert_eq!(report.findings[0].severity, Severity::High);
@@ -1189,7 +1241,7 @@ mod tests {
         fs::create_dir_all(dir.path().join("src")).unwrap();
         fs::write(dir.path().join("src/main.rs"), "fn main() {}\n").unwrap();
         fs::write(dir.path().join("src/evil.js"), "x\u{202E}y\n").unwrap();
-        let report = audit(dir.path());
+        let report = audit(dir.path(), None);
         assert_eq!(report.files_scanned, 2);
         assert_eq!(report.findings.len(), 1);
         assert_eq!(report.findings[0].file, "src/evil.js");

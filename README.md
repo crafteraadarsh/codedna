@@ -17,7 +17,7 @@
   <a href="https://github.com/crafteraadarsh/codedna/issues?q=is%3Aopen+label%3Ahacktoberfest"><img src="https://img.shields.io/badge/Hacktoberfest-friendly-ff8ae2?style=flat-square" alt="Hacktoberfest friendly"></a>
 </p>
 
-**Understand any codebase in milliseconds: its stack, architecture, entry points, dead code,<br>hotspots and supply-chain risks. One static binary, read-only and offline.**
+**Understand any codebase in milliseconds: its stack, architecture, entry points, dead code,<br>hotspots and supply-chain risks. One static binary, read-only and offline by default.**
 
 [Install](#-install) · [Quick start](#-quick-start) · [AI agents](#-use-with-ai-agents) · [Commands](#-commands) · [Example](#-real-example) · [Security](#%EF%B8%8F-security) · [Contributing](#-contributing)
 
@@ -56,7 +56,7 @@ Read-only. It never runs scripts or installs anything from the repo, never opens
 <td valign="top">
 
 ### 🔎 Supply-chain audit
-`codedna audit` flags leaked secrets, risky install scripts, obfuscation, executables, hidden Unicode and typosquatted packages **before** you run a repo. Each finding has a severity and a confidence, and findings in tests, docs and examples are lowered. It's a list of red flags to check, not a safety verdict.
+`codedna audit` flags leaked secrets, risky install scripts, obfuscation, executables, hidden Unicode and typosquatted packages **before** you run a repo. Add `--deps` to also check lockfile versions against the [OSV](https://osv.dev) vulnerability database. Each finding has a severity and a confidence, and findings in tests, docs and examples are lowered. It's a list of red flags to check, not a safety verdict.
 
 </td>
 <td valign="top">
@@ -133,6 +133,7 @@ codedna analyze https://github.com/user/repo   # works on remote repos too
 
 codedna context .                              # short briefing for AI agents
 codedna audit https://github.com/user/repo     # supply-chain red flags before you run it
+codedna audit . --deps                         # plus known vulnerabilities in dependencies
 codedna hotspots .                             # large files that change often
 codedna runbook .                              # scripts, env var names, API routes
 
@@ -220,7 +221,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 |---|---|
 | `codedna analyze [path\|url]` | Full intelligence report (`--time` adds elapsed time) |
 | `codedna context [path\|url]` | Short briefing for AI agents (`--max-tokens N`, `--format json`) |
-| `codedna audit [path\|url]` | Supply-chain red flags (`--json`, `--fail-on LEVEL` for CI) |
+| `codedna audit [path\|url]` | Supply-chain red flags (`--json`, `--fail-on LEVEL` for CI, `--deps` for known vulnerabilities in dependencies) |
 | `codedna hotspots [path\|url]` | Files ranked by commits × lines of code, plus files that change together (`--days N`, `--limit N`, `--json`) |
 | `codedna runbook [path\|url]` | Scripts and targets, env var names (values are never read), API routes (`--json`) |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report (`--format html` for a self-contained page) |
@@ -574,7 +575,7 @@ CodeDna is built to be safe to run on any repository, including ones you do not 
 | | |
 |---|---|
 | 🔒 **Read-only** | Never runs scripts, build steps, hooks or package managers from the repository. Git history is read without checking anything out. |
-| 📴 **Nothing leaves your machine** | No telemetry or update checks. The only network access is cloning a URL you pass. |
+| 📴 **Nothing leaves your machine** | No telemetry or update checks. The only network access is cloning a URL you pass, and `audit --deps`, which sends lockfile package names and versions (nothing else) to osv.dev. |
 | 🤫 **Secrets stay secret** | `.env` files are never opened. `runbook` reports variable names only, `audit` names the kind of credential and the line but never the value, and tokens in clone URLs are masked. |
 | 🧹 **Hostile input is handled** | Terminal control and text-direction characters are stripped from repository text before printing; oversized files and snapshots are skipped. |
 | 🚧 **The MCP server is fenced** | It only reads folders under its start directory (or ones you allow with `--root`) and public `https://` repositories, and every response is size-capped. |
@@ -622,6 +623,7 @@ src/
 ├── mcp.rs                  MCP server (JSON-RPC over stdio)
 ├── hotspots.rs             churn × size ranking, co-change coupling
 ├── audit.rs                supply-chain red-flag scan
+├── vulns.rs                lockfile versions checked against OSV
 ├── runbook.rs              commands, env var names, API routes
 ├── diff.rs                 compare two snapshots or versions
 ├── report.rs               Markdown / HTML reports
