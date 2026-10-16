@@ -256,7 +256,9 @@ cargo test -- --nocapture
 
 The test suite currently has **370+ tests** across all modules. All tests must pass before a PR is merged.
 
-If you change how dead code, audit findings or architecture are rated, check the measured confidence too. Clone the repositories in `calibration/corpus.json` at their pinned commits into one folder, then run `codedna calibration --corpus DIR` with your build. It scores the hand-checked labels in `calibration/labels.json` against what your build reports now. A rule written after reading those labels makes them less independent, so say so in the PR.
+If you change how dead code, audit findings or architecture are rated, check the measured confidence too. There are two labelled sets: `calibration/` (original) and `calibration/fresh/`, each with a `corpus.json` of pinned repositories and a `labels.json` of hand-checked results. Clone a set's repositories at their pinned commits into one folder, then run `codedna calibration --set original --corpus DIR` with your build. It scores those labels against what your build reports now.
+
+The fresh set is the held-out one: tune and debug against the original set only, and do not read `calibration/fresh/labels.json` while changing a detector. If a change is made after reading the fresh labels, say so in the PR and in the set's description in `src/calibration.rs`, because those numbers then stop being independent, and a new fresh set is needed for an honest figure.
 
 ---
 
