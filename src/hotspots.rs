@@ -329,6 +329,8 @@ mod tests {
 
     fn result(files: &[(&str, usize)]) -> AnalysisResult {
         AnalysisResult {
+            schema_version: crate::analysis::SCHEMA_VERSION,
+            analyzer: crate::analysis::Analyzer::current(),
             coverage: Default::default(),
             project_type: String::new(),
             total_loc: files.iter().map(|f| f.1).sum(),

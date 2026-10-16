@@ -1,0 +1,702 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisResult",
+  "description": "Aggregated intelligence report for a repository.",
+  "type": "object",
+  "properties": {
+    "analyzer": {
+      "description": "Name and version of the tool that wrote the report. Empty in\nreports from before versioning.",
+      "$ref": "#/$defs/Analyzer",
+      "default": {
+        "name": "",
+        "version": ""
+      }
+    },
+    "architecture": {
+      "description": "Inferred architecture description\n(e.g. `\"Frontend → API → Database\"`).",
+      "type": "string"
+    },
+    "architecture_details": {
+      "description": "Layers found in the code, the imports between them, a confidence\nlevel and the evidence behind it.",
+      "$ref": "#/$defs/ArchitectureInsight",
+      "default": {
+        "confidence": "low",
+        "evidence": [],
+        "flows": [],
+        "layers": []
+      }
+    },
+    "blank_lines": {
+      "description": "Blank lines across all recognised source files.",
+      "type": "integer",
+      "format": "uint",
+      "default": 0,
+      "minimum": 0
+    },
+    "circular_imports": {
+      "description": "Groups of files that import each other, each as its shortest cycle\n(the last file imports the first), shortest first.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "comment_lines": {
+      "description": "Comment-only lines across all recognised source files.",
+      "type": "integer",
+      "format": "uint",
+      "default": 0,
+      "minimum": 0
+    },
+    "coverage": {
+      "description": "How much of the code the dependency analysis covered: files whose\nimports were followed, imports that did not resolve and languages\nthat were not analyzed. Dead code and cycles only speak for the\ncovered part.",
+      "$ref": "#/$defs/Coverage",
+      "default": {
+        "analyzed_files": 0,
+        "imports": {
+          "external": 0,
+          "internal": 0,
+          "resolved": 0,
+          "unresolved": 0
+        },
+        "not_analyzed": [],
+        "source_files": 0,
+        "summary": "",
+        "unreadable_files": 0,
+        "unresolved": []
+      }
+    },
+    "databases": {
+      "description": "Detected databases / data-layer technologies (e.g. `[\"PostgreSQL\", \"Redis\"]`).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dead_code": {
+      "description": "Files unreachable from any entry point via dependency graph traversal.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dead_code_details": {
+      "description": "The same files with a confidence level and the reason for it, most\ncertain first.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DeadCodeCandidate"
+      }
+    },
+    "dependency_graph": {
+      "description": "Directed import graph: `file → [files it imports]`.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "file_breakdown": {
+      "description": "Per-file breakdown, sorted by LOC descending.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FileInfo"
+      }
+    },
+    "frameworks": {
+      "description": "Detected application frameworks (e.g. `[\"React\", \"Express\"]`).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "infrastructure": {
+      "description": "Detected infrastructure / DevOps tooling (e.g. `[\"Docker\", \"GitHub Actions\"]`).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "languages": {
+      "description": "LOC per language: `{ \"TypeScript\": 12450, \"Python\": 800, … }`.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 0
+      }
+    },
+    "project_type": {
+      "description": "High-level project classification (e.g. \"Full-stack web application\").",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "Version of the report's shape; see [`SCHEMA_VERSION`]. Reports from\nbefore versioning read as 0.",
+      "type": "integer",
+      "format": "uint32",
+      "default": 0,
+      "minimum": 0
+    },
+    "total_loc": {
+      "description": "Total code lines across all recognised source files.  Comment-only\nand blank lines are excluded; see `comment_lines` and `blank_lines`.",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+    },
+    "workspaces": {
+      "description": "Workspaces (monorepo packages) declared at the root, if any.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Workspace"
+      }
+    }
+  },
+  "required": [
+    "project_type",
+    "total_loc",
+    "languages",
+    "frameworks",
+    "databases",
+    "infrastructure",
+    "architecture",
+    "dead_code",
+    "dependency_graph",
+    "file_breakdown"
+  ],
+  "$defs": {
+    "Analyzer": {
+      "description": "The tool that produced a report.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "ArchitectureInsight": {
+      "description": "Layers, the imports between them, and how confident the result is.",
+      "type": "object",
+      "properties": {
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "evidence": {
+          "description": "Short, human-readable reasons for the result.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "flows": {
+          "description": "Import counts between layers, largest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LayerFlow"
+          }
+        },
+        "layers": {
+          "description": "Layers in top-down order (UI, Routes, Middleware, Services, Data).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Layer"
+          }
+        }
+      },
+      "required": [
+        "layers",
+        "flows",
+        "confidence",
+        "evidence"
+      ]
+    },
+    "CodeSign": {
+      "description": "What a file's code shows about its layer, and where.",
+      "type": "object",
+      "properties": {
+        "line": {
+          "description": "1-based line of the match; 0 when the whole file is the sign\n(`.vue`, `.svelte`).",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "sign": {
+          "description": "What matched: a route (`GET /users`) or the text found (`@Entity(`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "line",
+        "sign"
+      ]
+    },
+    "Confidence": {
+      "description": "How strongly the evidence supports a conclusion.",
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "Coverage": {
+      "description": "How much of the repository the dependency analysis covered.",
+      "type": "object",
+      "properties": {
+        "analyzed_files": {
+          "description": "Source files whose imports were followed.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "imports": {
+          "description": "What happened to the imports in the analyzed files.",
+          "$ref": "#/$defs/ImportCounts",
+          "default": {
+            "external": 0,
+            "internal": 0,
+            "resolved": 0,
+            "unresolved": 0
+          }
+        },
+        "not_analyzed": {
+          "description": "Languages whose imports CodeDna does not follow, with file counts,\nmost files first. Dead code and cycles say nothing about these files.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LanguageGap"
+          }
+        },
+        "source_files": {
+          "description": "Files in a language that imports other files.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "summary": {
+          "description": "One sentence for people, e.g. \"Imports followed in 120 of 140 source\nfiles (85%); 3 of 410 internal imports unresolved; not analyzed:\nGo (20 files)\".",
+          "type": "string"
+        },
+        "unreadable_files": {
+          "description": "Source files in a followed language that could not be read.",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        },
+        "unresolved": {
+          "description": "Imports of the repository's own code that matched no file, first\nfew by path and line.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/UnresolvedImport"
+          }
+        }
+      },
+      "required": [
+        "source_files",
+        "analyzed_files",
+        "summary"
+      ]
+    },
+    "DeadCodeCandidate": {
+      "description": "A dead-code candidate with how sure CodeDna is and why.",
+      "type": "object",
+      "properties": {
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "evidence": {
+          "description": "Lines that back the reason: where the name is mentioned, or the\ndynamic loader that may load the file.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Location"
+          }
+        },
+        "file": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "confidence",
+        "reason"
+      ]
+    },
+    "FileInfo": {
+      "description": "Per-file metadata produced by the analysis pipeline.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Path to the file (relative to the scanned root where possible).",
+          "type": "string"
+        },
+        "language": {
+          "description": "Detected language name (e.g. \"TypeScript\", \"Python\").",
+          "type": "string"
+        },
+        "loc": {
+          "description": "Code lines in the file: comments and blank lines are not counted.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "file",
+        "loc",
+        "language"
+      ]
+    },
+    "ImportCounts": {
+      "description": "Import counts across the analyzed files. Each distinct import in a file\ncounts once.",
+      "type": "object",
+      "properties": {
+        "external": {
+          "description": "Imports of packages outside the repository.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "internal": {
+          "description": "Imports of the repository's own files: `resolved + unresolved`.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "resolved": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "unresolved": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "internal",
+        "resolved",
+        "unresolved",
+        "external"
+      ]
+    },
+    "ImportEdge": {
+      "description": "One import from a file in one layer to a file in another.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ]
+    },
+    "LanguageGap": {
+      "description": "A language CodeDna does not follow imports for.",
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "language": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "language",
+        "files"
+      ]
+    },
+    "Layer": {
+      "description": "One architectural layer found in the code.",
+      "type": "object",
+      "properties": {
+        "confirmed_by_code": {
+          "description": "Files whose code shows the layer (route handlers, models, …).",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        },
+        "dirs": {
+          "description": "Up to three folders that hold most of its files.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "examples": {
+          "description": "A few of its files and why each is here, code-backed ones first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Placement"
+          }
+        },
+        "files": {
+          "description": "Number of source files assigned to it.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "name": {
+          "description": "Layer name, e.g. `\"Routes\"`.",
+          "type": "string"
+        },
+        "placed_by_imports": {
+          "description": "Files placed only by what imports them and what they import.",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "required": [
+        "name",
+        "files",
+        "dirs"
+      ]
+    },
+    "LayerFlow": {
+      "description": "Import edges from one layer to another.",
+      "type": "object",
+      "properties": {
+        "examples": {
+          "description": "A few of the imports, by path.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportEdge"
+          }
+        },
+        "from": {
+          "type": "string"
+        },
+        "imports": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "imports"
+      ]
+    },
+    "Location": {
+      "description": "A line in the repository that backs a finding.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Path relative to the repository root.",
+          "type": "string"
+        },
+        "line": {
+          "description": "1-based line number.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "text": {
+          "description": "The line, trimmed and shortened.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "line",
+        "text"
+      ]
+    },
+    "Placement": {
+      "description": "Why one file is in its layer.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "The code that shows the layer, when it agrees.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeSign"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "file": {
+          "description": "Path relative to the repository root.",
+          "type": "string"
+        },
+        "matched": {
+          "description": "What placed it: the folder or file name, the settings prefix, the\ncode sign, or the files it sits between.",
+          "type": "string"
+        },
+        "placed_by": {
+          "description": "`settings`, `name`, `code` or `imports`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "placed_by",
+        "matched"
+      ]
+    },
+    "UnresolvedImport": {
+      "description": "One import of the repository's own code that matched no file.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Path relative to the repository root.",
+          "type": "string"
+        },
+        "import": {
+          "description": "The import as written, e.g. `./missing` or `@app/core`.",
+          "type": "string"
+        },
+        "line": {
+          "description": "1-based line number.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "file",
+        "line",
+        "import"
+      ]
+    },
+    "Workspace": {
+      "description": "One workspace declaration and the packages it resolves to.",
+      "type": "object",
+      "properties": {
+        "manifest": {
+          "description": "The file that declares it, relative to the root.",
+          "type": "string"
+        },
+        "packages": {
+          "description": "Packages, sorted by path.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspacePackage"
+          }
+        },
+        "tool": {
+          "description": "The tool that owns the workspace, e.g. \"pnpm\" or \"Cargo\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "manifest",
+        "packages"
+      ]
+    },
+    "WorkspacePackage": {
+      "description": "A package inside a workspace.",
+      "type": "object",
+      "properties": {
+        "databases": {
+          "description": "Databases found in its own manifests.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "dead_files": {
+          "description": "Dead-code candidates inside it.",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        },
+        "depends_on": {
+          "description": "Other packages of the repository it uses, by manifest dependency or\nby import.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "description": "Source files in the package (a nested package's files are its own).",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        },
+        "frameworks": {
+          "description": "Frameworks found in its own manifests.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "languages": {
+          "description": "Its main languages, largest first.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "loc": {
+          "description": "Code lines in those files.",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        },
+        "name": {
+          "description": "The name from its manifest, or the directory name.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Its directory, relative to the root (e.g. `./packages/ui`).",
+          "type": "string"
+        },
+        "used_by": {
+          "description": "Packages that use it.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ]
+    }
+  }
+}

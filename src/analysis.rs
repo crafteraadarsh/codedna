@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 // ---------------------------------------------------------------------------
 
 /// Per-file metadata produced by the analysis pipeline.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct FileInfo {
     /// Path to the file (relative to the scanned root where possible).
     pub file: PathBuf,
@@ -34,9 +34,46 @@ pub struct FileInfo {
     pub language: String,
 }
 
+/// Version of the JSON report's shape. It goes up only when a field is
+/// removed, renamed or changes meaning; new fields keep the same version.
+pub const SCHEMA_VERSION: u32 = 1;
+
+/// The tool that produced a report.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct Analyzer {
+    pub name: String,
+    pub version: String,
+}
+
+/// The JSON Schema of the report, as written to `schema/report.schema.json`.
+pub fn json_schema() -> String {
+    let schema = schemars::schema_for!(AnalysisResult);
+    serde_json::to_string_pretty(&schema).unwrap_or_else(|_| "{}".to_string())
+}
+
+impl Analyzer {
+    /// This build of CodeDna.
+    pub fn current() -> Self {
+        Analyzer {
+            name: "codedna".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        }
+    }
+}
+
 /// Aggregated intelligence report for a repository.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AnalysisResult {
+    /// Version of the report's shape; see [`SCHEMA_VERSION`]. Reports from
+    /// before versioning read as 0.
+    #[serde(default)]
+    pub schema_version: u32,
+
+    /// Name and version of the tool that wrote the report. Empty in
+    /// reports from before versioning.
+    #[serde(default)]
+    pub analyzer: Analyzer,
+
     /// High-level project classification (e.g. "Full-stack web application").
     pub project_type: String,
 
@@ -288,6 +325,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     }
 
     AnalysisResult {
+        schema_version: SCHEMA_VERSION,
+        analyzer: Analyzer::current(),
         project_type,
         total_loc,
         comment_lines,
@@ -792,5 +831,33 @@ mod tests {
         assert!(result.file_breakdown.is_empty());
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn report_states_its_schema_and_the_published_schema_is_current() {
+        let root = std::env::temp_dir().join(format!("codedna_schema_{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let json = serde_json::to_value(analyze(&root)).unwrap();
+        assert_eq!(json["schema_version"], SCHEMA_VERSION);
+        assert_eq!(json["analyzer"]["name"], "codedna");
+        assert_eq!(json["analyzer"]["version"], env!("CARGO_PKG_VERSION"));
+        fs::remove_dir_all(root).ok();
+
+        // Reports written before versioning still load.
+        let old: AnalysisResult = serde_json::from_value({
+            let mut v = json.clone();
+            v.as_object_mut().unwrap().remove("schema_version");
+            v.as_object_mut().unwrap().remove("analyzer");
+            v
+        })
+        .unwrap();
+        assert_eq!(old.schema_version, 0);
+
+        let published = include_str!("../schema/report.schema.json");
+        assert_eq!(
+            published.replace("\r\n", "\n").trim_end(),
+            json_schema(),
+            "run: codedna schema > schema/report.schema.json"
+        );
     }
 }
