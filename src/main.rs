@@ -2,6 +2,7 @@ mod analysis;
 mod architecture;
 mod audit;
 mod baseline;
+mod cache;
 mod cli;
 mod code_text;
 mod context;

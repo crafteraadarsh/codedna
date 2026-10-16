@@ -11,6 +11,7 @@
 //!    confidence; folders without supporting imports give medium; no layered
 //!    folders at all give low.
 
+use crate::cache::Cache;
 use crate::safe_text::sanitize;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -336,6 +337,7 @@ fn place<'a>(
     root: &Path,
     files: &'a [PathBuf],
     graph: &'a HashMap<PathBuf, Vec<PathBuf>>,
+    cache: &Cache,
 ) -> Placed<'a> {
     let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).to_path_buf();
     let overrides = Overrides::load(root);
@@ -360,8 +362,9 @@ fn place<'a>(
             if is_test(&relative) {
                 return None;
             }
-            let text = read_capped(file)?;
-            content_layer(&relative, &text).map(|found| (file, found))
+            cache
+                .layer(file, || content_layer(&relative, &read_capped(file)?))
+                .map(|found| (file, found))
         })
         .collect();
 
@@ -449,7 +452,7 @@ pub fn layer_by_file(
     files: &[PathBuf],
     graph: &HashMap<PathBuf, Vec<PathBuf>>,
 ) -> HashMap<PathBuf, &'static str> {
-    place(root, files, graph)
+    place(root, files, graph, &Cache::off())
         .layer_of
         .into_iter()
         .map(|(file, (index, _, _))| (file.clone(), LAYERS[index].0))
@@ -465,13 +468,14 @@ pub fn infer(
     graph: &HashMap<PathBuf, Vec<PathBuf>>,
     frameworks: &[String],
     databases: &[String],
+    cache: &Cache,
 ) -> ArchitectureInsight {
     let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).to_path_buf();
     let Placed {
         by_code,
         layer_of,
         name_said,
-    } = place(root, files, graph);
+    } = place(root, files, graph, cache);
 
     let mut dir_counts: Vec<BTreeMap<String, usize>> = vec![BTreeMap::new(); LAYERS.len()];
     let mut confirmed = vec![0usize; LAYERS.len()];
@@ -1140,7 +1144,7 @@ mod tests {
             ("src/models/user.ts", &[]),
             ("src/models/post.ts", &[]),
         ]);
-        let insight = infer(Path::new("/repo"), &[], &g, &[], &[]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
         assert_eq!(insight.confidence, Confidence::High);
         assert_eq!(
             insight.layer_chain().as_deref(),
@@ -1161,7 +1165,7 @@ mod tests {
             ("src/models/c.ts", &[]),
             ("src/models/d.ts", &[]),
         ]);
-        let insight = infer(Path::new("/repo"), &[], &g, &[], &[]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
         assert_eq!(insight.confidence, Confidence::Medium);
     }
 
@@ -1173,7 +1177,7 @@ mod tests {
             ("src/routes/x.ts", &["src/models/b.ts"]),
             ("src/routes/y.ts", &["src/models/a.ts"]),
         ]);
-        let insight = infer(Path::new("/repo"), &[], &g, &[], &[]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
         assert_eq!(insight.confidence, Confidence::Medium);
         assert!(insight.evidence.iter().any(|e| e.contains("against")));
     }
@@ -1181,7 +1185,7 @@ mod tests {
     #[test]
     fn lone_file_without_imports_is_not_a_layer() {
         let g = graph(&[("src/git_handler.rs", &[]), ("src/main.rs", &[])]);
-        let insight = infer(Path::new("/repo"), &[], &g, &[], &[]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
         assert!(insight.layers.is_empty());
         assert_eq!(insight.confidence, Confidence::Low);
     }
@@ -1192,7 +1196,14 @@ mod tests {
             ("src/main.rs", &["src/scanner.rs"]),
             ("src/scanner.rs", &[]),
         ]);
-        let insight = infer(Path::new("/repo"), &[], &g, &["Axum".to_string()], &[]);
+        let insight = infer(
+            Path::new("/repo"),
+            &[],
+            &g,
+            &["Axum".to_string()],
+            &[],
+            &Cache::off(),
+        );
         assert_eq!(insight.confidence, Confidence::Low);
         assert!(insight.layer_chain().is_none());
         assert!(insight.evidence.iter().any(|e| e.contains("Axum")));
@@ -1256,7 +1267,7 @@ mod tests {
             ("src/services/users.ts", &["src/models/user.ts"]),
             ("src/models/user.ts", &[]),
         ]);
-        let insight = infer(Path::new("/repo"), &[], &g, &[], &[]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
         let routes = &insight.layers[0];
         assert_eq!(routes.examples[0].file, "src/routes/users.ts");
         assert_eq!(routes.examples[0].placed_by, "name");
@@ -1375,7 +1386,7 @@ mod tests {
             ("src/models/user.ts", &[]),
             ("src/models/post.ts", &[]),
         ]);
-        let insight = infer(Path::new("/repo"), &[], &g, &[], &[]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
         let services = insight
             .layers
             .iter()
@@ -1425,7 +1436,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let insight = infer(&root, &[], &g, &[], &[]);
+        let insight = infer(&root, &[], &g, &[], &[], &Cache::off());
         std::fs::remove_dir_all(&root).ok();
         let names: Vec<&str> = insight.layers.iter().map(|l| l.name.as_str()).collect();
         assert_eq!(names, ["Routes", "Middleware", "Data"]);
@@ -1475,7 +1486,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let insight = infer(&root, &[], &g, &[], &[]);
+        let insight = infer(&root, &[], &g, &[], &[], &Cache::off());
         std::fs::remove_dir_all(&root).ok();
         let names: Vec<&str> = insight.layers.iter().map(|l| l.name.as_str()).collect();
         assert_eq!(names, ["Routes", "Data"]);

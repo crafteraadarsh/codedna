@@ -11,6 +11,7 @@
 //! Only relative/internal imports are tracked. Third-party packages and
 //! stdlib imports are ignored.
 
+use crate::cache::Cache;
 use rayon::prelude::*;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -72,6 +73,15 @@ impl ImportTally {
 /// of its imports were resolved, left unresolved or point outside the
 /// repository.
 pub fn build_with_tallies(files: &[PathBuf]) -> (DependencyGraph, HashMap<PathBuf, ImportTally>) {
+    build_cached(files, &Cache::off())
+}
+
+/// [`build_with_tallies`], reusing the imports `cache` holds for files
+/// that have not changed.
+pub fn build_cached(
+    files: &[PathBuf],
+    cache: &Cache,
+) -> (DependencyGraph, HashMap<PathBuf, ImportTally>) {
     BUILD.fetch_add(1, Ordering::Relaxed);
     let aliases = Aliases::from_files(files);
     let python_packages = python_packages(files);
@@ -82,8 +92,11 @@ pub fn build_with_tallies(files: &[PathBuf]) -> (DependencyGraph, HashMap<PathBu
         .filter(|file| is_source_file(file))
         .map(|file| {
             let key = normalize(file);
-            let mut tally = ImportTally::default();
-            let deps = parse_dependencies_with(&key, &aliases, &python_packages, &mut tally);
+            let (deps, tally) = cache.imports(file, || {
+                let mut tally = ImportTally::default();
+                let deps = parse_dependencies_with(&key, &aliases, &python_packages, &mut tally);
+                (deps, tally)
+            });
             (key, deps, tally)
         })
         .collect();
@@ -1196,7 +1209,7 @@ fn is_relative(specifier: &str) -> bool {
 
 /// Normalize a path by resolving `.` and `..` components without requiring
 /// the path to exist (unlike `std::fs::canonicalize`).
-fn normalize(path: &Path) -> PathBuf {
+pub(crate) fn normalize(path: &Path) -> PathBuf {
     let mut components: Vec<std::path::Component> = Vec::new();
 
     for component in path.components() {

@@ -76,6 +76,8 @@ pub fn clone_repo_with_depth(url: &str, depth: i32) -> Result<TempDir, String> {
     }
 
     let temp_dir = TempDir::new().map_err(|e| format!("Failed to create temp directory: {e}"))?;
+    // A throwaway clone: caching it would only fill the cache folder.
+    crate::cache::exclude(temp_dir.path());
 
     let mut fetch_opts = git2::FetchOptions::new();
     fetch_opts.depth(depth.max(1));

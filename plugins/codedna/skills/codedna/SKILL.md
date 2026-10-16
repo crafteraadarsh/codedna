@@ -42,6 +42,8 @@ Before a refactor, or when asked where the risky code is, check hotspots: files 
 
 Before installing or running an unfamiliar repository, run the audit. Report findings as red flags to check, not proof of malware, and never repeat a secret it points to. To check dependencies for known vulnerabilities, add `--deps` (MCP: `check_dependencies: true`); it sends package names and versions to osv.dev, so use it when the user is fine with that. For a project that already has known findings, `codedna audit . --write-baseline FILE` accepts them and `--baseline FILE` then reports only new ones (`deadcode` takes the same flags).
 
+Repeat runs reuse cached results for unchanged files, so running CodeDna again after each edit is cheap. If results ever look stale, add `--no-cache`.
+
 After editing, or before reviewing a branch, check the impact: the files that import the changed code, the API routes involved and the tests to run. It only sees imports CodeDna follows, so treat the list as a starting point.
 
 Before running, configuring or calling a project, check the runbook: its scripts and targets, the environment variables it reads (names only; values are never read) and the HTTP routes it declares. Nothing is run, and the route list can be incomplete.

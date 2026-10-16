@@ -12,6 +12,7 @@
 
 use crate::analysis::is_lockfile;
 use crate::architecture::{is_test, Confidence, Location};
+use crate::cache::Cache;
 use crate::safe_text::sanitize;
 use aho_corasick::{AhoCorasick, AhoCorasickKind};
 use rayon::prelude::*;
@@ -351,7 +352,20 @@ struct Loader {
 ///
 /// `files` are all scanned files; their contents are searched for loaders
 /// and for each candidate's name.
+#[cfg(test)]
 pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeCandidate> {
+    assess_with(root, dead, files, &Cache::off())
+}
+
+/// [`assess`], reusing the mentions `cache` holds for files that have not
+/// changed.
+pub fn assess_with(
+    root: &Path,
+    dead: &[PathBuf],
+    files: &[PathBuf],
+    cache: &Cache,
+) -> Vec<DeadCodeCandidate> {
+    cache.set_dead(dead);
     if dead.is_empty() {
         return Vec::new();
     }
@@ -400,39 +414,55 @@ pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeC
         .filter(|file| !is_lockfile(file))
         .filter(|file| fs::metadata(file).is_ok_and(|m| m.len() <= MAX_SEARCH_BYTES))
         .filter_map(|file| {
-            let bytes = fs::read(file).ok()?;
-            let text = std::str::from_utf8(&bytes).ok()?;
-            let from_dead = dead_set.contains(file);
-            let mut seen = vec![false; dead.len()];
-            let mut mentions: Vec<(usize, bool, usize)> = Vec::new();
-            let mut lines = LineIndex::default();
-            let mut note = |index: usize, offset: usize| {
-                // `seen` first: comparing paths is slow and names repeat often.
-                if !std::mem::replace(&mut seen[index], true)
-                    && dead[index].as_os_str() != file.as_os_str()
-                {
-                    mentions.push((index, from_dead, lines.line_of(text, offset)));
-                }
-            };
-            if !by_word.is_empty() {
-                let mut word = String::new();
-                for token in words.candidates(text.as_bytes()) {
-                    word.clear();
-                    word.extend(token.iter().map(|b| b.to_ascii_lowercase() as char));
-                    let offset = token.as_ptr() as usize - text.as_ptr() as usize;
-                    for &index in by_word.get(&word).into_iter().flatten() {
-                        note(index, offset);
+            let (mentions, loaders) = cache.mentions(file, || {
+                let bytes = fs::read(file).ok()?;
+                let text = std::str::from_utf8(&bytes).ok()?;
+                let from_dead = dead_set.contains(file);
+                let mut seen = vec![false; dead.len()];
+                let mut mentions: Vec<(usize, bool, usize)> = Vec::new();
+                let mut lines = LineIndex::default();
+                let mut note = |index: usize, offset: usize| {
+                    // `seen` first: comparing paths is slow and names repeat often.
+                    if !std::mem::replace(&mut seen[index], true)
+                        && dead[index].as_os_str() != file.as_os_str()
+                    {
+                        mentions.push((index, from_dead, lines.line_of(text, offset)));
+                    }
+                };
+                if !by_word.is_empty() {
+                    let mut word = String::new();
+                    for token in words.candidates(text.as_bytes()) {
+                        word.clear();
+                        word.extend(token.iter().map(|b| b.to_ascii_lowercase() as char));
+                        let offset = token.as_ptr() as usize - text.as_ptr() as usize;
+                        for &index in by_word.get(&word).into_iter().flatten() {
+                            note(index, offset);
+                        }
                     }
                 }
-            }
-            if let Some(m) = &matcher {
-                for hit in m.find_overlapping_iter(text) {
-                    if is_word(text, hit.start(), hit.end()) {
-                        note(other[hit.pattern().as_usize()].0, hit.start());
+                if let Some(m) = &matcher {
+                    for hit in m.find_overlapping_iter(text) {
+                        if is_word(text, hit.start(), hit.end()) {
+                            note(other[hit.pattern().as_usize()].0, hit.start());
+                        }
                     }
                 }
-            }
-            Some((file.clone(), mentions, find_loaders(file, text)))
+                let loaders = find_loaders(file, text)
+                    .into_iter()
+                    .map(|l| (l.line, l.text))
+                    .collect();
+                Some((mentions, loaders))
+            })?;
+            let loaders = loaders
+                .into_iter()
+                .map(|(line, text)| Loader {
+                    file: file.clone(),
+                    line,
+                    lower: text.to_ascii_lowercase(),
+                    text,
+                })
+                .collect();
+            Some((file.clone(), mentions, loaders))
         })
         .collect();
 
