@@ -32,6 +32,7 @@ This prints a short Markdown briefing: project type, stack, architecture, monore
 | Supply-chain red flags | `audit_repo` | `codedna audit .` |
 | How to run it: scripts, env var names, API routes | `get_runbook` | `codedna runbook .` |
 | Monorepo packages: size, stack, which packages use which | `list_packages` | `codedna packages .` |
+| What my change affects: importers, layers, routes, tests to run | `get_impact` | `codedna impact .` (branch: `--base origin/main`) |
 | What changed between two versions | — | `codedna diff before.json .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
@@ -40,6 +41,8 @@ When the user wants something to share or keep, write a report: `codedna report 
 Before a refactor, or when asked where the risky code is, check hotspots: files that are large and changed often in Git history. Start with those, and expect them to need extra care and tests. When changing a file, check whether it is coupled to another: a pair that usually changes together often needs both edited.
 
 Before installing or running an unfamiliar repository, run the audit. Report findings as red flags to check, not proof of malware, and never repeat a secret it points to. To check dependencies for known vulnerabilities, add `--deps` (MCP: `check_dependencies: true`); it sends package names and versions to osv.dev, so use it when the user is fine with that.
+
+After editing, or before reviewing a branch, check the impact: the files that import the changed code, the API routes involved and the tests to run. It only sees imports CodeDna follows, so treat the list as a starting point.
 
 Before running, configuring or calling a project, check the runbook: its scripts and targets, the environment variables it reads (names only; values are never read) and the HTTP routes it declares. Nothing is run, and the route list can be incomplete.
 

@@ -84,6 +84,7 @@ Trigger this skill when the user asks any of the following:
 | "What packages are in this monorepo?" | `codedna packages .` |
 | "Which packages does a change to X affect?" | `codedna packages .` (see "Used by") |
 | "What did this change do to the project?" | `codedna diff before.json .` |
+| "What does my change affect? Which tests should I run?" | `codedna impact .` (branch: `--base origin/main`) |
 | "Analyze this GitHub repo" | `codedna analyze <url>` |
 | "What does this remote repo use?" | `codedna stack <url>` |
 
@@ -158,6 +159,16 @@ codedna packages https://github.com/user/repo --json
 
 Lists the packages of each monorepo workspace declared at the root. For each one: lines of code, files, main languages, frameworks and databases found in its own manifests, dead-code candidates, the other packages it uses (manifest dependencies and imports across package folders) and the packages that use it. A file belongs to the deepest package folder that holds it. `--json` prints the `workspaces` array. To analyse one package fully, run `codedna analyze <package path>`.
 
+### Impact
+
+```bash
+codedna impact .                      # uncommitted changes
+codedna impact . --base origin/main   # a branch, from where it left main
+codedna impact . --markdown           # for a pull request comment
+```
+
+Lists the changed files (untracked ones count as added), every file that imports them directly or through other files (nearest first, with the import that brings each in), the architecture layers involved, API routes declared in those files, and the test files to run. Local Git repositories only. Imports the dependency graph does not follow are not seen.
+
 ### Runbook
 
 ```bash
@@ -190,7 +201,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`, `list_packages`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`, `list_packages`, `get_impact`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 
