@@ -107,7 +107,98 @@ pub fn build_cached(
         tallies.insert(key.clone(), tally);
         graph.insert(key, deps);
     }
+    link_django_apps(&mut graph, files);
     (graph, tallies)
+}
+
+/// Modules Django imports from every installed app without an import
+/// statement.
+const DJANGO_APP_MODULES: &[&str] = &[
+    "models",
+    "admin",
+    "apps",
+    "signals",
+    "receivers",
+    "checks",
+    "translation",
+    "tasks",
+];
+
+/// Whether `dir` looks like a Django app: a package with an `apps.py`, a
+/// `models.py` or a `migrations/` package. `exists` says whether a file is
+/// there.
+fn is_django_app(dir: &Path, exists: impl Fn(&Path) -> bool) -> bool {
+    exists(&dir.join("__init__.py"))
+        && ["apps.py", "models.py", "migrations/__init__.py"]
+            .iter()
+            .any(|f| exists(&dir.join(f)))
+}
+
+/// Folders inside a Django app that Django loads by name.
+const DJANGO_APP_DIRS: &[&str] = &["templatetags", "management", "migrations"];
+
+/// Link each Django app's `__init__.py` and `apps.py` to the modules Django
+/// loads from it by convention, so an installed app keeps them reachable.
+/// An app is a package whose folder holds an `apps.py`, a `models.py` or
+/// `migrations/`.
+fn link_django_apps(graph: &mut DependencyGraph, files: &[PathBuf]) {
+    let keys: HashSet<PathBuf> = files.iter().map(|f| normalize(f)).collect();
+    let apps: HashSet<PathBuf> = keys
+        .iter()
+        .filter_map(|f| f.parent())
+        .filter(|dir| is_django_app(dir, |p| keys.contains(p)))
+        .map(Path::to_path_buf)
+        .collect();
+    if apps.is_empty() {
+        return;
+    }
+
+    let mut loaded: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+    for file in files.iter().map(|f| normalize(f)) {
+        if file.extension().is_none_or(|e| e != "py") {
+            continue;
+        }
+        let Some(parent) = file.parent() else {
+            continue;
+        };
+        let stem = file.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        // `app/models.py`, or `app/models/__init__.py`.
+        let direct = apps.contains(parent) && DJANGO_APP_MODULES.contains(&stem);
+        let package = stem == "__init__"
+            && parent
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| DJANGO_APP_MODULES.contains(&n))
+            && parent.parent().is_some_and(|app| apps.contains(app));
+        // Anything under `app/templatetags/`, `app/management/`, `app/migrations/`.
+        let in_dir = parent.ancestors().any(|dir| {
+            dir.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| DJANGO_APP_DIRS.contains(&n))
+                && dir.parent().is_some_and(|app| apps.contains(app))
+        });
+        if !(direct || package || in_dir) {
+            continue;
+        }
+        let app = parent
+            .ancestors()
+            .find(|dir| apps.contains(*dir))
+            .map(Path::to_path_buf);
+        if let Some(app) = app {
+            loaded.entry(app).or_default().push(file);
+        }
+    }
+
+    for (app, modules) in loaded {
+        for from in [app.join("__init__.py"), app.join("apps.py")] {
+            let deps = graph.entry(from.clone()).or_default();
+            for module in &modules {
+                if *module != from && !deps.contains(module) {
+                    deps.push(module.clone());
+                }
+            }
+        }
+    }
 }
 
 /// Whether `ext` (lowercase) is a source extension whose imports CodeDna
@@ -180,7 +271,14 @@ const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
 
 /// Aliases used without any config by Vite, Nuxt and Create React App
 /// templates: `@/x` and `~/x` mean `src/x` (or `x` at the package root).
-const DEFAULT_ALIASES: &[(&str, &[&str])] = &[("@/*", &["src/*", "*"]), ("~/*", &["src/*", "*"])];
+const DEFAULT_ALIASES: &[(&str, &[&str])] = &[
+    ("@/*", &["src/*", "*"]),
+    ("~/*", &["src/*", "*"]),
+    // SvelteKit's `$lib` and Docusaurus's `@site`, set by the framework.
+    ("$lib/*", &["src/lib/*"]),
+    ("$lib", &["src/lib"]),
+    ("@site/*", &["*"]),
+];
 
 /// Path aliases in force below one directory.
 #[derive(Debug, Default)]
@@ -685,17 +783,34 @@ fn parse_js_ts_imports(
     let mut deps = Vec::new();
     let mut seen: HashSet<&str> = HashSet::new();
 
+    // Set when a line ends in `import(` or `require(`, so the path on the
+    // next line belongs to it.
+    let mut open_call = false;
     for (number, line) in content.lines().enumerate() {
-        let trimmed = line.trim();
+        let mut trimmed = line.trim();
+        // A leading `/* webpackChunkName: "x" */` hint is not the path.
+        if let Some(rest) = trimmed.strip_prefix("/*") {
+            if let Some(end) = rest.find("*/") {
+                trimmed = rest[end + 2..].trim_start();
+            }
+        }
 
         // Skip comments
         if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
             continue;
         }
 
+        let continued = std::mem::take(&mut open_call)
+            .then(|| extract_first_quoted(trimmed))
+            .flatten();
+        open_call = trimmed.ends_with("import(") || trimmed.ends_with("require(");
+
         // Collect all quoted string literals on this line that look like
         // relative paths.
-        for specifier in extract_quoted_specifiers(trimmed) {
+        for specifier in continued
+            .into_iter()
+            .chain(extract_quoted_specifiers(trimmed))
+        {
             // Template literals with `${...}` are built at runtime.
             if specifier.is_empty() || specifier.contains("${") {
                 continue;
@@ -864,9 +979,11 @@ fn parse_python_imports(
             }
         }
 
-        let found = imported
-            .into_iter()
-            .chain(resolve_python_string_paths(parent, trimmed));
+        let found = imported.into_iter().chain(resolve_python_string_paths(
+            parent,
+            trimmed,
+            python_packages,
+        ));
         for resolved in found {
             if !deps.contains(&resolved) {
                 deps.push(resolved);
@@ -918,9 +1035,24 @@ fn python_import_modules<'a>(
 /// modules they name. Frameworks load these by name: Django settings,
 /// URL includes, Celery task names. A trailing attribute is dropped when the
 /// full path is not a module.
-fn resolve_python_string_paths(file_parent: &Path, line: &str) -> Vec<PathBuf> {
+fn resolve_python_string_paths(
+    file_parent: &Path,
+    line: &str,
+    python_packages: &HashSet<String>,
+) -> Vec<PathBuf> {
     let mut deps = Vec::new();
     for literal in python_string_literals(line) {
+        // A bare package name that is a Django app, as in `INSTALLED_APPS`.
+        if python_packages.contains(literal) {
+            let found = resolve_python_module_in(file_parent, literal, &[]);
+            let is_app = found
+                .iter()
+                .any(|f| f.parent().is_some_and(|dir| is_django_app(dir, is_file)));
+            if is_app {
+                deps.extend(found);
+            }
+            continue;
+        }
         let segments: Vec<&str> = literal.split('.').collect();
         let is_dotted = segments.len() >= 2
             && segments.iter().all(|s| {
@@ -987,9 +1119,12 @@ fn locate_python_module(file_parent: &Path, module: &str, names: &[&str]) -> Opt
             .and_then(|root| resolve_python_module(root, dotted, names));
     }
 
-    file_parent
-        .ancestors()
-        .find_map(|root| resolve_python_module(root, dotted, names))
+    // An absolute import resolves from any enclosing directory, or from its
+    // `src/` (the src layout, where tests import the installed package).
+    file_parent.ancestors().find_map(|root| {
+        resolve_python_module(root, dotted, names)
+            .or_else(|| resolve_python_module(&root.join("src"), dotted, names))
+    })
 }
 
 /// Resolve a dotted module under `root`, or `None` when `root` lacks it.
@@ -1716,6 +1851,89 @@ mod tests {
         assert!(deps.contains(&normalize(&view)));
         assert!(deps.contains(&normalize(&store)));
 
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn follows_dynamic_imports_split_across_lines() {
+        let dir = unique_temp_dir("codedna_dg_split_import");
+        let main = dir.join("src/main.ts");
+        let template = dir.join("src/template.js");
+        write_file(
+            &main,
+            "const t = await import(\n  /* webpackChunkName: \"template\" */ \"./template\"\n);\n",
+        );
+        write_file(&template, "export default 1;");
+
+        let graph = build_dependency_graph(&[main.clone(), template.clone()]);
+
+        assert!(graph[&normalize(&main)].contains(&normalize(&template)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn follows_sveltekit_lib_alias() {
+        let dir = unique_temp_dir("codedna_dg_lib_alias");
+        let pkg = dir.join("package.json");
+        let page = dir.join("src/routes/+page.ts");
+        let util = dir.join("src/lib/format.ts");
+        write_file(&pkg, "{}");
+        write_file(&page, "import { f } from '$lib/format';\n");
+        write_file(&util, "export const f = 1;");
+
+        let graph = build_dependency_graph(&[pkg, page.clone(), util.clone()]);
+
+        assert!(graph[&normalize(&page)].contains(&normalize(&util)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn follows_python_src_layout() {
+        let dir = unique_temp_dir("codedna_dg_src_layout");
+        let test = dir.join("tests/test_core.py");
+        let init = dir.join("src/pkg/__init__.py");
+        let core = dir.join("src/pkg/core.py");
+        write_file(&test, "from pkg.core import run\n");
+        write_file(&init, "");
+        write_file(&core, "def run(): pass\n");
+
+        let graph = build_dependency_graph(&[test.clone(), init, core.clone()]);
+
+        assert!(graph[&normalize(&test)].contains(&normalize(&core)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn links_installed_django_apps_to_their_autoloaded_modules() {
+        let dir = unique_temp_dir("codedna_dg_django_apps");
+        let settings = dir.join("site/settings.py");
+        let init = dir.join("shop/__init__.py");
+        let apps = dir.join("shop/apps.py");
+        let models = dir.join("shop/models.py");
+        let tags = dir.join("shop/templatetags/prices.py");
+        let command = dir.join("shop/management/commands/restock.py");
+        write_file(&settings, "INSTALLED_APPS = [\n    \"shop\",\n]\n");
+        write_file(&init, "");
+        write_file(&apps, "class ShopConfig: pass\n");
+        write_file(&models, "class Item: pass\n");
+        write_file(&tags, "");
+        write_file(&command, "");
+        let files = [
+            settings.clone(),
+            init.clone(),
+            apps,
+            models.clone(),
+            tags.clone(),
+            command.clone(),
+        ];
+
+        let graph = build_dependency_graph(&files);
+
+        assert!(graph[&normalize(&settings)].contains(&normalize(&init)));
+        let linked = &graph[&normalize(&init)];
+        for file in [&models, &tags, &command] {
+            assert!(linked.contains(&normalize(file)), "{file:?} not linked");
+        }
         fs::remove_dir_all(dir).ok();
     }
 

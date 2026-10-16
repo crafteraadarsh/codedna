@@ -13,6 +13,7 @@
 use crate::analysis::is_lockfile;
 use crate::architecture::{is_test, Confidence, Location};
 use crate::cache::Cache;
+use crate::dependency_graph::{follows_imports, normalize};
 use crate::safe_text::sanitize;
 use aho_corasick::{AhoCorasick, AhoCorasickKind};
 use rayon::prelude::*;
@@ -162,6 +163,23 @@ const NEXT_CONVENTION_STEMS: &[&str] = &[
     "global-error",
     "middleware",
     "instrumentation",
+    // Metadata routes and the Next 16 `proxy.ts`.
+    "robots",
+    "sitemap",
+    "manifest",
+    "opengraph-image",
+    "twitter-image",
+    "icon",
+    "apple-icon",
+    "proxy",
+    // React Router / Remix.
+    "entry.server",
+    "entry.client",
+    "root",
+    // SvelteKit hooks.
+    "hooks",
+    "hooks.server",
+    "hooks.client",
 ];
 
 /// Whether a test runner, compiler or framework loads the file, so nothing
@@ -179,6 +197,8 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         || name == "conftest.py"
         || (name.starts_with("test_") && name.ends_with(".py"))
         || name.ends_with("_test.py")
+        || name == "tests.py"
+        || name == "conf.py"
     {
         return true;
     }
@@ -200,11 +220,19 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         return in_target_dir || in_bin;
     }
 
-    if matches!(ext, "ts" | "tsx" | "js" | "jsx" | "mjs") {
+    if matches!(ext, "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs") {
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
         let file_routes =
             dirs.contains(&"pages") || dirs.windows(2).any(|w| w == ["app", "routes"]);
-        return NEXT_CONVENTION_STEMS.contains(&stem) || file_routes;
+        // SvelteKit routes (`+page.ts`, `+server.js`), dotfile configs
+        // (`.eslintrc.js`), Stimulus controllers, Storybook setup and
+        // Docusaurus theme overrides.
+        let by_name = name.starts_with('+')
+            || name.starts_with('.')
+            || stem.ends_with("_controller")
+            || dirs.contains(&".storybook")
+            || dirs.windows(2).any(|w| w == ["src", "theme"]);
+        return NEXT_CONVENTION_STEMS.contains(&stem) || file_routes || by_name;
     }
 
     false
@@ -254,6 +282,16 @@ pub fn confidence_summary(candidates: &[DeadCodeCandidate]) -> String {
         .join(", ")
 }
 
+/// A convention folder, or a starter or example project (`starter-example`,
+/// `with-redux-example`) kept for people to copy rather than to run.
+fn is_convention_dir(dir: &str) -> bool {
+    CONVENTION_DIRS.contains(&dir)
+        || dir.starts_with("starter")
+        || ["-example", "_example", "-examples", "_examples"]
+            .iter()
+            .any(|end| dir.ends_with(end))
+}
+
 /// Folders that frameworks and tools load by convention, without imports.
 const CONVENTION_DIRS: &[&str] = &[
     "migrations",
@@ -278,6 +316,12 @@ const CONVENTION_DIRS: &[&str] = &[
     "i18n",
     "public",
     "static",
+    "templatetags",
+    "vendor",
+    "emails",
+    "examples",
+    "example",
+    "demo",
 ];
 
 /// Modules Django (and similar frameworks) import from every installed app
@@ -354,15 +398,16 @@ struct Loader {
 /// and for each candidate's name.
 #[cfg(test)]
 pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeCandidate> {
-    assess_with(root, dead, files, &Cache::off())
+    assess_with(root, dead, files, &HashMap::new(), &Cache::off())
 }
 
 /// [`assess`], reusing the mentions `cache` holds for files that have not
-/// changed.
+/// changed. `graph` maps each file to the files it imports.
 pub fn assess_with(
     root: &Path,
     dead: &[PathBuf],
     files: &[PathBuf],
+    graph: &HashMap<PathBuf, Vec<PathBuf>>,
     cache: &Cache,
 ) -> Vec<DeadCodeCandidate> {
     cache.set_dead(dead);
@@ -370,7 +415,10 @@ pub fn assess_with(
         return Vec::new();
     }
 
-    let dead_set: HashSet<&PathBuf> = dead.iter().collect();
+    // Graph paths are normalised (`src/a.ts`), scanned files may not be
+    // (`./src/a.ts`), so compare normalised forms.
+    let dead_keys: Vec<PathBuf> = dead.iter().map(|f| normalize(f)).collect();
+    let dead_set: HashSet<&PathBuf> = dead_keys.iter().collect();
     let stems: Vec<String> = dead.iter().map(|f| stem_of(f)).collect();
     let searchable: Vec<(usize, &str)> = stems
         .iter()
@@ -382,7 +430,7 @@ pub fn assess_with(
     // file into words and looking them up, which is much faster than a
     // substring search. The rest (`jest.preset`, `my-module`) still need one.
     let mut by_word: HashMap<String, Vec<usize>, BuildFnv> = HashMap::default();
-    let mut other: Vec<(usize, &str)> = Vec::new();
+    let mut other: Vec<(usize, String)> = Vec::new();
     for &(index, stem) in &searchable {
         if stem.bytes().all(is_ident_byte) {
             by_word
@@ -390,8 +438,23 @@ pub fn assess_with(
                 .or_default()
                 .push(index);
         } else {
-            other.push((index, stem));
+            other.push((index, stem.to_string()));
         }
+    }
+    // Paths, numbered after the names: `setup-tests.ts` or `mocks/gallery`
+    // in a config, script or template that loads the file by path.
+    let n = dead.len();
+    // File names are numbered from `n`, folder-plus-stem forms from `2n`.
+    for (index, file) in dead.iter().enumerate() {
+        let (name, dir_form) = path_patterns(file);
+        // A Python module named in a dotted string: `"theme.FlaskyStyle"`.
+        if name.is_some() && file.extension().is_some_and(|e| e == "py") {
+            let stem = &stems[index];
+            other.push((n + index, format!("\"{stem}.")));
+            other.push((n + index, format!("'{stem}.")));
+        }
+        other.extend(name.map(|p| (n + index, p)));
+        other.extend(dir_form.map(|p| (2 * n + index, p)));
     }
     let mut words = WordSet::default();
     for word in by_word.keys() {
@@ -403,7 +466,7 @@ pub fn assess_with(
         AhoCorasick::builder()
             .ascii_case_insensitive(true)
             .kind(Some(AhoCorasickKind::DFA))
-            .build(other.iter().map(|(_, s)| *s))
+            .build(other.iter().map(|(_, s)| s.as_str()))
             .ok()
     };
 
@@ -417,14 +480,26 @@ pub fn assess_with(
             let (mentions, loaders) = cache.mentions(file, || {
                 let bytes = fs::read(file).ok()?;
                 let text = std::str::from_utf8(&bytes).ok()?;
-                let from_dead = dead_set.contains(file);
-                let mut seen = vec![false; dead.len()];
+                let file_key = normalize(file);
+                let from_dead = dead_set.contains(&file_key);
+                let is_doc = is_doc(file);
+                let is_source = file
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| follows_imports(&e.to_ascii_lowercase()));
+                let mut seen = vec![false; 3 * n];
                 let mut mentions: Vec<(usize, bool, usize)> = Vec::new();
                 let mut lines = LineIndex::default();
                 let mut note = |index: usize, offset: usize| {
                     // `seen` first: comparing paths is slow and names repeat often.
-                    if !std::mem::replace(&mut seen[index], true)
-                        && dead[index].as_os_str() != file.as_os_str()
+                    // Paths count from configs, scripts and templates; a
+                    // source file's `lib/data` is usually an import of
+                    // another file of the same name.
+                    let path_from_source = is_source && index >= 2 * n;
+                    if !(is_doc && index >= n)
+                        && !path_from_source
+                        && !std::mem::replace(&mut seen[index], true)
+                        && dead_keys[index % n] != file_key
                     {
                         mentions.push((index, from_dead, lines.line_of(text, offset)));
                     }
@@ -442,7 +517,14 @@ pub fn assess_with(
                 }
                 if let Some(m) = &matcher {
                     for hit in m.find_overlapping_iter(text) {
-                        if is_word(text, hit.start(), hit.end()) {
+                        // A dotted string ends in `.`, so its next character
+                        // starts the attribute.
+                        let end = if other[hit.pattern().as_usize()].1.ends_with('.') {
+                            hit.start()
+                        } else {
+                            hit.end()
+                        };
+                        if is_word(text, hit.start(), end) {
                             note(other[hit.pattern().as_usize()].0, hit.start());
                         }
                     }
@@ -467,8 +549,9 @@ pub fn assess_with(
         .collect();
 
     // Counts, plus the first few mentioning lines in file order.
-    let mut live_mentions = vec![Mentions::default(); dead.len()];
-    let mut dead_mentions = vec![Mentions::default(); dead.len()];
+    // Name mentions first, then path mentions.
+    let mut live_mentions = vec![Mentions::default(); 3 * n];
+    let mut dead_mentions = vec![Mentions::default(); 3 * n];
     let mut loaders: Vec<Loader> = Vec::new();
     for (file, mentions, file_loaders) in per_file {
         for (index, from_dead, line) in mentions {
@@ -488,24 +571,28 @@ pub fn assess_with(
 
     let live_packages: HashSet<PathBuf> = files
         .iter()
+        .map(|f| normalize(f))
         .filter(|f| f.file_name().is_some_and(|n| n == "__init__.py") && !dead_set.contains(f))
         .filter_map(|f| f.parent().map(Path::to_path_buf))
         .collect();
 
+    let all_files: HashSet<PathBuf> = files.iter().map(|f| normalize(f)).collect();
     let mut candidates: Vec<DeadCodeCandidate> = dead
         .iter()
         .enumerate()
         .map(|(index, file)| {
             let relative = file.strip_prefix(root).unwrap_or(file);
-            let in_live_package = file.parent().is_some_and(|p| live_packages.contains(p));
-            let (confidence, reason, at) = rate(
-                relative,
-                in_live_package,
-                &stems[index],
-                &live_mentions[index],
-                &dead_mentions[index],
-                &loaders,
-            );
+            let key = normalize(file);
+            let in_live_package = key.parent().is_some_and(|p| live_packages.contains(p));
+            let found = Found {
+                live: &live_mentions[index],
+                dead: &dead_mentions[index],
+                path_live: [&live_mentions[n + index], &live_mentions[2 * n + index]],
+                path_dead: [&dead_mentions[n + index], &dead_mentions[2 * n + index]],
+                rule_file: has_rule_file(&key, &all_files),
+            };
+            let (confidence, reason, at) =
+                rate(relative, in_live_package, &stems[index], &found, &loaders);
             DeadCodeCandidate {
                 file: file.clone(),
                 confidence,
@@ -517,9 +604,74 @@ pub fn assess_with(
             }
         })
         .collect();
+    // Unreachable files that import a candidate or name its path.
+    let mut users: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+    for key in &dead_keys {
+        if let Some(targets) = graph.get(key) {
+            users
+                .entry(key.clone())
+                .or_default()
+                .extend(targets.iter().cloned());
+        }
+    }
+    for (index, key) in dead_keys.iter().enumerate() {
+        for mentions in [&dead_mentions[n + index], &dead_mentions[2 * n + index]] {
+            for (path, _) in &mentions.at {
+                users.entry(normalize(path)).or_default().push(key.clone());
+            }
+        }
+    }
+    follow_users(&mut candidates, &users);
     // Most certain first, then by path.
     candidates.sort_by(|a, b| b.confidence.cmp(&a.confidence).then(a.file.cmp(&b.file)));
     candidates
+}
+
+/// Rates a candidate no more certain than the unreachable files that import
+/// it or name its path: if a framework or tool loads such a file, it uses
+/// this one too. `users` maps each file to the files it uses.
+fn follow_users(candidates: &mut [DeadCodeCandidate], users: &HashMap<PathBuf, Vec<PathBuf>>) {
+    let index: HashMap<PathBuf, usize> = candidates
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (normalize(&c.file), i))
+        .collect();
+    let mut importers: Vec<Vec<usize>> = vec![Vec::new(); candidates.len()];
+    for (from, targets) in users {
+        let Some(&from) = index.get(&normalize(from)) else {
+            continue;
+        };
+        for target in targets {
+            if let Some(&to) = index.get(&normalize(target)) {
+                if to != from {
+                    importers[to].push(from);
+                }
+            }
+        }
+    }
+    // Levels only fall, so this ends.
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for to in 0..candidates.len() {
+            let Some(&from) = importers[to]
+                .iter()
+                .min_by_key(|&&i| (candidates[i].confidence, &candidates[i].file))
+            else {
+                continue;
+            };
+            let level = candidates[from].confidence;
+            if level < candidates[to].confidence {
+                let name = file_name(&candidates[from].file);
+                candidates[to].confidence = level;
+                candidates[to].reason = format!(
+                    "Used only by {name}, which is unreachable but may be loaded without an import"
+                );
+                candidates[to].evidence = Vec::new();
+                changed = true;
+            }
+        }
+    }
 }
 
 /// How many files mention a name, and where the first few do.
@@ -532,14 +684,72 @@ struct Mentions {
 /// Confidence, reason and the lines that back it.
 type Rating = (Confidence, String, Vec<(PathBuf, usize)>);
 
+/// What the search found about one candidate.
+struct Found<'a> {
+    /// Its name, in reachable and in unreachable files.
+    live: &'a Mentions,
+    dead: &'a Mentions,
+    /// Its path, in reachable or non-source files and in unreachable files.
+    /// By file name, then by folder plus stem.
+    path_live: [&'a Mentions; 2],
+    path_dead: [&'a Mentions; 2],
+    /// A `<stem>.yaml` beside it, as rule-test targets have.
+    rule_file: bool,
+}
+
+/// The path forms a config, script or template uses to load `file`: its
+/// file name (`setup-tests.ts`) and its folder plus stem (`mocks/gallery`),
+/// skipping forms too common to tie to one file.
+fn path_patterns(file: &Path) -> (Option<String>, Option<String>) {
+    let stem = stem_of(file);
+    let generic = stem.len() < 3 || GENERIC_STEMS.contains(&stem.as_str());
+    let name = file
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|name| !generic && *name != stem)
+        .map(str::to_string);
+    let parent = file
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    let dir_form = (!parent.is_empty() && !(generic && GENERIC_DIRS.contains(&parent)))
+        .then(|| format!("{parent}/{stem}"));
+    (name, dir_form)
+}
+
+/// Documentation, whose mentions of a path describe it rather than load it.
+fn is_doc(file: &Path) -> bool {
+    let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("");
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "md" | "mdx" | "markdown" | "rst" | "txt" | "adoc" | "po" | "pot" | "xlf" | "xliff"
+    )
+}
+
+/// Whether a `<stem>.yaml` or `<stem>.yml` sits beside `file`: rule test
+/// targets (Semgrep and similar) that the rule's runner loads.
+fn has_rule_file(file: &Path, files: &HashSet<PathBuf>) -> bool {
+    // Autofix tests pair `rule.fixed.py` with `rule.yaml` too.
+    let unfixed = file.with_extension("");
+    let unfixed = (unfixed.extension() == Some("fixed".as_ref())).then_some(unfixed);
+    ["yaml", "yml"].iter().any(|ext| {
+        files.contains(&file.with_extension(ext))
+            || unfixed
+                .as_ref()
+                .is_some_and(|f| files.contains(&f.with_extension(ext)))
+    })
+}
+
 fn rate(
     file: &Path,
     in_live_package: bool,
     stem: &str,
-    live_mentions: &Mentions,
-    dead_mentions: &Mentions,
+    found: &Found,
     loaders: &[Loader],
 ) -> Rating {
+    let live_mentions = found.live;
+    let dead_mentions = found.dead;
     let dirs: Vec<String> = file
         .parent()
         .map(|p| {
@@ -550,10 +760,18 @@ fn rate(
         })
         .unwrap_or_default();
 
-    if let Some(dir) = dirs.iter().find(|d| CONVENTION_DIRS.contains(&d.as_str())) {
+    if let Some(dir) = dirs.iter().find(|d| is_convention_dir(d)) {
         return (
             Confidence::Low,
             format!("In {dir}/, a folder tools and frameworks often load by convention"),
+            Vec::new(),
+        );
+    }
+
+    if dirs.windows(2).any(|w| w[0] == "app" && w[1] == "views") {
+        return (
+            Confidence::Low,
+            "In app/views/, which Rails renders by convention".to_string(),
             Vec::new(),
         );
     }
@@ -571,6 +789,25 @@ fn rate(
         return (
             Confidence::Low,
             format!("Frameworks such as Django load {stem}.py from every installed app"),
+            Vec::new(),
+        );
+    }
+
+    if let Some((path, line)) = found.path_live.iter().find_map(|m| m.at.first()) {
+        return (
+            Confidence::Low,
+            format!(
+                "Its path is referenced in {} (a config, script or template may load it)",
+                file_name(path)
+            ),
+            vec![(path.clone(), *line)],
+        );
+    }
+
+    if found.rule_file {
+        return (
+            Confidence::Low,
+            format!("A test target for the rule in {stem}.yaml beside it"),
             Vec::new(),
         );
     }
@@ -621,6 +858,16 @@ fn rate(
                 l.line
             ),
             vec![(l.file.clone(), l.line)],
+        );
+    }
+    if let Some((path, line)) = found.path_dead.iter().find_map(|m| m.at.first()) {
+        return (
+            Confidence::Medium,
+            format!(
+                "Nothing reachable imports it, but its path appears in {}, itself unused",
+                file_name(path)
+            ),
+            vec![(path.clone(), *line)],
         );
     }
     if dead_mentions.count > 0 {
@@ -1006,6 +1253,94 @@ mod tests {
             rated(&c, &root, "shop/forms_unused.py").confidence,
             Confidence::High
         );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn path_references_and_conventions_lower_confidence() {
+        let (root, files) = temp_repo(
+            "codedna_dead_paths",
+            &[
+                ("vitest.config.ts", "setupFiles: ['./src/setup-tests.ts']\n"),
+                ("src/setup-tests.ts", "export {}\n"),
+                ("src/old-runner.ts", "run('./src/old_job.ts')\n"),
+                ("src/old_job.ts", "export {}\n"),
+                ("rules/no-eval.ts", "eval(x)\n"),
+                ("rules/no-eval.yaml", "rules: []\n"),
+                ("rules/no-eval.fixed.py", "pass\n"),
+                (
+                    "docs/conf.py",
+                    "pygments_style = \"theme_support.Flasky\"\n",
+                ),
+                ("docs/theme_support.py", "class Flasky: pass\n"),
+                (
+                    "app/views/pwa/service-worker.js",
+                    "self.addEventListener('x')\n",
+                ),
+                ("dashboard/starter-example/app/ui/search.tsx", "export {}\n"),
+            ],
+        );
+        let live = ["vitest.config.ts", "rules/no-eval.yaml", "docs/conf.py"];
+        let dead: Vec<PathBuf> = files
+            .iter()
+            .filter(|f| !live.iter().any(|l| f.ends_with(l)))
+            .cloned()
+            .collect();
+        let c = assess(&root, &dead, &files);
+        let level = |name| rated(&c, &root, name).confidence;
+
+        assert_eq!(level("src/setup-tests.ts"), Confidence::Low);
+        // Named only by a file that is itself unused.
+        assert_eq!(level("src/old_job.ts"), Confidence::Medium);
+        assert_eq!(level("rules/no-eval.ts"), Confidence::Low);
+        assert_eq!(level("rules/no-eval.fixed.py"), Confidence::Low);
+        assert_eq!(level("docs/theme_support.py"), Confidence::Low);
+        assert_eq!(level("app/views/pwa/service-worker.js"), Confidence::Low);
+        assert_eq!(
+            level("dashboard/starter-example/app/ui/search.tsx"),
+            Confidence::Low
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn files_used_by_uncertain_files_are_no_more_certain() {
+        let (root, files) = temp_repo(
+            "codedna_dead_users",
+            &[
+                ("emails/welcome.tsx", "import { Card } from '../ui/Card';\n"),
+                ("ui/Card.tsx", "export const Card = 1;\n"),
+                ("ui/Orphaned.tsx", "export const O = 1;\n"),
+            ],
+        );
+        let mut graph = make_graph(&[]);
+        graph.insert(normalize(&files[0]), vec![normalize(&files[1])]);
+        let c = assess_with(&root, &files, &files, &graph, &Cache::off());
+
+        let card = rated(&c, &root, "ui/Card.tsx");
+        assert_eq!(card.confidence, Confidence::Low);
+        assert!(card.reason.contains("welcome.tsx"));
+        assert_eq!(
+            rated(&c, &root, "ui/Orphaned.tsx").confidence,
+            Confidence::High
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn self_mentions_count_whatever_the_path_prefix() {
+        let (root, files) = temp_repo(
+            "codedna_dead_prefix",
+            &[("src/legacy_thing.ts", "// legacy_thing: old code\n")],
+        );
+        // Scanned as `./src/...`, unreachable as `src/...`.
+        let scanned: Vec<PathBuf> = files
+            .iter()
+            .map(|f| root.join(".").join(f.strip_prefix(&root).unwrap()))
+            .collect();
+        let c = assess(&root, &files, &scanned);
+
+        assert_eq!(c[0].confidence, Confidence::High);
         fs::remove_dir_all(root).ok();
     }
 

@@ -526,8 +526,9 @@ mod tests {
         graph.sort();
         let mut tallies: Vec<_> = tallies.into_iter().collect();
         tallies.sort_by(|a, b| a.0.cmp(&b.0));
-        let dead = dead_code_detector::detect_dead_code(&graph.iter().cloned().collect());
-        let assessed = dead_code_detector::assess_with(root, &dead, &files, cache);
+        let graph_map = graph.iter().cloned().collect();
+        let dead = dead_code_detector::detect_dead_code(&graph_map);
+        let assessed = dead_code_detector::assess_with(root, &dead, &files, &graph_map, cache);
         format!("{loc:?}\n{graph:?}\n{tallies:?}\n{assessed:?}")
     }
 
