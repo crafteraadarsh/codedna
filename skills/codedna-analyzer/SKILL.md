@@ -131,6 +131,8 @@ codedna audit .
 codedna audit https://github.com/user/repo --json
 codedna audit . --fail-on high
 codedna audit . --deps
+codedna audit . --write-baseline audit-baseline.json
+codedna audit . --baseline audit-baseline.json --fail-on high
 ```
 
 A scan for red flags that often show up in malicious or compromised repositories:
@@ -149,6 +151,8 @@ A scan for red flags that often show up in malicious or compromised repositories
 The risk score adds 25 per high, 10 per medium and 2 per low finding, capped at 100. `--fail-on low|medium|high` exits with status 1 when a finding reaches that level, for CI. Each finding also has a `confidence` (`high`, `medium`, `low`): how likely it is a real problem rather than a false alarm. Findings in tests, docs, examples and fixtures are lowered one step on severity and confidence and carry a `context` field (`test`, `docs`, `example`, `fixture`); `lowered` counts them. The JSON includes a `note`. Findings are leads to review, not a safety verdict: clean code can trip a check, a careful attacker can avoid them all, and a clean result does not prove the code is safe.
 
 `--deps` (MCP: `check_dependencies: true`) is the only part of the audit that uses the network, so it is off by default. It reads `Cargo.lock`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements*.txt` (`==` pins), `poetry.lock`, `uv.lock`, `Pipfile.lock`, `go.mod`, `Gemfile.lock` and `composer.lock` (not inside `node_modules`, `vendor` or `target`), and sends package names and versions, nothing else, to osv.dev. Each vulnerable package is one finding: its severity is the worst advisory's (GitHub's rating, else the CVSS score; RustSec "unmaintained" notices are low). The JSON adds `dependencies` with `packages_checked`, `lockfiles` and an `error` if the database could not be reached; with `--fail-on`, that exits with status 2 so a CI gate cannot pass unchecked. A matched version means the advisory applies to that release, not that the vulnerable code is reachable from this project.
+
+**Baselines.** `--write-baseline FILE` records every current finding (before the 200-finding cap) as accepted; `--baseline FILE` then hides those and reports only new ones, and `--fail-on` applies to the new ones only. Entries are matched on check, file and message, not line, so edits elsewhere in a file don't break them; each entry hides one finding, so a second identical finding in the same file is still reported. Add a `"reason"` to any entry: writing the baseline again keeps it, and drops entries that no longer match. The text output and the JSON `baseline` field give `hidden` (findings hidden) and `stale` (entries that matched nothing). A missing or invalid baseline exits with status 2. CodeDna never reads a baseline it finds in the scanned repository, only the file you name, so a repository cannot hide its own findings.
 
 ### Packages
 
@@ -250,7 +254,7 @@ codedna framework axum https://github.com/user/rust-project
 codedna deadcode [path or url]
 ```
 
-Returns list of files unreachable from any entry point via dependency graph traversal.
+Returns list of files unreachable from any entry point via dependency graph traversal. `--write-baseline FILE` accepts the current candidates and `--baseline FILE` hides them (the same file can hold both audit and dead-code entries; writing one section keeps the other).
 
 ### Circular Imports
 
