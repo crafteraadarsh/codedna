@@ -842,15 +842,12 @@ fn parse_js_ts_imports(
                 }
             }
         }
+    }
 
-        // A file named with its extension anywhere else on the line is
-        // loaded at runtime: `new Worker(new URL("./w.ts", import.meta.url))`
-        // or `spawn("tsx", ["worker.ts"])`. It only counts when it exists.
-        for literal in quoted_source_files(trimmed) {
-            if let Some(resolved) = resolve_js_ts_path(parent, literal) {
-                if !deps.contains(&resolved) {
-                    deps.push(resolved);
-                }
+    for literal in runtime_loaded_files(file, content) {
+        if let Some(resolved) = resolve_js_ts_path(parent, literal) {
+            if !deps.contains(&resolved) {
+                deps.push(resolved);
             }
         }
     }
@@ -858,32 +855,303 @@ fn parse_js_ts_imports(
     deps
 }
 
-/// Quoted strings on a line that name a JS/TS source file by its
-/// extension: `"./worker.ts"` or `'jobs/sync.mjs'`, but not URLs.
-fn quoted_source_files(line: &str) -> Vec<&str> {
+/// Modules whose exports start a file in another process or thread.
+const LOADER_MODULES: &[&str] = &[
+    "child_process",
+    "node:child_process",
+    "worker_threads",
+    "node:worker_threads",
+    "execa",
+    "cross-spawn",
+];
+
+/// Calls that run a file in another process: `spawn("tsx", ["w.ts"])`.
+const PROCESS_LOADERS: &[&str] = &[
+    "spawn",
+    "spawnSync",
+    "fork",
+    "exec",
+    "execSync",
+    "execFile",
+    "execFileSync",
+    "execa",
+    "execaSync",
+    "execaNode",
+    "execaCommand",
+    "execaCommandSync",
+];
+
+/// Process loaders that take one command line rather than an argument list.
+const COMMAND_LINE_LOADERS: &[&str] = &["exec", "execSync", "execaCommand", "execaCommandSync"];
+
+/// Constructors that run a file in a worker thread: `new Worker("./w.js")`.
+const WORKER_CONSTRUCTORS: &[&str] = &["Worker", "SharedWorker"];
+
+/// Source files a JS/TS file loads at runtime by name rather than by import:
+///
+/// - `new URL("./w.ts", import.meta.url)`, the bundler form for workers
+/// - `new Worker("./w.js")` and `new SharedWorker(...)`, unless the file
+///   defines or imports its own `Worker` from elsewhere
+/// - `spawn`, `fork`, `exec` and the rest imported from `child_process`,
+///   `execa` or `cross-spawn` (or called on a binding of those modules, or
+///   `Bun.spawn`), with the file among their arguments:
+///   `spawn("tsx", ["worker.ts"])`, `exec("tsx worker.ts")`
+///
+/// Calls are found in code only, so a path in a log message, a comment or
+/// any other string is not a dependency, and neither is a call to a local
+/// function that happens to share a loader's name.
+fn runtime_loaded_files<'a>(file: &Path, content: &'a str) -> Vec<&'a str> {
+    let ext = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let code = crate::code_text::code_only(&ext, content);
+    let (loader_names, other_names) = imported_names(&code, content);
+    let tokens = identifiers(&code);
+    let bytes = code.as_bytes();
+
     let mut found = Vec::new();
-    let mut rest = line;
-    while let Some(start) = rest.find(['"', '\'']) {
-        let quote = rest[start..].chars().next().unwrap_or('"');
-        let inner = &rest[start + 1..];
-        let Some(end) = inner.find(quote) else {
-            break;
+    for (index, &(start, end)) in tokens.iter().enumerate() {
+        let name = &code[start..end];
+        let Some(open) = next_non_space(bytes, end).filter(|&i| bytes[i] == b'(') else {
+            continue;
         };
-        let literal = &inner[..end];
-        let is_source = Path::new(literal)
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| ["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx"].contains(&e));
-        if is_source
-            && !literal.contains("://")
-            && !literal.contains(char::is_whitespace)
-            && !literal.starts_with('/')
-        {
-            found.push(literal);
+        let args = open + 1..closing_paren(bytes, open);
+        let receiver = receiver(&code, &tokens, index);
+        // `new` before the callee, or before its receiver in `new wt.Worker(`.
+        let callee = match receiver {
+            Some(r) if !r.is_empty() => index - 1,
+            _ => index,
+        };
+        let after_new = callee > 0 && {
+            let (s, e) = tokens[callee - 1];
+            &code[s..e] == "new" && code[e..tokens[callee].0].trim().is_empty()
+        };
+
+        let literals = string_literals(&code, content, args.clone());
+        if after_new && name == "URL" && receiver.is_none() {
+            if code[args].contains("import.meta.url") {
+                found.extend(literals.first().filter(|l| l.0 == 0).map(|l| l.1));
+            }
+        } else if after_new && WORKER_CONSTRUCTORS.contains(&name) {
+            let is_loader = match receiver {
+                Some(r) => loader_names.contains(r),
+                None => {
+                    loader_names.contains(name)
+                        || !(other_names.contains(name) || declares(&code, &tokens, name))
+                }
+            };
+            if is_loader {
+                found.extend(literals.first().filter(|l| l.0 == 0).map(|l| l.1));
+            }
+        } else if !after_new && PROCESS_LOADERS.contains(&name) {
+            let is_loader = match receiver {
+                Some("Bun") => name == "spawn" || name == "spawnSync",
+                Some(r) => loader_names.contains(r),
+                None => loader_names.contains(name),
+            };
+            if !is_loader {
+                continue;
+            }
+            for (_, literal) in literals {
+                if COMMAND_LINE_LOADERS.contains(&name) {
+                    found.extend(literal.split_whitespace().filter(|w| names_source_file(w)));
+                } else if names_source_file(literal) {
+                    found.push(literal);
+                }
+            }
         }
-        rest = &inner[end + 1..];
+    }
+    found.retain(|literal| names_source_file(literal));
+    found
+}
+
+/// A JS/TS source file named by its extension: `"./worker.ts"` or
+/// `'jobs/sync.mjs'`, but not URLs, absolute paths or command lines.
+fn names_source_file(literal: &str) -> bool {
+    let is_source = Path::new(literal)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| ["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx"].contains(&e));
+    is_source
+        && !literal.contains("://")
+        && !literal.contains("${")
+        && !literal.contains(char::is_whitespace)
+        && !literal.starts_with('/')
+}
+
+/// Byte ranges of the identifiers in `code`.
+fn identifiers(code: &str) -> Vec<(usize, usize)> {
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+    let bytes = code.as_bytes();
+    let mut tokens = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if is_ident(bytes[i]) && !bytes[i].is_ascii_digit() {
+            let start = i;
+            while i < bytes.len() && is_ident(bytes[i]) {
+                i += 1;
+            }
+            tokens.push((start, i));
+        } else {
+            i += 1;
+        }
+    }
+    tokens
+}
+
+fn next_non_space(bytes: &[u8], from: usize) -> Option<usize> {
+    (from..bytes.len()).find(|&i| !bytes[i].is_ascii_whitespace())
+}
+
+/// Index of the `)` closing the `(` at `open`, or the end of the text. String
+/// contents are already blanked, so every parenthesis left is code.
+fn closing_paren(bytes: &[u8], open: usize) -> usize {
+    let mut depth = 0usize;
+    for (i, &b) in bytes.iter().enumerate().skip(open) {
+        match b {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return i;
+                }
+            }
+            _ => {}
+        }
+    }
+    bytes.len()
+}
+
+/// `cp` in `cp.spawn(` or `cp?.spawn(`; `""` for a method on anything other
+/// than a plain name (`/re/.exec(`, `a.b.exec(`); `None` for a bare call.
+fn receiver<'a>(code: &'a str, tokens: &[(usize, usize)], index: usize) -> Option<&'a str> {
+    let (start, _) = tokens[index];
+    let before = code[..start].trim_end();
+    let before = before.strip_suffix('.')?.trim_end();
+    let before = before.strip_suffix('?').unwrap_or(before);
+    let plain = index.checked_sub(1).and_then(|i| {
+        let (s, e) = tokens[i];
+        let start_of_chain = code[..s].trim_end();
+        (e == before.len() && !start_of_chain.ends_with('.')).then(|| &code[s..e])
+    });
+    Some(plain.unwrap_or(""))
+}
+
+/// String literals inside `range` of `code`, as (offset of the opening quote
+/// from the first non-space character, contents taken from `content`).
+fn string_literals<'a>(
+    code: &str,
+    content: &'a str,
+    range: std::ops::Range<usize>,
+) -> Vec<(usize, &'a str)> {
+    let bytes = code.as_bytes();
+    let first = next_non_space(bytes, range.start).unwrap_or(range.start);
+    let mut found = Vec::new();
+    let mut i = range.start;
+    while i < range.end.min(bytes.len()) {
+        let quote = bytes[i];
+        if matches!(quote, b'"' | b'\'' | b'`') {
+            let Some(close) = (i + 1..range.end).find(|&j| bytes[j] == quote) else {
+                break;
+            };
+            if let Some(text) = content.get(i + 1..close) {
+                found.push((i - first, text));
+            }
+            i = close + 1;
+        } else {
+            i += 1;
+        }
     }
     found
+}
+
+/// Names bound by imports, split into those from [`LOADER_MODULES`] and those
+/// from anywhere else: `import { spawn } from "node:child_process"`,
+/// `const cp = require("child_process")`, `import { Worker } from "./pool"`.
+fn imported_names<'a>(code: &'a str, content: &str) -> (HashSet<&'a str>, HashSet<&'a str>) {
+    let tokens = identifiers(code);
+    let bytes = code.as_bytes();
+    let mut loaders = HashSet::new();
+    let mut others = HashSet::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let quote = bytes[i];
+        if !matches!(quote, b'"' | b'\'') {
+            i += 1;
+            continue;
+        }
+        let Some(close) = (i + 1..bytes.len()).find(|&j| bytes[j] == quote) else {
+            break;
+        };
+        let module = content.get(i + 1..close).unwrap_or("");
+        let before = code[..i].trim_end();
+        // The keyword that starts the statement, and where the names end.
+        let names = if before.ends_with("from") {
+            let end = before.len() - 4;
+            last_token(code, &tokens, end, &["import"]).map(|start| start..end)
+        } else if let Some(call) = before.strip_suffix('(') {
+            let call = call.trim_end();
+            call.strip_suffix("require").and_then(|rest| {
+                let end = rest.trim_end().strip_suffix('=')?.len();
+                last_token(code, &tokens, end, &["const", "let", "var"]).map(|start| start..end)
+            })
+        } else {
+            None
+        };
+        if let Some(range) = names {
+            let target = if LOADER_MODULES.contains(&module) {
+                &mut loaders
+            } else {
+                &mut others
+            };
+            for &(s, e) in tokens
+                .iter()
+                .filter(|t| t.0 >= range.start && t.1 <= range.end)
+            {
+                let name = &code[s..e];
+                if !matches!(
+                    name,
+                    "import" | "const" | "let" | "var" | "type" | "typeof" | "as" | "default"
+                ) {
+                    target.insert(name);
+                }
+            }
+        }
+        i = close + 1;
+    }
+    (loaders, others)
+}
+
+/// Start of the last token before `end` that is one of `keywords`, if it
+/// comes within a statement's reach (no `;` in between).
+fn last_token(
+    code: &str,
+    tokens: &[(usize, usize)],
+    end: usize,
+    keywords: &[&str],
+) -> Option<usize> {
+    let &(start, _) = tokens
+        .iter()
+        .rev()
+        .filter(|t| t.1 <= end)
+        .find(|t| keywords.contains(&&code[t.0..t.1]))?;
+    (!code[start..end].contains(';')).then_some(start)
+}
+
+/// Whether the file declares `name` itself: `class Worker`,
+/// `function Worker`, `const Worker = ...`.
+fn declares(code: &str, tokens: &[(usize, usize)], name: &str) -> bool {
+    tokens.windows(2).any(|pair| {
+        let (keyword, ident) = (pair[0], pair[1]);
+        &code[ident.0..ident.1] == name
+            && matches!(
+                &code[keyword.0..keyword.1],
+                "class" | "function" | "const" | "let" | "var"
+            )
+            && code[keyword.1..ident.0].trim().is_empty()
+    })
 }
 
 /// Extract all single- or double-quoted string values from a line that are
@@ -1525,7 +1793,8 @@ mod tests {
         let index = dir.join("index.ts");
         write_file(
             &index,
-            "spawn(process.execPath, [require.resolve(\"tsx/cli\"), \"worker.ts\"]);\n\
+            "import { spawn } from \"node:child_process\";\n\
+             spawn(process.execPath, [require.resolve(\"tsx/cli\"), \"worker.ts\"]);\n\
              new Worker(new URL('./thread.js', import.meta.url));\n\
              fetch(\"https://cdn.example.com/missing.js\");\n\
              load(\"./missing.ts\");",
