@@ -247,6 +247,8 @@ where
         scores.into_iter().map(|(f, (s, r))| (f, s, r)).collect();
     ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(b.0)));
     let top = ranked.first().map(|r| r.1).unwrap_or(1.0).max(f64::EPSILON);
+    let mut chosen: Vec<(&PathBuf, u32)> = Vec::new();
+    let mut listed_tests: HashSet<&PathBuf> = HashSet::new();
     for (file, score, mut reasons) in ranked {
         // A file found only through a weak link is noise.
         if !direct.contains(file) && score < top * NEIGHBOUR_FLOOR {
@@ -260,10 +262,46 @@ where
         };
         if is_test(file) {
             if context.tests.len() < TEST_LIMIT {
+                listed_tests.insert(file);
                 context.tests.push(entry);
             }
         } else if context.files.len() < FILE_LIMIT {
+            chosen.push((file, entry.score));
             context.files.push(entry);
+        }
+    }
+
+    // Tests rarely name what they cover, and often reach it through a helper
+    // or an index file: add the ones within two imports of a chosen file.
+    for (file, score) in chosen {
+        if context.tests.len() >= TEST_LIMIT {
+            break;
+        }
+        let mut near: Vec<(&PathBuf, String, u32)> = Vec::new();
+        for direct in importers.get(file).into_iter().flatten().copied() {
+            if is_test(direct) {
+                near.push((direct, format!("imports {}", show(file)), 2));
+                continue;
+            }
+            for test in importers.get(direct).into_iter().flatten().copied() {
+                if is_test(test) {
+                    let reason = format!("imports {} via {}", show(file), show(direct));
+                    near.push((test, reason, 3));
+                }
+            }
+        }
+        near.sort_by(|a, b| a.2.cmp(&b.2).then_with(|| a.0.cmp(b.0)));
+        for (test, reason, divisor) in near {
+            if context.tests.len() >= TEST_LIMIT {
+                break;
+            }
+            if listed_tests.insert(test) {
+                context.tests.push(TaskFile {
+                    file: show(test),
+                    score: (score / divisor).max(1),
+                    reasons: vec![reason],
+                });
+            }
         }
     }
     context
@@ -491,6 +529,38 @@ mod tests {
             .find(|f| f.file.ends_with("index.ts"))
             .unwrap();
         assert_eq!(index.reasons, vec!["imports ./src/auth/login.ts"]);
+    }
+
+    #[test]
+    fn finds_tests_two_imports_away() {
+        let r = result(
+            &[
+                "./src/billing/invoice.ts",
+                "./src/billing/index.ts",
+                "./test/api.spec.ts",
+            ],
+            &[
+                ("./src/billing/index.ts", &["./src/billing/invoice.ts"]),
+                ("./test/api.spec.ts", &["./src/billing/index.ts"]),
+            ],
+        );
+        let ctx = rank(&r, "fix invoice totals", |f| {
+            Some(
+                if f.ends_with("invoice.ts") {
+                    "invoice"
+                } else {
+                    "x"
+                }
+                .to_string(),
+            )
+        });
+        assert_eq!(ctx.files[0].file, "./src/billing/invoice.ts");
+        assert_eq!(ctx.tests.len(), 1);
+        assert_eq!(ctx.tests[0].file, "./test/api.spec.ts");
+        assert_eq!(
+            ctx.tests[0].reasons,
+            vec!["imports ./src/billing/invoice.ts via ./src/billing/index.ts"]
+        );
     }
 
     #[test]
