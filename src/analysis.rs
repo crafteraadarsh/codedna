@@ -52,6 +52,7 @@ pub struct AnalysisResult {
     pub blank_lines: usize,
 
     /// LOC per language: `{ "TypeScript": 12450, "Python": 800, … }`.
+    #[serde(serialize_with = "serialize_sorted")]
     pub languages: HashMap<String, usize>,
 
     /// Detected application frameworks (e.g. `["React", "Express"]`).
@@ -478,6 +479,17 @@ pub fn relative_path(root: &Path, path: &Path) -> PathBuf {
     }
 }
 
+/// A map with its keys in order.
+fn serialize_sorted<S, K, V>(map: &HashMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    K: Serialize + Ord,
+    V: Serialize,
+{
+    let sorted: std::collections::BTreeMap<&K, &V> = map.iter().collect();
+    sorted.serialize(serializer)
+}
+
 fn serialize_dep_graph<S>(
     map: &HashMap<PathBuf, Vec<PathBuf>>,
     serializer: S,
@@ -486,8 +498,11 @@ where
     S: serde::Serializer,
 {
     use serde::ser::SerializeMap;
+    // Sorted, so the same repository always gives the same output.
+    let mut entries: Vec<(&PathBuf, &Vec<PathBuf>)> = map.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
     let mut m = serializer.serialize_map(Some(map.len()))?;
-    for (k, v) in map {
+    for (k, v) in entries {
         let key = k.display().to_string();
         let vals: Vec<String> = v.iter().map(|p| p.display().to_string()).collect();
         m.serialize_entry(&key, &vals)?;

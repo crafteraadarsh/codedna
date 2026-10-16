@@ -342,6 +342,9 @@ Output from CodeDna v0.1.3 on [`gothinkster/node-express-realworld-example-app`]
     · Services → Data: 12 imports
     · Routes → Services: 4 imports
     · Services → Routes: 4 imports
+    · e.g. Routes: src/app/routes/article/article.controller.ts:30  article.controller.ts; GET /articles
+    · e.g. Services: src/app/routes/article/article.service.ts  article.service.ts
+    · e.g. Data: src/app/models/http-exception.model.ts  http-exception.model.ts
 
   Languages
   ─────────
@@ -544,8 +547,14 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
   "infrastructure": ["Docker"],
   "architecture": "API → Database",
   "architecture_details": {
-    "layers": [{ "name": "Routes", "files": 11, "confirmed_by_code": 5, "placed_by_imports": 0, "dirs": ["./src/app/routes/auth/", "..."] }],
-    "flows": [{ "from": "Services", "to": "Data", "imports": 12 }],
+    "layers": [{
+      "name": "Routes", "files": 11, "confirmed_by_code": 5, "placed_by_imports": 0, "dirs": ["./src/app/routes/auth/", "..."],
+      "examples": [{ "file": "src/app/routes/article/article.controller.ts", "placed_by": "name", "matched": "article.controller.ts", "code": { "line": 30, "sign": "GET /articles" } }]
+    }],
+    "flows": [{
+      "from": "Services", "to": "Data", "imports": 12,
+      "examples": [{ "from": "src/app/routes/article/article.service.ts", "to": "src/prisma/prisma-client.ts" }]
+    }],
     "confidence": "high",
     "evidence": ["Services → Data: 12 imports"]
   },
@@ -557,7 +566,10 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
     "./src/prisma/seed.ts"
   ],
   "dead_code_details": [
-    { "file": "./jest.preset.js", "confidence": "medium", "reason": "Nothing imports it, but \"jest.preset\" is mentioned in 3 other files" }
+    {
+      "file": "./jest.preset.js", "confidence": "medium", "reason": "Nothing imports it, but \"jest.preset\" is mentioned in 3 other files",
+      "evidence": [{ "file": "e2e/jest.config.ts", "line": 4, "text": "preset: '../jest.preset.js'," }]
+    }
   ],
   "circular_imports": [
     ["./src/app/routes/article/article.model.ts", "./src/app/routes/article/comment.model.ts"]
@@ -581,9 +593,9 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 | `databases` | string[] | Detected databases and ORMs |
 | `infrastructure` | string[] | Detected DevOps tooling |
 | `architecture` | string | Architecture summary from detected frameworks and databases |
-| `architecture_details` | object | Layers found in the code (`layers`, each with `confirmed_by_code` and `placed_by_imports`), import counts between them (`flows`), `confidence` (`high`/`medium`/`low`) and `evidence` |
+| `architecture_details` | object | Layers found in the code (`layers`, each with `confirmed_by_code`, `placed_by_imports` and up to 3 `examples`), import counts between them (`flows`, each with up to 3 example imports), `confidence` (`high`/`medium`/`low`) and `evidence` |
 | `dead_code` | string[] | Files nothing reaches from an entry point |
-| `dead_code_details` | object[] | Per file `{ file, confidence, reason }`: how likely it is to be really unused, and why |
+| `dead_code_details` | object[] | Per file `{ file, confidence, reason, evidence }`: how likely it is to be really unused, why, and the lines behind the reason (`{ file, line, text }`, up to 3) |
 | `circular_imports` | string[][] | Groups of files that import each other, directly or through other files |
 | `workspaces` | object[] | Monorepo workspaces declared at the root: `{ tool, manifest, packages: [{ name, path, files, loc, languages, frameworks, databases, dead_files, depends_on, used_by }] }` |
 | `dependency_graph` | object | File → imported files |
@@ -668,7 +680,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 <br>
 
-- **Architecture** comes from two sources. The summary line uses detected frameworks and databases. `architecture_details` then checks every source file, tests left out. A file is placed in a layer by its folder or file name (`routes/`, `user.controller.ts`, `services/`, `models.py`, …) or, when the name says nothing, by its code: route handlers (Express, Nest, FastAPI, Django, Go, Spring, ASP.NET, Rails, Laravel, Rust), middleware signatures, ORM models and tables, and service annotations. A file with no other signal that routes import and that imports data is placed in Services. Imports between layers are then counted. Confidence is high when layers import each other top-down, or when every layer's name is backed by its code; medium when layers exist without that support; and low when none are found. Each layer reports `confirmed_by_code` and `placed_by_imports`.
+- **Architecture** comes from two sources. The summary line uses detected frameworks and databases. `architecture_details` then checks every source file, tests left out. A file is placed in a layer by its folder or file name (`routes/`, `user.controller.ts`, `services/`, `models.py`, …) or, when the name says nothing, by its code: route handlers (Express, Nest, FastAPI, Django, Go, Spring, ASP.NET, Rails, Laravel, Rust), middleware signatures, ORM models and tables, and service annotations. A file with no other signal that routes import and that imports data is placed in Services. Imports between layers are then counted. Confidence is high when layers import each other top-down, or when every layer's name is backed by its code; medium when layers exist without that support; and low when none are found. Each layer reports `confirmed_by_code` and `placed_by_imports`, and shows up to 3 example files. An example says how it was placed (`placed_by`: `settings`, `name`, `code` or `imports`), what matched (the folder or file name, the `.codedna.toml` entry, or the files it imports and is imported by) and, when the code agrees, the line and sign (`code`: `{ line, sign }`, such as a route `GET /users` or `@Entity(`; line 0 means the whole file, as for a `.vue` component). Code-backed examples come first.
 - **Unusual layouts** can name their layers in a `.codedna.toml` at the repository root. Keys are `ui`, `routes`, `middleware`, `services` and `data`; values are path prefixes. The longest prefix wins, and settings win over names and code:
 
   ```toml
@@ -677,7 +689,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
   data = ["src/store/", "src/tables.rs"]
   ```
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
-- **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. Check before deleting anything, even at high confidence.
+- **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. When the reason rests on lines elsewhere, such as files that mention the name or the dynamic loader, `evidence` gives up to 3 of them with file, line and text. Check before deleting anything, even at high confidence.
 - **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`.
 - **Monorepos**: workspaces declared at the repository root are listed with their packages (`workspaces` in JSON): npm, Yarn and Bun workspaces, pnpm (`pnpm-workspace.yaml`), Lerna, Cargo, Go (`go.work`) and uv. Each package gets its own size, languages, stack, dead files and links to the other packages (`codedna packages`).
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.

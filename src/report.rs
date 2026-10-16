@@ -56,7 +56,18 @@ pub fn build(name: &str, result: &AnalysisResult, tree: &str) -> Report {
         .map(|c| DeadFile {
             file: sanitize(&c.file.to_string_lossy()),
             confidence: c.confidence,
-            reason: sanitize(&c.reason),
+            reason: match c.evidence.first() {
+                Some(at)
+                    if !c.reason.contains(&format!(
+                        "{}:{}",
+                        at.file.rsplit('/').next().unwrap_or(""),
+                        at.line
+                    )) =>
+                {
+                    format!("{} (e.g. {}:{})", sanitize(&c.reason), at.file, at.line)
+                }
+                _ => sanitize(&c.reason),
+            },
         })
         .collect();
     dead_code.truncate(DEAD_CODE_LIMIT);

@@ -376,7 +376,7 @@ User-friendly messages for:
 | `infrastructure` | string[] | Detected DevOps tooling |
 | `architecture` | string | Inferred architecture pattern |
 | `dead_code` | string[] | Unreachable file paths |
-| `dead_code_details` | object[] | Per file `{ file, confidence, reason }`; confidence is `high`, `medium` or `low` |
+| `dead_code_details` | object[] | Per file `{ file, confidence, reason, evidence }`; confidence is `high`, `medium` or `low`; `evidence` lists up to 3 `{ file, line, text }` lines behind the reason |
 | `dependency_graph` | object | File -> imported files map |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` entries |
 

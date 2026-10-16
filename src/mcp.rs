@@ -624,6 +624,7 @@ fn dead_code_json(c: &crate::dead_code_detector::DeadCodeCandidate) -> Value {
         "file": show(&c.file),
         "confidence": c.confidence.as_str(),
         "reason": sanitize(&c.reason),
+        "evidence": c.evidence,
     })
 }
 

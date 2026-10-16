@@ -37,6 +37,121 @@ impl Confidence {
     }
 }
 
+/// A line in the repository that backs a finding.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Location {
+    /// Path relative to the repository root.
+    pub file: String,
+    /// 1-based line number.
+    pub line: usize,
+    /// The line, trimmed and shortened.
+    pub text: String,
+}
+
+/// Longest line text kept in a [`Location`].
+const MAX_LINE_TEXT: usize = 80;
+
+impl Location {
+    /// `line` of `path`, read from disk; the text is empty if it cannot be read.
+    pub(crate) fn read(root: &Path, path: &Path, line: usize) -> Self {
+        let text = std::fs::read(path)
+            .ok()
+            .and_then(|bytes| {
+                String::from_utf8_lossy(&bytes)
+                    .lines()
+                    .nth(line.saturating_sub(1))
+                    .map(str::to_string)
+            })
+            .unwrap_or_default();
+        Self::new(root, path, line, &text)
+    }
+
+    pub(crate) fn new(root: &Path, path: &Path, line: usize, text: &str) -> Self {
+        Location {
+            file: display_path(root, path),
+            line,
+            text: short_line(text),
+        }
+    }
+}
+
+/// `root`-relative path with forward slashes, safe to print.
+fn display_path(root: &Path, path: &Path) -> String {
+    sanitize(
+        &path
+            .strip_prefix(root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/"),
+    )
+}
+
+/// One line of source, trimmed, shortened and safe to print.
+fn short_line(text: &str) -> String {
+    let trimmed = text.trim();
+    let mut line: String = sanitize(trimmed).chars().take(MAX_LINE_TEXT).collect();
+    if trimmed.chars().count() > MAX_LINE_TEXT {
+        line.push('…');
+    }
+    line
+}
+
+/// What a file's code shows about its layer, and where.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CodeSign {
+    /// 1-based line of the match; 0 when the whole file is the sign
+    /// (`.vue`, `.svelte`).
+    pub line: usize,
+    /// What matched: a route (`GET /users`) or the text found (`@Entity(`).
+    pub sign: String,
+}
+
+/// Why one file is in its layer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Placement {
+    /// Path relative to the repository root.
+    pub file: String,
+    /// `settings`, `name`, `code` or `imports`.
+    pub placed_by: String,
+    /// What placed it: the folder or file name, the settings prefix, the
+    /// code sign, or the files it sits between.
+    pub matched: String,
+    /// The code that shows the layer, when it agrees.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<CodeSign>,
+}
+
+impl Placement {
+    /// `src/routes/user.ts:14  GET /users` — the file and what shows its layer.
+    pub fn describe(&self) -> String {
+        match &self.code {
+            Some(code) => {
+                let at = if code.line > 0 {
+                    format!("{}:{}", self.file, code.line)
+                } else {
+                    self.file.clone()
+                };
+                if self.placed_by == "code" {
+                    format!("{at}  {}", code.sign)
+                } else {
+                    format!("{at}  {}; {}", self.matched, code.sign)
+                }
+            }
+            None if self.placed_by == "settings" => {
+                format!("{}  {SETTINGS_FILE}: {}", self.file, self.matched)
+            }
+            None => format!("{}  {}", self.file, self.matched),
+        }
+    }
+}
+
+/// One import from a file in one layer to a file in another.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportEdge {
+    pub from: String,
+    pub to: String,
+}
+
 /// One architectural layer found in the code.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Layer {
@@ -52,6 +167,9 @@ pub struct Layer {
     /// Files placed only by what imports them and what they import.
     #[serde(default)]
     pub placed_by_imports: usize,
+    /// A few of its files and why each is here, code-backed ones first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub examples: Vec<Placement>,
 }
 
 /// Import edges from one layer to another.
@@ -60,6 +178,9 @@ pub struct LayerFlow {
     pub from: String,
     pub to: String,
     pub imports: usize,
+    /// A few of the imports, by path.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub examples: Vec<ImportEdge>,
 }
 
 /// Layers, the imports between them, and how confident the result is.
@@ -176,6 +297,9 @@ const UI_EXTENSIONS: &[&str] = &["tsx", "jsx", "vue", "svelte", "astro"];
 /// Most evidence lines kept in the result.
 const MAX_EVIDENCE: usize = 8;
 
+/// Most example files kept per layer, and imports per flow.
+const MAX_EXAMPLES: usize = 3;
+
 /// Infer layers from file locations, file contents and the import graph.
 ///
 /// Paths in `graph` may be absolute; `root` is stripped for display.
@@ -202,7 +326,7 @@ pub fn infer(
     let deps_of = |file: &PathBuf| graph.get(file).unwrap_or(&no_deps);
 
     // What each file's code does, read once.
-    let by_code: HashMap<&PathBuf, usize> = nodes
+    let by_code: HashMap<&PathBuf, (usize, CodeSign)> = nodes
         .par_iter()
         .filter_map(|&file| {
             let relative = rel(file);
@@ -210,19 +334,24 @@ pub fn infer(
                 return None;
             }
             let text = read_capped(file)?;
-            content_layer(&relative, &text).map(|index| (file, index))
+            content_layer(&relative, &text).map(|found| (file, found))
         })
         .collect();
 
     // Settings first, then names, then code.
-    let mut layer_of: HashMap<&PathBuf, (usize, Source)> = HashMap::new();
+    // Each placed file: (layer, what placed it, what matched).
+    let mut layer_of: HashMap<&PathBuf, (usize, Source, String)> = HashMap::new();
     for &file in &nodes {
         let relative = rel(file);
         let found = overrides
             .layer(&relative)
-            .map(|index| (index, Source::Settings))
-            .or_else(|| classify(&relative).map(|index| (index, Source::Name)))
-            .or_else(|| by_code.get(file).map(|&index| (index, Source::Code)));
+            .map(|(index, prefix)| (index, Source::Settings, prefix))
+            .or_else(|| classify(&relative).map(|(index, name)| (index, Source::Name, name)))
+            .or_else(|| {
+                by_code
+                    .get(file)
+                    .map(|(index, sign)| (*index, Source::Code, sign.sign.clone()))
+            });
         if let Some(found) = found {
             layer_of.insert(file, found);
         }
@@ -239,31 +368,43 @@ pub fn infer(
     let in_layer = |file: &PathBuf, layers: &[usize]| {
         layer_of
             .get(file)
-            .is_some_and(|(index, _)| layers.contains(index))
+            .is_some_and(|(index, _, _)| layers.contains(index))
     };
-    let between: Vec<&PathBuf> = nodes
+    let between: Vec<(&PathBuf, String)> = nodes
         .iter()
         .copied()
         .filter(|file| {
             let relative = rel(file);
             !layer_of.contains_key(file) && !is_test(&relative) && !is_shape(&relative)
         })
-        .filter(|file| {
-            importers
-                .get(file)
-                .is_some_and(|by| by.iter().any(|f| in_layer(f, &[1, 2])))
-                && deps_of(file).iter().any(|d| in_layer(d, &[4]))
+        .filter_map(|file| {
+            let by = importers
+                .get(file)?
+                .iter()
+                .filter(|f| in_layer(f, &[1, 2]))
+                .min()?;
+            let data = deps_of(file).iter().filter(|d| in_layer(d, &[4])).min()?;
+            Some((
+                file,
+                format!(
+                    "imported by {}, imports {}",
+                    display_path(root, by),
+                    display_path(root, data)
+                ),
+            ))
         })
         .collect();
-    for file in between {
-        layer_of.insert(file, (3, Source::Imports));
+    for (file, matched) in between {
+        layer_of.insert(file, (3, Source::Imports, matched));
     }
 
     let mut dir_counts: Vec<BTreeMap<String, usize>> = vec![BTreeMap::new(); LAYERS.len()];
     let mut confirmed = vec![0usize; LAYERS.len()];
     let mut placed = vec![0usize; LAYERS.len()];
     let mut from_settings = 0usize;
-    for (file, &(index, source)) in &layer_of {
+    let mut examples: Vec<Vec<Placement>> = vec![Vec::new(); LAYERS.len()];
+    for (file, (index, source, matched)) in &layer_of {
+        let (index, source) = (*index, *source);
         let relative = rel(file);
         let dir = relative
             .parent()
@@ -271,19 +412,40 @@ pub fn infer(
             .filter(|d| !d.is_empty())
             .unwrap_or_else(|| ".".to_string());
         *dir_counts[index].entry(dir).or_default() += 1;
-        if by_code.get(file) == Some(&index) {
+        let code = by_code
+            .get(file)
+            .filter(|(code_index, _)| *code_index == index)
+            .map(|(_, sign)| sign.clone());
+        if code.is_some() {
             confirmed[index] += 1;
         }
+        examples[index].push(Placement {
+            file: display_path(root, file),
+            placed_by: source.as_str().to_string(),
+            matched: matched.clone(),
+            code,
+        });
         match source {
             Source::Imports => placed[index] += 1,
             Source::Settings => from_settings += 1,
             _ => {}
         }
     }
+    // Code-backed examples first, then by path, so output is stable.
+    for list in &mut examples {
+        list.sort_by(|a, b| {
+            b.code
+                .is_some()
+                .cmp(&a.code.is_some())
+                .then_with(|| a.file.cmp(&b.file))
+        });
+        list.truncate(MAX_EXAMPLES);
+    }
     let layer_of: HashMap<&PathBuf, usize> =
-        layer_of.into_iter().map(|(f, (i, _))| (f, i)).collect();
+        layer_of.into_iter().map(|(f, (i, _, _))| (f, i)).collect();
 
     let mut edges: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+    let mut edge_examples: BTreeMap<(usize, usize), Vec<ImportEdge>> = BTreeMap::new();
     for (file, deps) in graph {
         let Some(&from) = layer_of.get(file) else {
             continue;
@@ -292,9 +454,20 @@ pub fn infer(
             if let Some(&to) = layer_of.get(dep) {
                 if from != to {
                     *edges.entry((from, to)).or_default() += 1;
+                    edge_examples
+                        .entry((from, to))
+                        .or_default()
+                        .push(ImportEdge {
+                            from: display_path(root, file),
+                            to: display_path(root, dep),
+                        });
                 }
             }
         }
+    }
+    for list in edge_examples.values_mut() {
+        list.sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
+        list.truncate(MAX_EXAMPLES);
     }
 
     let layers: Vec<Layer> = dir_counts
@@ -315,6 +488,7 @@ pub fn infer(
                 files: dirs.values().sum(),
                 confirmed_by_code: confirmed[index],
                 placed_by_imports: placed[index],
+                examples: std::mem::take(&mut examples[index]),
                 dirs: top
                     .into_iter()
                     .take(3)
@@ -336,6 +510,7 @@ pub fn infer(
             from: LAYERS[from].0.to_string(),
             to: LAYERS[to].0.to_string(),
             imports,
+            examples: edge_examples.remove(&(from, to)).unwrap_or_default(),
         })
         .collect();
     flows.sort_by_key(|f| std::cmp::Reverse(f.imports));
@@ -442,7 +617,7 @@ pub fn infer(
 /// Layer index for a relative path, from its file name first, then its
 /// closest matching folder. Tests mirror the layout they test, so they are
 /// left out.
-fn classify(path: &Path) -> Option<usize> {
+fn classify(path: &Path) -> Option<(usize, String)> {
     if is_test(path) {
         return None;
     }
@@ -452,8 +627,8 @@ fn classify(path: &Path) -> Option<usize> {
         .is_some_and(|e| UI_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
     match classify_by_name(path)? {
         // File-based routes written as components (`routes/index.tsx`) are UI.
-        1 if is_ui_file => Some(0),
-        index => Some(index),
+        (1, name) if is_ui_file => Some((0, name)),
+        found => Some(found),
     }
 }
 
@@ -479,7 +654,9 @@ pub(crate) fn is_test(path: &Path) -> bool {
         })
 }
 
-fn classify_by_name(path: &Path) -> Option<usize> {
+/// Layer index and the file name (`user.controller.ts`) or folder
+/// (`routes/`) that marks it.
+fn classify_by_name(path: &Path) -> Option<(usize, String)> {
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -500,7 +677,11 @@ fn classify_by_name(path: &Path) -> Option<usize> {
         .map(str::to_string);
     for name in marker.iter().chain(std::iter::once(&stem)) {
         if let Some(index) = layer_for_name(name, is_ui_file) {
-            return Some(index);
+            let file = path
+                .file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_default();
+            return Some((index, sanitize(&file)));
         }
     }
 
@@ -508,7 +689,10 @@ fn classify_by_name(path: &Path) -> Option<usize> {
         .iter()
         .rev()
         .filter_map(|c| c.to_str())
-        .find_map(|dir| layer_for_name(&dir.to_ascii_lowercase(), is_ui_file))
+        .find_map(|dir| {
+            layer_for_name(&dir.to_ascii_lowercase(), is_ui_file)
+                .map(|index| (index, format!("{}/", sanitize(dir))))
+        })
 }
 
 fn layer_for_name(name: &str, is_ui_file: bool) -> Option<usize> {
@@ -537,6 +721,17 @@ enum Source {
     Name,
     Code,
     Imports,
+}
+
+impl Source {
+    fn as_str(self) -> &'static str {
+        match self {
+            Source::Settings => "settings",
+            Source::Name => "name",
+            Source::Code => "code",
+            Source::Imports => "imports",
+        }
+    }
 }
 
 /// What the code of each layer shows, for evidence lines.
@@ -651,35 +846,62 @@ fn read_capped(path: &Path) -> Option<String> {
     Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// Layer index shown by a file's code, if any.
-fn content_layer(path: &Path, text: &str) -> Option<usize> {
+/// Layer index shown by a file's code, if any, with what matched and where.
+fn content_layer(path: &Path, text: &str) -> Option<(usize, CodeSign)> {
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
     if matches!(ext.as_str(), "vue" | "svelte" | "astro") {
-        return Some(0);
+        let sign = CodeSign {
+            line: 0,
+            sign: format!(".{ext} component"),
+        };
+        return Some((0, sign));
     }
-    if matches!(ext.as_str(), "tsx" | "jsx") && (text.contains("/>") || text.contains("</")) {
-        return Some(0);
+    if matches!(ext.as_str(), "tsx" | "jsx") {
+        let markup = [text.find("/>"), text.find("</")]
+            .into_iter()
+            .flatten()
+            .min();
+        if let Some(at) = markup {
+            return Some((0, sign_at(text, at, "JSX markup")));
+        }
     }
+    let first = |signs: &[&'static str]| {
+        signs
+            .iter()
+            .filter_map(|s| text.find(s).map(|at| (at, *s)))
+            .min()
+            .map(|(at, s)| sign_at(text, at, s))
+    };
     let file = path.to_string_lossy().replace('\\', "/");
-    if CONTROLLER_SIGNS.iter().any(|s| text.contains(s))
-        || !crate::runbook::routes(&file, text).is_empty()
-    {
-        return Some(1);
+    if let Some(route) = crate::runbook::routes(&file, text).into_iter().next() {
+        let sign = CodeSign {
+            line: route.line,
+            sign: sanitize(&format!("{} {}", route.method, route.path)),
+        };
+        return Some((1, sign));
     }
-    if MIDDLEWARE_SIGNS.iter().any(|s| text.contains(s)) {
-        return Some(2);
+    if let Some(sign) = first(CONTROLLER_SIGNS) {
+        return Some((1, sign));
     }
-    if DATA_SIGNS.iter().any(|s| text.contains(s)) {
-        return Some(4);
+    if let Some(sign) = first(MIDDLEWARE_SIGNS) {
+        return Some((2, sign));
     }
-    if SERVICE_SIGNS.iter().any(|s| text.contains(s)) {
-        return Some(3);
+    if let Some(sign) = first(DATA_SIGNS) {
+        return Some((4, sign));
     }
-    None
+    first(SERVICE_SIGNS).map(|sign| (3, sign))
+}
+
+/// A sign found at byte `at` of `text`.
+fn sign_at(text: &str, at: usize, sign: &str) -> CodeSign {
+    CodeSign {
+        line: text[..at].bytes().filter(|b| *b == b'\n').count() + 1,
+        sign: sign.to_string(),
+    }
 }
 
 /// Layer folders set by hand in `.codedna.toml`:
@@ -740,7 +962,8 @@ impl Overrides {
         Self { prefixes }
     }
 
-    fn layer(&self, relative: &Path) -> Option<usize> {
+    /// Layer index and the `[layers]` entry that matched.
+    fn layer(&self, relative: &Path) -> Option<(usize, String)> {
         if self.prefixes.is_empty() {
             return None;
         }
@@ -752,7 +975,10 @@ impl Overrides {
                     || path.starts_with(prefix.as_str())
                         && (prefix.ends_with('/') || path[prefix.len()..].starts_with('/'))
             })
-            .map(|(_, index)| *index)
+            .map(|(prefix, index)| {
+                let key = LAYERS[*index].0.to_ascii_lowercase();
+                (*index, sanitize(&format!("{key} = \"{prefix}\"")))
+            })
     }
 }
 
@@ -789,7 +1015,7 @@ mod tests {
     }
 
     fn name(path: &str) -> Option<&'static str> {
-        classify(Path::new(path)).map(|i| LAYERS[i].0)
+        classify(Path::new(path)).map(|(i, _)| LAYERS[i].0)
     }
 
     #[test]
@@ -883,8 +1109,80 @@ mod tests {
         assert!(insight.evidence.iter().any(|e| e.contains("Axum")));
     }
     #[test]
+    fn content_sign_names_the_line_that_matched() {
+        let sign = |p: &str, t: &str| content_layer(Path::new(p), t).map(|(_, s)| s);
+        let route = sign(
+            "src/a.ts",
+            "import x from 'y';\n\nrouter.get(\"/users\", list)",
+        )
+        .unwrap();
+        assert_eq!(route.line, 3);
+        assert!(route.sign.contains("/users"), "{}", route.sign);
+        let model = sign("src/user.py", "import x\nclass User(models.Model):\n  pass").unwrap();
+        assert_eq!(model.line, 2);
+        let vue = sign("src/App.vue", "<template></template>").unwrap();
+        assert_eq!((vue.line, vue.sign.as_str()), (0, ".vue component"));
+    }
+
+    #[test]
+    fn classify_says_what_matched() {
+        let matched = |p: &str| classify(Path::new(p)).map(|(_, m)| m);
+        assert_eq!(matched("src/routes/users.ts").as_deref(), Some("routes/"));
+        assert_eq!(
+            matched("src/users/user.controller.ts").as_deref(),
+            Some("user.controller.ts")
+        );
+    }
+
+    #[test]
+    fn placement_describes_file_and_sign() {
+        let p = |placed_by: &str, matched: &str, code: Option<(usize, &str)>| Placement {
+            file: "src/a.ts".to_string(),
+            placed_by: placed_by.to_string(),
+            matched: matched.to_string(),
+            code: code.map(|(line, sign)| CodeSign {
+                line,
+                sign: sign.to_string(),
+            }),
+        };
+        assert_eq!(
+            p("code", "", Some((14, "GET /users"))).describe(),
+            "src/a.ts:14  GET /users"
+        );
+        assert_eq!(
+            p("name", "routes/", Some((14, "GET /users"))).describe(),
+            "src/a.ts:14  routes/; GET /users"
+        );
+        assert_eq!(p("name", "routes/", None).describe(), "src/a.ts  routes/");
+        assert!(p("settings", "routes = \"src/\"", None)
+            .describe()
+            .contains(".codedna.toml"));
+    }
+
+    #[test]
+    fn layers_and_flows_carry_examples() {
+        let g = graph(&[
+            ("src/routes/users.ts", &["src/services/users.ts"]),
+            ("src/services/users.ts", &["src/models/user.ts"]),
+            ("src/models/user.ts", &[]),
+        ]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[]);
+        let routes = &insight.layers[0];
+        assert_eq!(routes.examples[0].file, "src/routes/users.ts");
+        assert_eq!(routes.examples[0].placed_by, "name");
+        assert!(insight
+            .flows
+            .iter()
+            .any(|f| f.examples.iter().any(|e| e.from == "src/routes/users.ts")));
+        assert!(insight
+            .layers
+            .iter()
+            .all(|l| l.examples.len() <= MAX_EXAMPLES));
+    }
+
+    #[test]
     fn content_shows_the_layer() {
-        let at = |p: &str, t: &str| content_layer(Path::new(p), t).map(|i| LAYERS[i].0);
+        let at = |p: &str, t: &str| content_layer(Path::new(p), t).map(|(i, _)| LAYERS[i].0);
         assert_eq!(
             at("src/a.ts", "router.get(\"/users\", list)"),
             Some("Routes")
@@ -943,7 +1241,7 @@ mod tests {
         let o = Overrides::parse(
             "[layers]\nroutes = [\"./src/http/\"]\nData = [\"src/store\", \"src/http/db/\"]\nnonsense = [\"x/\"]\n",
         );
-        let at = |p: &str| o.layer(Path::new(p)).map(|i| LAYERS[i].0);
+        let at = |p: &str| o.layer(Path::new(p)).map(|(i, _)| LAYERS[i].0);
         assert_eq!(at("src/http/users.rs"), Some("Routes"));
         assert_eq!(at("src/http/db/pool.rs"), Some("Data"));
         assert_eq!(at("src/store/mod.rs"), Some("Data"));

@@ -71,6 +71,9 @@ pub struct ContextPack {
     pub architecture: String,
     /// Layers found in the code with a confidence level, or empty.
     pub code_layers: String,
+    /// One file per layer and what shows its layer, e.g.
+    /// `Routes: src/routes/user.ts:14  GET /users`.
+    pub layer_examples: Vec<String>,
     pub total_loc: usize,
     pub file_count: usize,
     pub languages: Vec<LanguageShare>,
@@ -103,6 +106,16 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
         project_type: result.project_type.clone(),
         architecture: result.architecture.clone(),
         code_layers: code_layers(result),
+        layer_examples: result
+            .architecture_details
+            .layers
+            .iter()
+            .filter_map(|l| {
+                l.examples
+                    .first()
+                    .map(|e| format!("{}: {}", l.name, e.describe()))
+            })
+            .collect(),
         total_loc: result.total_loc,
         file_count: result.file_breakdown.len(),
         languages: languages(result),
@@ -194,6 +207,9 @@ pub fn render_markdown(pack: &ContextPack) -> String {
     let _ = writeln!(out, "- Architecture: {}", pack.architecture);
     if !pack.code_layers.is_empty() {
         let _ = writeln!(out, "- Code layers: {}", pack.code_layers);
+        for example in &pack.layer_examples {
+            let _ = writeln!(out, "  - {}", code(example));
+        }
     }
     let _ = writeln!(
         out,
