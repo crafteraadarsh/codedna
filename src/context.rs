@@ -92,6 +92,13 @@ pub struct ContextPack {
     pub circular_imports: Vec<String>,
     /// Workspaces with their packages, e.g. `Cargo (Cargo.toml): 2 packages`.
     pub workspaces: Vec<WorkspaceLine>,
+    /// How much of the code the dependency analysis covered, in one sentence.
+    pub coverage: String,
+    /// Whether code was skipped or imports did not resolve, so dead-code and
+    /// cycle results may be incomplete.
+    pub coverage_partial: bool,
+    /// The first few unresolved imports as `file:line import`.
+    pub unresolved_imports: Vec<String>,
     pub map: String,
     pub map_truncated: bool,
 }
@@ -138,6 +145,15 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
         dead_code_confidence: crate::dead_code_detector::confidence_summary(
             &result.dead_code_candidates(),
         ),
+        coverage: result.coverage.summary.clone(),
+        coverage_partial: result.coverage.is_partial(),
+        unresolved_imports: result
+            .coverage
+            .unresolved
+            .iter()
+            .take(LIST_LIMIT)
+            .map(|u| format!("{}:{} {}", u.file, u.line, u.import))
+            .collect(),
         circular_import_count: result.circular_imports.len(),
         circular_imports: result
             .circular_imports
@@ -271,8 +287,18 @@ pub fn render_markdown(pack: &ContextPack) -> String {
         }
     }
 
-    if pack.dead_code_candidates > 0 || pack.circular_import_count > 0 {
+    if pack.dead_code_candidates > 0 || pack.circular_import_count > 0 || pack.coverage_partial {
         let _ = writeln!(out, "\n## Notes\n");
+    }
+    if pack.coverage_partial {
+        let _ = writeln!(
+            out,
+            "- Coverage: {}. Dead-code and cycle results may be incomplete.",
+            pack.coverage
+        );
+        for u in &pack.unresolved_imports {
+            let _ = writeln!(out, "  - unresolved: {}", code(u));
+        }
     }
     if pack.dead_code_candidates > 0 {
         let _ = writeln!(
@@ -426,6 +452,7 @@ mod tests {
         graph.insert(PathBuf::from("./src/util.rs"), vec![]);
 
         AnalysisResult {
+            coverage: Default::default(),
             project_type: "Rust library / CLI tool".to_string(),
             total_loc: 1000,
             comment_lines: 0,

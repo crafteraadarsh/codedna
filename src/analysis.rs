@@ -4,6 +4,7 @@
 //! that represents the complete intelligence report for a repository.
 
 use crate::architecture::{self, ArchitectureInsight};
+use crate::coverage::{self, Coverage};
 use crate::cycles;
 use crate::dead_code_detector::{self, DeadCodeCandidate};
 use crate::dependency_graph;
@@ -94,6 +95,13 @@ pub struct AnalysisResult {
     #[serde(serialize_with = "serialize_dep_graph")]
     #[serde(deserialize_with = "deserialize_dep_graph")]
     pub dependency_graph: HashMap<PathBuf, Vec<PathBuf>>,
+
+    /// How much of the code the dependency analysis covered: files whose
+    /// imports were followed, imports that did not resolve and languages
+    /// that were not analyzed. Dead code and cycles only speak for the
+    /// covered part.
+    #[serde(default)]
+    pub coverage: Coverage,
 
     /// Per-file breakdown, sorted by LOC descending.
     pub file_breakdown: Vec<FileInfo>,
@@ -202,7 +210,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     let infrastructure = framework_detector::detect_infrastructure(&files);
 
     // ── 5. Dependency graph ───────────────────────────────────────────────────
-    let dep_graph = dependency_graph::build_dependency_graph(&files);
+    let (dep_graph, import_tallies) = dependency_graph::build_with_tallies(&files);
+    let coverage = coverage::measure(root, &files, &import_tallies);
 
     // ── 6. Dead code ──────────────────────────────────────────────────────────
     let dead_code = dead_code_detector::detect_dead_code(&dep_graph);
@@ -294,6 +303,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         circular_imports,
         workspaces,
         dependency_graph,
+        coverage,
         file_breakdown,
     }
 }

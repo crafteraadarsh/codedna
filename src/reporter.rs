@@ -143,6 +143,7 @@ pub fn print_report(result: &AnalysisResult) {
             .sum::<usize>()
             .to_string(),
     );
+    kv("Coverage", &safe(&result.coverage.summary));
 
     // ── Project Type ─────────────────────────────────────────────────────────
     section("Project Type");
@@ -243,6 +244,12 @@ pub fn print_report(result: &AnalysisResult) {
                 info.language
             );
         }
+    }
+
+    // ── Coverage ──────────────────────────────────────────────────────────────
+    if !result.coverage.unresolved.is_empty() {
+        section("Unresolved Imports");
+        print_unresolved(&result.coverage, 5);
     }
 
     // ── Dead Code ─────────────────────────────────────────────────────────────
@@ -428,8 +435,7 @@ pub fn print_files(result: &AnalysisResult) {
 pub fn print_dead_code(result: &AnalysisResult) {
     println!();
     if result.dead_code.is_empty() {
-        println!("  \x1b[32m✓ No dead code detected.\x1b[0m");
-        println!();
+        print_clean(&result.coverage, "dead code");
         return;
     }
 
@@ -448,6 +454,7 @@ pub fn print_dead_code(result: &AnalysisResult) {
     );
     println!();
     print_candidates(&candidates);
+    print_coverage_note(&result.coverage);
     println!();
 }
 
@@ -458,8 +465,7 @@ pub fn print_cycles(result: &AnalysisResult) {
     println!();
     let cycles = &result.circular_imports;
     if cycles.is_empty() {
-        println!("  \x1b[32m✓ No circular imports detected.\x1b[0m");
-        println!();
+        print_clean(&result.coverage, "circular imports");
         return;
     }
     println!(
@@ -475,7 +481,51 @@ pub fn print_cycles(result: &AnalysisResult) {
     );
     println!();
     print_cycle_list(cycles);
+    print_coverage_note(&result.coverage);
     println!();
+}
+
+/// A clean dead-code or cycle result, worded by how much was analyzed so
+/// "nothing found" is not mistaken for "could not look".
+fn print_clean(coverage: &crate::coverage::Coverage, what: &str) {
+    if coverage.source_files > 0 && coverage.analyzed_files == 0 {
+        println!(
+            "  \x1b[33m! Not checked for {what}: no source file had its imports followed.\x1b[0m"
+        );
+        print_coverage_note(coverage);
+    } else if coverage.is_partial() {
+        println!("  \x1b[32m✓ No {what} found in the analyzed files.\x1b[0m");
+        print_coverage_note(coverage);
+    } else {
+        println!("  \x1b[32m✓ No {what} detected.\x1b[0m");
+    }
+    println!();
+}
+
+/// A dim coverage line when some code was skipped or imports did not resolve.
+fn print_coverage_note(coverage: &crate::coverage::Coverage) {
+    if coverage.is_partial() {
+        println!("  \x1b[2mCoverage: {}.\x1b[0m", safe(&coverage.summary));
+    }
+}
+
+/// The first `limit` unresolved imports as `file:line  import`.
+fn print_unresolved(coverage: &crate::coverage::Coverage, limit: usize) {
+    for u in coverage.unresolved.iter().take(limit) {
+        println!(
+            "  {}:{}  \x1b[2m{}\x1b[0m",
+            safe(&u.file),
+            u.line,
+            safe(&u.import)
+        );
+    }
+    let more = coverage
+        .imports
+        .unresolved
+        .saturating_sub(limit.min(coverage.unresolved.len()));
+    if more > 0 {
+        println!("  \x1b[2m… and {more} more\x1b[0m");
+    }
 }
 
 /// One line per cycle: `a → b → a`.
@@ -646,6 +696,7 @@ mod tests {
         );
 
         AnalysisResult {
+            coverage: Default::default(),
             project_type: "Full-stack web application".to_string(),
             total_loc: 14550,
             comment_lines: 0,

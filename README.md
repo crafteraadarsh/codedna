@@ -599,6 +599,7 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 | `circular_imports` | string[][] | Groups of files that import each other, directly or through other files |
 | `workspaces` | object[] | Monorepo workspaces declared at the root: `{ tool, manifest, packages: [{ name, path, files, loc, languages, frameworks, databases, dead_files, depends_on, used_by }] }` |
 | `dependency_graph` | object | File → imported files |
+| `coverage` | object | How much the dependency analysis covered: `source_files`, `analyzed_files` (imports followed), `unreadable_files`, `not_analyzed` (languages whose imports are not followed, `{ language, files }`), `imports` (`{ internal, resolved, unresolved, external }`), `unresolved` (up to 20 `{ file, line, import }`) and a one-line `summary`. Read it before trusting an empty `dead_code` or `circular_imports` |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` |
 
 ```bash
@@ -639,7 +640,7 @@ Clones are shallow (`--depth 1`; up to 1,000 commits for `hotspots`). Plain `htt
 
 Everything CodeDna recognises is defined in [`rules.toml`](rules.toml), so adding a detector is usually a one-line change.
 
-**Languages:** Rust, TypeScript, JavaScript, Python, Go, Solidity, CSS, HTML, TOML, JSON, YAML, Markdown, Shell.
+**Languages:** Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, C#, Ruby, PHP, Swift, C, C++, Scala, Dart, Vue, Svelte, Solidity, CSS, HTML, TOML, JSON, YAML, Markdown, Shell. Imports are followed for TypeScript, JavaScript, Python and Rust; other languages are counted and sized, and `coverage` names them as not analyzed.
 
 | Ecosystem | Frameworks |
 |---|---|
@@ -690,6 +691,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
   ```
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
 - **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. When the reason rests on lines elsewhere, such as files that mention the name or the dynamic loader, `evidence` gives up to 3 of them with file, line and text. Check before deleting anything, even at high confidence.
+- **Coverage** says how much of the code the dependency graph covers, so an empty dead-code or cycle list can be told apart from code that was never looked at. It counts the source files whose imports were followed, imports of the repository's own code that matched no file (relative paths, path aliases, workspace packages, the project's own Python packages and `mod` declarations), with file and line for the first 20, and languages whose imports are not followed. The terminal report, `context`, reports and MCP tools show it; `deadcode` and `cycles` say "not checked" when no file could be analyzed.
 - **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`.
 - **Monorepos**: workspaces declared at the repository root are listed with their packages (`workspaces` in JSON): npm, Yarn and Bun workspaces, pnpm (`pnpm-workspace.yaml`), Lerna, Cargo, Go (`go.work`) and uv. Each package gets its own size, languages, stack, dead files and links to the other packages (`codedna packages`).
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.

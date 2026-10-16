@@ -37,6 +37,15 @@ pub struct Rules {
 pub struct LanguageRule {
     pub name: String,
     pub extensions: Vec<String>,
+    /// Whether the language's files import other files. Data and markup
+    /// languages set this to `false` so they never count as source files
+    /// whose imports went unanalysed.
+    #[serde(default = "yes")]
+    pub imports: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// Package-name → label maps for one ecosystem's manifest.
@@ -95,6 +104,15 @@ pub fn rules() -> &'static Rules {
         Ok(rules) => rules,
         Err(e) => panic!("rules.toml is invalid: {e}"),
     })
+}
+
+/// Whether files of the named language import other files.
+pub fn language_has_imports(name: &str) -> bool {
+    rules()
+        .languages
+        .iter()
+        .find(|lang| lang.name == name)
+        .is_some_and(|lang| lang.imports)
 }
 
 /// Look up the language name for a lowercase file extension.

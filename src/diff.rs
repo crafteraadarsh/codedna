@@ -608,6 +608,7 @@ mod tests {
             *languages.entry("Rust".to_string()).or_insert(0) += loc;
         }
         AnalysisResult {
+            coverage: Default::default(),
             project_type: "CLI tool".to_string(),
             total_loc: files.iter().map(|f| f.1).sum(),
             comment_lines: 0,
