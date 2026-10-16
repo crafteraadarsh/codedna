@@ -136,6 +136,7 @@ codedna audit https://github.com/user/repo     # supply-chain red flags before y
 codedna audit . --deps                         # plus known vulnerabilities in dependencies
 codedna hotspots .                             # large files that change often
 codedna runbook .                              # scripts, env var names, API routes
+codedna packages .                             # monorepo packages: size, stack, who uses whom
 
 codedna report . --format html -o report.html  # shareable report (print to PDF)
 codedna json . > before.json                   # save a snapshot...
@@ -151,7 +152,7 @@ CodeDna works with any agent that can run a shell command, and connects natively
 **2. MCP server.** `codedna mcp` serves read-only tools over stdio:
 
 <p>
-<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code>
+<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code> · <code>list_packages</code>
 </p>
 
 | Agent | Setup |
@@ -224,6 +225,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna audit [path\|url]` | Supply-chain red flags (`--json`, `--fail-on LEVEL` for CI, `--deps` for known vulnerabilities in dependencies) |
 | `codedna hotspots [path\|url]` | Files ranked by commits × lines of code, plus files that change together (`--days N`, `--limit N`, `--json`) |
 | `codedna runbook [path\|url]` | Scripts and targets, env var names (values are never read), API routes (`--json`) |
+| `codedna packages [path\|url]` | Monorepo packages with size, languages, stack, dead files and the packages each one uses and is used by (`--json`) |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report (`--format html` for a self-contained page) |
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
@@ -485,23 +487,35 @@ Without `--deps` nothing leaves your machine, and this project has no other find
 
 <br>
 
-Workspaces declared at the repository root are listed with their packages. On [tokio](https://github.com/tokio-rs/tokio):
+Workspaces declared at the repository root are listed with their packages, and each package gets its own numbers. On [tokio](https://github.com/tokio-rs/tokio), `codedna analyze` shows:
 
 ```text
   Workspaces
   ──────────
   Cargo (Cargo.toml): 10 packages
-    benches                         ./benches
-    examples                        ./examples
-    stress-test                     ./stress-test
-    tests-build                     ./tests-build
-    tests-integration               ./tests-integration
-    tokio                           ./tokio
-    tokio-macros                    ./tokio-macros
-    tokio-stream                    ./tokio-stream
-    tokio-test                      ./tokio-test
-    tokio-util                      ./tokio-util
+    benches                   2.2k LOC · Rust · Tokio · uses tokio, tokio-stream, tokio-util  ./benches
+    examples                  1.4k LOC · Rust · Tokio · uses tokio, tokio-stream, tokio-util  ./examples
+    stress-test               58 LOC · Rust · Tokio · uses tokio  ./stress-test
+    tests-build               257 LOC · Rust · Tokio · uses tokio  ./tests-build
+    tests-integration         377 LOC · Rust · Tokio · uses tokio, tokio-test  ./tests-integration
+    tokio                     85.4k LOC · Rust · uses tokio-macros, tokio-stream, tokio-test, tokio-util  ./tokio
+    tokio-macros              979 LOC · Rust · Tokio · uses tokio  ./tokio-macros
+    tokio-stream              5.7k LOC · Rust · Tokio · uses tokio, tokio-test, tokio-util  ./tokio-stream
+    tokio-test                1.3k LOC · Rust · Tokio · uses tokio, tokio-stream  ./tokio-test
+    tokio-util                13.5k LOC · Rust · Tokio · uses tokio, tokio-stream, tokio-test  ./tokio-util
 ```
+
+`codedna packages` gives the detail for each package, including who uses it:
+
+```text
+  tokio-util  ./tokio-util
+    13,534 LOC  ·  94 files  ·  Rust
+    Stack:    Tokio
+    Uses:     tokio, tokio-stream, tokio-test
+    Used by:  benches, examples, tokio, tokio-stream
+```
+
+A file belongs to the deepest package folder that holds it. "Uses" comes from the package's manifest dependencies on other packages in the repository (`package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`) and from imports that cross package folders. Languages leave out JSON, Markdown, TOML and YAML unless a package has no code.
 
 </details>
 
@@ -571,7 +585,7 @@ Workspaces declared at the repository root are listed with their packages. On [t
 | `dead_code` | string[] | Files nothing reaches from an entry point |
 | `dead_code_details` | object[] | Per file `{ file, confidence, reason }`: how likely it is to be really unused, and why |
 | `circular_imports` | string[][] | Groups of files that import each other, directly or through other files |
-| `workspaces` | object[] | Monorepo workspaces declared at the root: `{ tool, manifest, packages: [{ name, path }] }` |
+| `workspaces` | object[] | Monorepo workspaces declared at the root: `{ tool, manifest, packages: [{ name, path, files, loc, languages, frameworks, databases, dead_files, depends_on, used_by }] }` |
 | `dependency_graph` | object | File → imported files |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` |
 
@@ -658,7 +672,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
 - **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. Check before deleting anything, even at high confidence.
 - **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`.
-- **Monorepos**: workspaces declared at the repository root are listed with their packages (`workspaces` in JSON): npm, Yarn and Bun workspaces, pnpm (`pnpm-workspace.yaml`), Lerna, Cargo, Go (`go.work`) and uv. The repository is still analysed as a whole; there is no per-package breakdown yet.
+- **Monorepos**: workspaces declared at the repository root are listed with their packages (`workspaces` in JSON): npm, Yarn and Bun workspaces, pnpm (`pnpm-workspace.yaml`), Lerna, Cargo, Go (`go.work`) and uv. Each package gets its own size, languages, stack, dead files and links to the other packages (`codedna packages`).
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.
 
 </details>

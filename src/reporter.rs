@@ -197,12 +197,88 @@ fn print_workspaces(workspaces: &[crate::workspaces::Workspace]) {
     for w in workspaces {
         println!("  {}", crate::workspaces::summary(w));
         for p in w.packages.iter().take(SHOWN) {
-            println!("    {:<30}  \x1b[2m{}\x1b[0m", p.name, p.path.display());
+            println!(
+                "    {:<24}  {}  \x1b[2m{}\x1b[0m",
+                safe(&p.name),
+                safe(&crate::workspaces::package_line(p)),
+                p.path.display()
+            );
         }
         if w.packages.len() > SHOWN {
             println!("    \x1b[2m… and {} more\x1b[0m", w.packages.len() - SHOWN);
         }
     }
+}
+
+// ── Packages ─────────────────────────────────────────────────────────────────
+
+/// Every workspace package with its own numbers and the packages it uses.
+pub fn print_packages(result: &AnalysisResult) {
+    println!();
+    if result.workspaces.is_empty() {
+        println!("  No workspaces are declared at the root, so this is one package.");
+        println!(
+            "  \x1b[2mWorkspaces are read from package.json, pnpm-workspace.yaml, lerna.json,\x1b[0m"
+        );
+        println!("  \x1b[2mCargo.toml, go.work and uv (pyproject.toml).\x1b[0m");
+        println!();
+        return;
+    }
+    for w in &result.workspaces {
+        println!("  \x1b[1m{}\x1b[0m", crate::workspaces::summary(w));
+        println!();
+        for p in &w.packages {
+            println!(
+                "  \x1b[1m{}\x1b[0m  \x1b[2m{}\x1b[0m",
+                safe(&p.name),
+                p.path.display()
+            );
+            let mut facts = vec![
+                format!("{} LOC", format_loc(p.loc)),
+                format!("{} file{}", p.files, if p.files == 1 { "" } else { "s" }),
+            ];
+            if !p.languages.is_empty() {
+                facts.push(p.languages.join(", "));
+            }
+            println!("    {}", facts.join("  ·  "));
+            let stack: Vec<String> = p.frameworks.iter().chain(&p.databases).cloned().collect();
+            if !stack.is_empty() {
+                println!("    Stack:    {}", safe(&stack.join(", ")));
+            }
+            if !p.depends_on.is_empty() {
+                println!("    Uses:     {}", safe(&name_list(&p.depends_on)));
+            }
+            if !p.used_by.is_empty() {
+                println!("    Used by:  {}", safe(&name_list(&p.used_by)));
+            }
+            if p.dead_files > 0 {
+                println!("    Dead files: {}", p.dead_files);
+            }
+            println!();
+        }
+    }
+    println!(
+        "  \x1b[2mRun `codedna analyze <package path>` for the full report on one package.\x1b[0m"
+    );
+    println!();
+}
+
+/// Manifest text as it is safe to print.
+/// Joins package names, shortening long lists for the terminal.
+fn name_list(names: &[String]) -> String {
+    const SHOWN: usize = 12;
+    if names.len() <= SHOWN {
+        return names.join(", ");
+    }
+    format!(
+        "{} and {} more",
+        names[..SHOWN].join(", "),
+        names.len() - SHOWN
+    )
+}
+
+fn safe(s: &str) -> String {
+    crate::safe_text::sanitize(s)
 }
 
 // ── Stack-only output ─────────────────────────────────────────────────────────

@@ -66,6 +66,17 @@ pub enum Commands {
         json: bool,
     },
 
+    /// List monorepo packages, each with its size, stack and the packages it uses
+    Packages {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output JSON: the workspaces and their packages
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Run full intelligence analysis and print a formatted report
     Analyze {
         /// Target repository path or Git URL
@@ -343,6 +354,21 @@ pub fn run() {
                 }
             } else {
                 crate::reporter::print_cycles(&result);
+            }
+        }
+
+        // ── packages ──────────────────────────────────────────────────────────
+        Commands::Packages { path, json } => {
+            eprintln!("Analysing '{}'…", shown(&path));
+            let (local_path, _guard) = resolve(&path);
+            let result = crate::analysis::analyze(&local_path);
+            if json {
+                match serde_json::to_string_pretty(&result.workspaces) {
+                    Ok(out) => println!("{out}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                }
+            } else {
+                crate::reporter::print_packages(&result);
             }
         }
 

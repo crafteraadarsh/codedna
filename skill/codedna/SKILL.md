@@ -31,6 +31,7 @@ This prints a short Markdown briefing: project type, stack, architecture, monore
 | Risky files: large and changed often, plus files that change together | `find_hotspots` | `codedna hotspots .` |
 | Supply-chain red flags | `audit_repo` | `codedna audit .` |
 | How to run it: scripts, env var names, API routes | `get_runbook` | `codedna runbook .` |
+| Monorepo packages: size, stack, which packages use which | `list_packages` | `codedna packages .` |
 | What changed between two versions | — | `codedna diff before.json .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 

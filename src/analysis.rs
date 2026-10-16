@@ -144,7 +144,8 @@ pub(crate) fn is_lockfile(file: &Path) -> bool {
 /// 5. Build dependency graph from import/require statements
 /// 6. Detect dead code via BFS from entry points
 /// 7. Infer project type and architecture from collected signals
-/// 8. List workspace packages declared at the root
+/// 8. List workspace packages declared at the root, each with its own
+///    size, languages, stack, dead files and links to other packages
 pub fn analyze(root: &Path) -> AnalysisResult {
     // ── 1. Scan ──────────────────────────────────────────────────────────────
     let files = scanner::scan_repository(root);
@@ -236,7 +237,10 @@ pub fn analyze(root: &Path) -> AnalysisResult {
             ..c
         })
         .collect();
-    let dead_code = dead_code.into_iter().map(|p| make_relative(&p)).collect();
+    let dead_code = dead_code
+        .into_iter()
+        .map(|p| make_relative(&p))
+        .collect::<Vec<PathBuf>>();
 
     let dependency_graph: HashMap<PathBuf, Vec<PathBuf>> = dep_graph
         .into_iter()
@@ -255,7 +259,26 @@ pub fn analyze(root: &Path) -> AnalysisResult {
             loc: fi.loc,
             language: fi.language,
         })
-        .collect();
+        .collect::<Vec<FileInfo>>();
+
+    // ── 9. Workspace packages ───────────────────────────────────────────────
+    let mut workspaces = workspaces::detect(root);
+    if !workspaces.is_empty() {
+        let file_loc: Vec<(PathBuf, usize, String)> = file_breakdown
+            .iter()
+            .map(|f| (f.file.clone(), f.loc, f.language.clone()))
+            .collect();
+        workspaces::profile(
+            root,
+            &mut workspaces,
+            &workspaces::RepoFacts {
+                files: &files,
+                file_loc: &file_loc,
+                dead_code: &dead_code,
+                dependency_graph: &dependency_graph,
+            },
+        );
+    }
 
     AnalysisResult {
         project_type,
@@ -271,7 +294,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         dead_code,
         dead_code_details,
         circular_imports,
-        workspaces: workspaces::detect(root),
+        workspaces,
         dependency_graph,
         file_breakdown,
     }
