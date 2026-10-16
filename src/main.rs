@@ -25,8 +25,10 @@ mod rules;
 mod runbook;
 mod safe_text;
 mod scanner;
+mod topology;
 mod vulns;
 mod workspaces;
+mod yaml;
 
 fn main() {
     cli::run();

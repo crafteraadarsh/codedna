@@ -81,6 +81,7 @@ Trigger this skill when the user asks any of the following:
 | "Any red flags before I install this repo?" | `codedna audit <url>` |
 | "How do I run this project?" | `codedna runbook .` |
 | "Which env vars / API routes does it have?" | `codedna runbook .` |
+| "How is this deployed? What runs where?" | `codedna topology .` |
 | "What packages are in this monorepo?" | `codedna packages .` |
 | "Which packages does a change to X affect?" | `codedna packages .` (see "Used by") |
 | "What did this change do to the project?" | `codedna diff before.json .` |
@@ -188,6 +189,20 @@ How to run a project, read from its files:
 
 Nothing is run. Environment variables are reported by name only: `.env` files are never opened, example files contribute only the text before `=`, and a command that looks like it contains a credential is hidden. Routes come from common framework patterns, so the list can be incomplete.
 
+### Topology
+
+```bash
+codedna topology .
+codedna topology https://github.com/user/repo --json
+```
+
+What the deployment files say will run, read without rendering or deploying anything:
+
+- **Platforms**: Kubernetes manifests (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod, Knative Service), Helm charts (templates read as written), Skaffold, Docker Compose, Serverless Framework, AWS SAM and CloudFormation Lambda functions, Vercel, Netlify, Cloudflare Workers, Fly.io, Render, App Engine and Procfile.
+- **Per unit**: image, command, runtime and handler, ports, replicas, autoscaling (HPA, KEDA), schedule, and what reaches it: Services, Ingress and Gateway API routes, HTTP, queue, stream and schedule events.
+- **Code**: the folder or file behind each unit, from Skaffold and Compose build contexts, an image named like a folder with a Dockerfile, or a function handler.
+- Files in test, example and docs folders are skipped and counted. YAML is read with depth and alias limits, so hostile files cannot exhaust memory.
+
 ### Diff
 
 ```bash
@@ -205,7 +220,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`, `list_packages`, `get_impact`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`, `get_topology`, `list_packages`, `get_impact`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 

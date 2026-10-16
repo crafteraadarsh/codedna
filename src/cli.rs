@@ -216,6 +216,18 @@ pub enum Commands {
         json: bool,
     },
 
+    /// What the deployment configuration says will run: Kubernetes, Helm,
+    /// Compose, serverless functions and their triggers, linked to code
+    Topology {
+        /// Target repository path or Git URL
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output JSON instead of a list
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Compare two versions of a project: stack, languages, size and files
     Diff {
         /// Earlier version: a snapshot saved with `codedna json`, a path or a Git URL
@@ -665,6 +677,21 @@ pub fn run() {
             }
         }
 
+        // ── topology ──────────────────────────────────────────────────────────
+        Commands::Topology { path, json } => {
+            eprintln!("Reading {}…", shown(&path));
+            let (local_path, _guard) = resolve(&path);
+            let topology = crate::topology::topology(&local_path);
+            if json {
+                match serde_json::to_string_pretty(&topology) {
+                    Ok(text) => println!("{text}"),
+                    Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+                }
+            } else {
+                print!("{}", crate::topology::render_text(&topology));
+            }
+        }
+
         // ── diff ──────────────────────────────────────────────────────────────
         Commands::Diff {
             before,
@@ -899,6 +926,15 @@ mod tests {
         assert!(matches!(
             cli.command,
             Commands::Runbook { ref path, json: true } if path == "x"
+        ));
+    }
+
+    #[test]
+    fn parses_topology() {
+        let cli = Cli::try_parse_from(["codedna", "topology", "x", "--json"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Topology { ref path, json: true } if path == "x"
         ));
     }
 
