@@ -29,7 +29,11 @@ fn run(dir: &Path) -> Value {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    serde_json::from_slice(&output.stdout).unwrap()
+    // Windows reports `.\src\a.ts`; compare paths with forward slashes.
+    let text = String::from_utf8(output.stdout)
+        .unwrap()
+        .replace("\\\\", "/");
+    serde_json::from_str(&text).unwrap()
 }
 
 fn dead_code(report: &Value) -> Vec<&str> {
