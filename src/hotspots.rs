@@ -222,7 +222,7 @@ pub fn couple(result: &AnalysisResult, churn: &Churn, limit: usize) -> Vec<Coupl
 }
 
 fn show(path: &Path) -> String {
-    sanitize(&path.to_string_lossy().replace('\\', "/"))
+    crate::analysis::dotted(&sanitize(&path.to_string_lossy().replace('\\', "/")))
 }
 
 /// Read history under `root` and rank the files in `result`.
@@ -393,9 +393,9 @@ mod tests {
 
         let ranked = rank(&result, &churn, 10);
         assert_eq!(ranked.len(), 2);
-        assert_eq!(ranked[0].file, "big.rs");
+        assert_eq!(ranked[0].file, "./big.rs");
         assert_eq!(ranked[0].score, 1000);
-        assert_eq!(ranked[1].file, "small.rs");
+        assert_eq!(ranked[1].file, "./small.rs");
         assert_eq!(rank(&result, &churn, 1).len(), 1);
     }
 
@@ -407,7 +407,7 @@ mod tests {
 
         let ranked = rank(&result, &churn, 10);
         assert_eq!(ranked.len(), 1);
-        assert_eq!(ranked[0].file, "src/main.rs");
+        assert_eq!(ranked[0].file, "./src/main.rs");
         assert_eq!(ranked[0].score, 30);
     }
 
@@ -437,8 +437,8 @@ mod tests {
         assert_eq!(
             coupled,
             [Coupling {
-                file: "a.rs".to_string(),
-                other: "b.rs".to_string(),
+                file: "./a.rs".to_string(),
+                other: "./b.rs".to_string(),
                 shared: 3,
                 percent: 100,
             }]
@@ -467,7 +467,7 @@ mod tests {
         assert_eq!(coupled.len(), 1);
         assert_eq!(
             (coupled[0].other.as_str(), coupled[0].percent),
-            ("c.rs", 100)
+            ("./c.rs", 100)
         );
     }
 

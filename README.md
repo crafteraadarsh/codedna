@@ -544,23 +544,23 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
   "infrastructure": ["Docker"],
   "architecture": "API → Database",
   "architecture_details": {
-    "layers": [{ "name": "Routes", "files": 11, "dirs": ["src/app/routes/auth/", "..."] }],
+    "layers": [{ "name": "Routes", "files": 11, "dirs": ["./src/app/routes/auth/", "..."] }],
     "flows": [{ "from": "Services", "to": "Data", "imports": 12 }],
     "confidence": "high",
     "evidence": ["Services → Data: 12 imports"]
   },
   "dead_code": [
-    "e2e/src/support/global-setup.ts",
-    "e2e/src/support/global-teardown.ts",
-    "e2e/src/support/test-setup.ts",
-    "jest.preset.js",
-    "src/prisma/seed.ts"
+    "./e2e/src/support/global-setup.ts",
+    "./e2e/src/support/global-teardown.ts",
+    "./e2e/src/support/test-setup.ts",
+    "./jest.preset.js",
+    "./src/prisma/seed.ts"
   ],
   "dead_code_details": [
-    { "file": "jest.preset.js", "confidence": "medium", "reason": "Nothing imports it, but \"jest.preset\" is mentioned in 3 other files" }
+    { "file": "./jest.preset.js", "confidence": "medium", "reason": "Nothing imports it, but \"jest.preset\" is mentioned in 3 other files" }
   ],
   "circular_imports": [
-    ["src/app/routes/article/article.model.ts", "src/app/routes/article/comment.model.ts"]
+    ["./src/app/routes/article/article.model.ts", "./src/app/routes/article/comment.model.ts"]
   ],
   "workspaces": [],
   "dependency_graph": { "...": ["..."] },

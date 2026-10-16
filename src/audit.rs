@@ -174,7 +174,11 @@ pub fn audit(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Au
         findings.extend(check.findings);
         DependencySummary {
             packages_checked: check.packages,
-            lockfiles: check.lockfiles,
+            lockfiles: check
+                .lockfiles
+                .iter()
+                .map(|l| crate::analysis::dotted(l))
+                .collect(),
             error: check.error,
         }
     });
@@ -184,6 +188,9 @@ pub fn audit(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Au
 }
 
 fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
+    for f in &mut findings {
+        f.file = crate::analysis::dotted(&f.file);
+    }
     findings.sort_by(|a, b| {
         b.severity
             .cmp(&a.severity)
@@ -1040,7 +1047,7 @@ mod tests {
         fs::write(dir.path().join("tests/fake.py"), format!("k = \"{key}\"\n")).unwrap();
         let report = audit(dir.path(), None);
         assert_eq!(report.findings.len(), 2);
-        assert_eq!(report.findings[0].file, "src/app.py");
+        assert_eq!(report.findings[0].file, "./src/app.py");
         assert_eq!(report.findings[0].severity, Severity::High);
         assert_eq!(report.findings[0].context, None);
         assert_eq!(report.findings[1].severity, Severity::Medium);
@@ -1244,7 +1251,7 @@ mod tests {
         let report = audit(dir.path(), None);
         assert_eq!(report.files_scanned, 2);
         assert_eq!(report.findings.len(), 1);
-        assert_eq!(report.findings[0].file, "src/evil.js");
-        assert!(render_text(&report).contains("src/evil.js:1"));
+        assert_eq!(report.findings[0].file, "./src/evil.js");
+        assert!(render_text(&report).contains("./src/evil.js:1"));
     }
 }

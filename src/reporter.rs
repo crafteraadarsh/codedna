@@ -6,6 +6,66 @@
 use crate::analysis::AnalysisResult;
 use crate::architecture::Confidence;
 use crate::safe_text::sanitize;
+use std::borrow::Cow;
+use std::io::IsTerminal;
+use std::sync::OnceLock;
+
+// ── Colour ────────────────────────────────────────────────────────────────────
+
+// Every line goes through `paint`, which drops the colour codes when colour
+// is off. This shadows the standard `println!` for this file only.
+macro_rules! println {
+    () => {
+        std::println!()
+    };
+    ($($arg:tt)*) => {
+        std::println!("{}", paint(&format!($($arg)*)))
+    };
+}
+
+/// Whether to colour the output: off when `NO_COLOR` is set (no-color.org)
+/// or stdout is not a terminal, unless `CLICOLOR_FORCE` or `FORCE_COLOR`
+/// asks for it.
+fn colour_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        let set = |name: &str| std::env::var_os(name).is_some_and(|v| !v.is_empty() && v != "0");
+        if std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty()) {
+            return false;
+        }
+        if set("CLICOLOR_FORCE") || set("FORCE_COLOR") {
+            return true;
+        }
+        std::io::stdout().is_terminal()
+    })
+}
+
+fn paint(line: &str) -> Cow<'_, str> {
+    if colour_enabled() {
+        Cow::Borrowed(line)
+    } else {
+        Cow::Owned(strip_colour(line))
+    }
+}
+
+/// Removes SGR colour codes such as `\x1b[1m` or `\x1b[32m`.
+fn strip_colour(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(i) = rest.find("\x1b[") {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 2..];
+        match after.find(|c: char| !(c.is_ascii_digit() || c == ';')) {
+            Some(j) if after[j..].starts_with('m') => rest = &after[j + 1..],
+            _ => {
+                out.push_str(&rest[i..i + 2]);
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
 
 // ── Box-drawing header ────────────────────────────────────────────────────────
 
@@ -547,6 +607,17 @@ mod tests {
     use crate::analysis::FileInfo;
     use std::collections::HashMap;
     use std::path::PathBuf;
+
+    #[test]
+    fn strip_colour_removes_only_colour_codes() {
+        assert_eq!(strip_colour("\x1b[1mStack\x1b[0m"), "Stack");
+        assert_eq!(
+            strip_colour("\x1b[32m✓\x1b[90m dim\x1b[0m end"),
+            "✓ dim end"
+        );
+        assert_eq!(strip_colour("plain [1m text"), "plain [1m text");
+        assert_eq!(strip_colour("\x1b[2J"), "\x1b[2J");
+    }
 
     fn minimal_result() -> AnalysisResult {
         let mut languages = HashMap::new();

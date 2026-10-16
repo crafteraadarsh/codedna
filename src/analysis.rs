@@ -224,11 +224,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     // ── 8. Normalise paths ──────────────────────────────────────────────────
     // Strip the `root` prefix so output is always relative, regardless of
     // whether the root was a local `.` or an absolute temp-dir path.
-    let make_relative = |p: &Path| -> PathBuf {
-        p.strip_prefix(root)
-            .map(|rel| PathBuf::from(".").join(rel))
-            .unwrap_or_else(|_| p.to_path_buf())
-    };
+    let make_relative = |p: &Path| relative_path(root, p);
 
     let dead_code_details = dead_code_detector::assess(root, &dead_code, &files)
         .into_iter()
@@ -451,6 +447,36 @@ fn has_any(haystack: &[String], needles: &[&str]) -> bool {
 // JSON object keys must be strings, so we serialise PathBuf as its UTF-8
 // display form and deserialise back.
 
+/// `path` relative to `root`, written `./dir/file`. `.` components are
+/// ignored on both sides, so `tokio/src/lib.rs` and `./tokio/src/lib.rs`
+/// under the root `.` give the same answer. A path outside the root is
+/// returned unchanged.
+/// `path` (already relative, `/`-separated) written as `./path`, the form
+/// every path in CodeDna output uses.
+pub fn dotted(path: &str) -> String {
+    if path.is_empty() || path.starts_with("./") || path.starts_with('/') || path == "." {
+        path.to_string()
+    } else {
+        format!("./{path}")
+    }
+}
+
+pub fn relative_path(root: &Path, path: &Path) -> PathBuf {
+    let clean = |p: &Path| -> PathBuf {
+        p.components()
+            .filter(|c| !matches!(c, std::path::Component::CurDir))
+            .collect()
+    };
+    let (root_clean, path_clean) = (clean(root), clean(path));
+    if root_clean.as_os_str().is_empty() && path_clean.is_absolute() {
+        return path.to_path_buf();
+    }
+    match path_clean.strip_prefix(&root_clean) {
+        Ok(rel) => PathBuf::from(".").join(rel),
+        Err(_) => path.to_path_buf(),
+    }
+}
+
 fn serialize_dep_graph<S>(
     map: &HashMap<PathBuf, Vec<PathBuf>>,
     serializer: S,
@@ -487,6 +513,29 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn relative_paths_always_start_with_dot_slash() {
+        let p = |s: &str| PathBuf::from(s);
+        assert_eq!(
+            relative_path(Path::new("."), Path::new("src/a.rs")),
+            p("./src/a.rs")
+        );
+        assert_eq!(
+            relative_path(Path::new("."), Path::new("./src/a.rs")),
+            p("./src/a.rs")
+        );
+        assert_eq!(
+            relative_path(Path::new("/r"), Path::new("/r/src/a.rs")),
+            p("./src/a.rs")
+        );
+        assert_eq!(
+            relative_path(Path::new("./r"), Path::new("r/a.rs")),
+            p("./a.rs")
+        );
+        assert_eq!(dotted("src/a.rs"), "./src/a.rs");
+        assert_eq!(dotted("./src/a.rs"), "./src/a.rs");
+    }
+
     use super::*;
     use std::fs::{self, File};
     use std::io::Write;
