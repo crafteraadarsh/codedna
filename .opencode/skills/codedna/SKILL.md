@@ -15,7 +15,7 @@ If the CodeDna MCP tools are available (`get_context`, `get_stack`, ...), call `
 codedna context .
 ```
 
-This prints a short Markdown briefing: project type, stack, architecture, monorepo packages, entry points, the most imported and largest files, and a trimmed directory map. Use `--max-tokens N` to make it shorter or longer, and `--format json` for structured output.
+This prints a short Markdown briefing: project type, stack, architecture, monorepo packages, entry points, the most imported and largest files, and a trimmed directory map. Use `--max-tokens N` to make it shorter or longer, and `--format json` for structured output. Before a specific change, add `--task "what you are about to do"` (MCP: `task`) to list the files that matter for it first, each with why it was picked.
 
 ## Narrower questions
 

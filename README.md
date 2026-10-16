@@ -132,6 +132,7 @@ codedna analyze .                              # full intelligence report
 codedna analyze https://github.com/user/repo   # works on remote repos too
 
 codedna context .                              # short briefing for AI agents
+codedna context . --task "add rate limiting"     # files that matter for a task
 codedna audit https://github.com/user/repo     # supply-chain red flags before you run it
 codedna audit . --deps                         # plus known vulnerabilities in dependencies
 codedna audit . --baseline audit.json --fail-on high   # in CI: fail only on new findings
@@ -150,7 +151,7 @@ codedna diff before.json .                     # ...and see what changed later
 
 CodeDna works with any agent that can run a shell command, and connects natively to agents that support MCP or skills.
 
-**1. Context in one command.** `codedna context .` prints a short Markdown briefing: project type, stack, architecture, entry points, most imported files, largest files and a directory map. `--max-tokens N` changes the budget; `--format json` gives the same data as JSON.
+**1. Context in one command.** `codedna context .` prints a short Markdown briefing: project type, stack, architecture, entry points, most imported files, largest files and a directory map. `--max-tokens N` changes the budget; `--format json` gives the same data as JSON. `--task "add rate limiting to login"` opens the briefing with the files that matter for that task: files whose names or code mention its words, the files they import or are imported by, and related tests, each with why it was picked (MCP: the `task` argument of `get_context`). Matching is by wording, not meaning.
 
 **2. MCP server.** `codedna mcp` serves read-only tools over stdio:
 
@@ -224,7 +225,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | Command | What it does |
 |---|---|
 | `codedna analyze [path\|url]` | Full intelligence report (`--time` adds elapsed time) |
-| `codedna context [path\|url]` | Short briefing for AI agents (`--max-tokens N`, `--format json`) |
+| `codedna context [path\|url]` | Short briefing for AI agents (`--max-tokens N`, `--format json`, `--task "…"`) |
 | `codedna audit [path\|url]` | Supply-chain red flags (`--json`, `--fail-on LEVEL` for CI, `--deps` for known vulnerabilities in dependencies, `--baseline FILE` / `--write-baseline FILE` to report only new findings) |
 | `codedna hotspots [path\|url]` | Files ranked by commits × lines of code, plus files that change together (`--days N`, `--limit N`, `--json`) |
 | `codedna runbook [path\|url]` | Scripts and targets, env var names (values are never read), API routes (`--json`) |
