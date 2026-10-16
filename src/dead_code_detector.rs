@@ -164,10 +164,21 @@ pub fn is_entry_point(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// A manual mock in `__mocks__/` that a test swaps in by path. One next to
+/// a `package.json` mocks a dependency instead, so it is only used while the
+/// package still depends on it: [`manifest_entries`] names those.
+fn is_module_mock(path: &Path) -> bool {
+    path.ancestors()
+        .find(|dir| dir.file_name().is_some_and(|n| n == "__mocks__"))
+        .and_then(Path::parent)
+        .is_some_and(|parent| !parent.join("package.json").is_file())
+}
+
 /// Entry points that `package.json` files declare: the files named by
 /// `main`, `module`, `bin`, `exports` and the commands in `scripts` and
 /// `prisma.seed` (`node ./seed.js`), and the `app/` (or `src/app/`) directory Expo Router
-/// loads in full when the package depends on `expo-router`.
+/// loads in full when the package depends on `expo-router`, and the mocks
+/// in `__mocks__/` of the packages it depends on.
 pub fn manifest_entries(files: &[PathBuf]) -> Vec<PathBuf> {
     let mut entries = Vec::new();
     for manifest in files
@@ -186,6 +197,31 @@ pub fn manifest_entries(files: &[PathBuf]) -> Vec<PathBuf> {
         if text.contains("\"expo-router\"") {
             entries.push(dir.join("app"));
             entries.push(dir.join("src").join("app"));
+        }
+        for deps in [
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+        ] {
+            let Some(deps) = json.get(deps).and_then(|d| d.as_object()) else {
+                continue;
+            };
+            for dep in deps.keys() {
+                let mock = dir.join("__mocks__").join(dep);
+                entries.extend(
+                    ["js", "mjs", "cjs", "ts", "mts", "cts", "jsx", "tsx"]
+                        .iter()
+                        .map(|ext| {
+                            mock.with_file_name(format!(
+                                "{}.{ext}",
+                                dep.rsplit('/').next().unwrap_or(dep)
+                            ))
+                        }),
+                );
+                // A mock with its own directory: `__mocks__/zustand/index.ts`.
+                entries.push(mock);
+            }
         }
         let mut named = Vec::new();
         for key in ["main", "module", "browser", "bin", "exports"] {
@@ -354,7 +390,7 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
             || stem.ends_with("_controller")
             || dirs.contains(&".storybook")
             // Manual mocks that Jest and Vitest swap in by path.
-            || dirs.contains(&"__mocks__")
+            || is_module_mock(path)
             || dirs.windows(2).any(|w| w == ["src", "theme"]);
         return NEXT_CONVENTION_STEMS.contains(&stem) || file_routes || by_name;
     }
@@ -1885,6 +1921,37 @@ mod tests {
     }
 
     #[test]
+    fn mocks_of_dependencies_load_only_while_depended_on() {
+        let (root, files) = temp_repo(
+            "codedna_mocks",
+            &[
+                (
+                    "web/package.json",
+                    r#"{"dependencies": {"zustand": "4"}, "devDependencies": {"@scope/ui": "1"}}"#,
+                ),
+                ("web/__mocks__/zustand.ts", ""),
+                ("web/__mocks__/@scope/ui.js", ""),
+                ("web/__mocks__/removed-package.js", ""),
+                ("web/src/__mocks__/api.ts", ""),
+            ],
+        );
+        let web = root.join("web");
+        let graph: HashMap<PathBuf, Vec<PathBuf>> = [
+            "__mocks__/zustand.ts",
+            "__mocks__/@scope/ui.js",
+            "__mocks__/removed-package.js",
+            "src/__mocks__/api.ts",
+        ]
+        .iter()
+        .map(|f| (web.join(f), vec![]))
+        .collect();
+        assert_eq!(
+            detect_dead_code_from(&graph, &manifest_entries(&files)),
+            vec![web.join("__mocks__/removed-package.js")]
+        );
+    }
+
+    #[test]
     fn package_json_names_entry_points() {
         let (root, files) = temp_repo(
             "codedna_manifest",
@@ -1945,7 +2012,7 @@ mod tests {
         let dirs = manifest_entries(&files);
         assert!(dirs.contains(&root.join("apps/mobile/app")));
         assert!(dirs.contains(&root.join("apps/mobile/src/app")));
-        assert!(!dirs.iter().any(|d| d.starts_with(root.join("apps/web"))));
+        assert!(!dirs.iter().any(|d| d.starts_with(root.join("apps/web/app"))));
 
         let layout = root.join("apps/mobile/app/(tabs)/_layout.tsx");
         let sheet = root.join("apps/mobile/components/Sheet.tsx");
