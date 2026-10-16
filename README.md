@@ -88,7 +88,7 @@ curl -fsSL https://raw.githubusercontent.com/crafteraadarsh/codedna/main/install
 irm https://raw.githubusercontent.com/crafteraadarsh/codedna/main/install.ps1 | iex
 ```
 
-The script picks the right binary for your system, checks its SHA-256 checksum and installs it to `~/.local/bin` (Windows: `%LOCALAPPDATA%\codedna\bin`) without sudo. Set `CODEDNA_VERSION=v0.2.4` to pin a version or `CODEDNA_INSTALL_DIR` to choose the folder.
+The script picks the right binary for your system, checks its SHA-256 checksum and installs it to `~/.local/bin` (Windows: `%LOCALAPPDATA%\codedna\bin`) without sudo. Set `CODEDNA_VERSION=v0.2.5` to pin a version or `CODEDNA_INSTALL_DIR` to choose the folder.
 
 | Platform | Binary |
 |---|---|
@@ -258,7 +258,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: crafteraadarsh/codedna@v0.2.4
+      - uses: crafteraadarsh/codedna@v0.2.5
 ```
 
 | Input | Default | What it does |
@@ -536,7 +536,7 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 ```json
 {
   "schema_version": 1,
-  "analyzer": { "name": "codedna", "version": "0.2.4" },
+  "analyzer": { "name": "codedna", "version": "0.2.5" },
   "project_type": "Backend API service",
   "total_loc": 2243,
   "comment_lines": 245,
