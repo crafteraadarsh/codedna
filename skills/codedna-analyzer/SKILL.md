@@ -472,6 +472,9 @@ User-friendly messages for:
 | Target for 100k+ file repos | < 5 seconds |
 | Memory model | Streaming per-file reads, no full-repo buffer |
 | Temp dir cleanup | Automatic — deleted immediately after analysis |
+| Repeat runs | Incremental — unchanged files (same size and modification time) are not read again |
+
+**Cache.** Per-file results (line counts, imports, layer, dead-code mentions) are kept in the user cache folder: `$XDG_CACHE_HOME/codedna` or `~/.cache/codedna`, `~/Library/Caches/codedna` on macOS, `%LOCALAPPDATA%\codedna\cache` on Windows, or `CODEDNA_CACHE_DIR`. Output is identical with and without it. Imports are reused only while the file list and every `.json` / `.toml` file are unchanged; dead-code mentions only for the same candidates. The cache is never stored in or read from the scanned repository, remote clones are never cached, and a cache from another CodeDna version is ignored. `--no-cache` (any command) or `CODEDNA_NO_CACHE=1` turns it off.
 
 ---
 

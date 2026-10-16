@@ -10,6 +10,11 @@ use std::path::PathBuf;
     long_about = None
 )]
 pub struct Cli {
+    /// Read every file afresh instead of reusing results cached from an
+    /// earlier run (also: CODEDNA_NO_CACHE=1)
+    #[arg(long, global = true)]
+    pub no_cache: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -337,6 +342,9 @@ fn load_side(input: &str) -> crate::analysis::AnalysisResult {
 /// Parse CLI arguments and dispatch to the appropriate module.
 pub fn run() {
     let cli = Cli::parse();
+    if !cli.no_cache {
+        crate::cache::enable();
+    }
 
     match cli.command {
         // ── scan ─────────────────────────────────────────────────────────────

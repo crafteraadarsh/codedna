@@ -4,6 +4,7 @@
 //! that represents the complete intelligence report for a repository.
 
 use crate::architecture::{self, ArchitectureInsight};
+use crate::cache::Cache;
 use crate::coverage::{self, Coverage};
 use crate::cycles;
 use crate::dead_code_detector::{self, DeadCodeCandidate};
@@ -195,6 +196,7 @@ pub(crate) fn is_lockfile(file: &Path) -> bool {
 pub fn analyze(root: &Path) -> AnalysisResult {
     // ── 1. Scan ──────────────────────────────────────────────────────────────
     let files = scanner::scan_repository(root);
+    let cache = Cache::open(root, &files);
 
     // ── 2 & 3. LOC + language (parallel) ────────────────────────────────────
     // Each file is processed independently — ideal for rayon par_iter.
@@ -202,7 +204,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         .par_iter()
         .filter(|file| !is_lockfile(file))
         .filter_map(|file| {
-            let counts = loc_counter::count_line_kinds(file)?;
+            let counts = cache.loc(file, || loc_counter::count_line_kinds(file))?;
             let language = language_detector::detect_language(file)
                 .map(|l| l.to_string())
                 .unwrap_or_else(|| "Other".to_string());
@@ -247,7 +249,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     let infrastructure = framework_detector::detect_infrastructure(&files);
 
     // ── 5. Dependency graph ───────────────────────────────────────────────────
-    let (dep_graph, import_tallies) = dependency_graph::build_with_tallies(&files);
+    let (dep_graph, import_tallies) = dependency_graph::build_cached(&files, &cache);
     let coverage = coverage::measure(root, &files, &import_tallies);
 
     // ── 6. Dead code ──────────────────────────────────────────────────────────
@@ -267,6 +269,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         &dep_graph,
         &fw_result.frameworks,
         &fw_result.databases,
+        &cache,
     );
 
     // ── 8. Normalise paths ──────────────────────────────────────────────────
@@ -274,13 +277,14 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     // whether the root was a local `.` or an absolute temp-dir path.
     let make_relative = |p: &Path| relative_path(root, p);
 
-    let dead_code_details = dead_code_detector::assess(root, &dead_code, &files)
+    let dead_code_details = dead_code_detector::assess_with(root, &dead_code, &files, &cache)
         .into_iter()
         .map(|c| DeadCodeCandidate {
             file: make_relative(&c.file),
             ..c
         })
         .collect();
+    cache.save();
     let dead_code = dead_code
         .into_iter()
         .map(|p| make_relative(&p))

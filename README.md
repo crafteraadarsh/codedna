@@ -723,6 +723,15 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 Lines of code exclude comments and blank lines.
 
+**Repeat runs are incremental.** CodeDna remembers what each file's content showed (line counts, imports, layer, dead-code mentions) and reads again only the files whose size or modification time changed. On a 2-core Linux machine with v0.2.5:
+
+| Repository | Files | First run | Repeat run |
+|---|---:|---:|---:|
+| [vscode](https://github.com/microsoft/vscode) | 20,744 | 11.6 s | **1.4 s** |
+| [kubernetes](https://github.com/kubernetes/kubernetes) | 31,461 | 4.9 s | **0.9 s** |
+
+The output is identical either way. Adding, removing or renaming a file, or editing a `.json` / `.toml` file, re-resolves every file's imports, since any of them could point at it. The cache is kept in your user cache folder (`~/.cache/codedna`, `~/Library/Caches/codedna` on macOS, `%LOCALAPPDATA%\codedna\cache` on Windows; `CODEDNA_CACHE_DIR` moves it), never in the repository, and remote clones are never cached. `--no-cache` or `CODEDNA_NO_CACHE=1` reads every file afresh.
+
 ## 🛡️ Security
 
 CodeDna is built to be safe to run on any repository, including ones you do not trust.
@@ -732,6 +741,7 @@ CodeDna is built to be safe to run on any repository, including ones you do not 
 | 🔒 **Read-only** | Never runs scripts, build steps, hooks or package managers from the repository. Git history is read without checking anything out. |
 | 📴 **Nothing leaves your machine** | No telemetry or update checks. The only network access is cloning a URL you pass, and `audit --deps`, which sends lockfile package names and versions (nothing else) to osv.dev. |
 | 🤫 **Secrets stay secret** | `.env` files are never opened. `runbook` reports variable names only, `audit` names the kind of credential and the line but never the value, and tokens in clone URLs are masked. |
+| 🗄️ **The cache can't be planted** | Results are cached in your own cache folder (readable only by you), never read from the repository, so a repository cannot ship results for its own files. |
 | 🧹 **Hostile input is handled** | Terminal control and text-direction characters are stripped from repository text before printing; oversized files and snapshots are skipped. |
 | 🚧 **The MCP server is fenced** | It only reads folders under its start directory (or ones you allow with `--root`) and public `https://` repositories, and every response is size-capped. |
 | ✅ **Verifiable releases** | Binaries carry SHA-256 checksums and build-provenance attestations; dependencies are audited on every pull request. |
@@ -779,6 +789,7 @@ src/
 ├── hotspots.rs             churn × size ranking, co-change coupling
 ├── audit.rs                supply-chain red-flag scan
 ├── baseline.rs             accepted findings, so only new ones are reported
+├── cache.rs                per-file results reused on repeat runs
 ├── vulns.rs                lockfile versions checked against OSV
 ├── runbook.rs              commands, env var names, API routes
 ├── diff.rs                 compare two snapshots or versions
