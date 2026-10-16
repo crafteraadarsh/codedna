@@ -88,7 +88,7 @@ curl -fsSL https://raw.githubusercontent.com/crafteraadarsh/codedna/main/install
 irm https://raw.githubusercontent.com/crafteraadarsh/codedna/main/install.ps1 | iex
 ```
 
-The script picks the right binary for your system, checks its SHA-256 checksum and installs it to `~/.local/bin` (Windows: `%LOCALAPPDATA%\codedna\bin`) without sudo. Set `CODEDNA_VERSION=v0.1.3` to pin a version or `CODEDNA_INSTALL_DIR` to choose the folder.
+The script picks the right binary for your system, checks its SHA-256 checksum and installs it to `~/.local/bin` (Windows: `%LOCALAPPDATA%\codedna\bin`) without sudo. Set `CODEDNA_VERSION=v0.2.0` to pin a version or `CODEDNA_INSTALL_DIR` to choose the folder.
 
 | Platform | Binary |
 |---|---|
@@ -254,7 +254,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: crafteraadarsh/codedna@main
+      - uses: crafteraadarsh/codedna@v0.2.0
 ```
 
 | Input | Default | What it does |
