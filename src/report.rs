@@ -119,6 +119,15 @@ pub fn render_markdown(report: &Report) -> String {
         let _ = writeln!(out, "| Workspaces | {} |", md_list(&workspace_summaries(p)));
     }
 
+    if p.workspaces.iter().any(|w| !w.packages.is_empty()) {
+        let _ = writeln!(out, "\n## Packages\n");
+        for w in &p.workspaces {
+            for pkg in &w.packages {
+                let _ = writeln!(out, "- {}", md_text(pkg));
+            }
+        }
+    }
+
     if !p.languages.is_empty() {
         let _ = writeln!(out, "\n## Languages\n");
         let _ = writeln!(out, "| Language | LOC | Share |\n|---|---:|---:|");
@@ -381,6 +390,16 @@ pub fn render_html(report: &Report) -> String {
         let _ = writeln!(out, "</td></tr>");
     }
     let _ = writeln!(out, "</table>");
+
+    if p.workspaces.iter().any(|w| !w.packages.is_empty()) {
+        let _ = writeln!(out, "<h2>Packages</h2>\n<ul>");
+        for w in &p.workspaces {
+            for pkg in &w.packages {
+                let _ = writeln!(out, "<li>{}</li>", esc(pkg));
+            }
+        }
+        let _ = writeln!(out, "</ul>");
+    }
 
     if !p.languages.is_empty() {
         let _ = writeln!(out, "<h2>Languages</h2>");

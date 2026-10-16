@@ -3,8 +3,11 @@
 //!
 //! Only the declarations are read (package.json `workspaces`,
 //! pnpm-workspace.yaml, lerna.json, Cargo `[workspace]`, go.work and uv
-//! workspaces); the packages are listed, not analysed separately.
+//! workspaces). [`profile`] then gives each package its own numbers from
+//! the repository analysis: size, languages, stack, dead files and the other
+//! packages it uses.
 
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +15,13 @@ use serde::{Deserialize, Serialize};
 
 /// Packages listed per workspace at most.
 const MAX_PACKAGES: usize = 500;
+
+/// Languages kept per package, largest first.
+const PACKAGE_LANGUAGES: usize = 3;
+
+/// Data and documentation formats, listed for a package only when it has no
+/// code at all.
+const NON_CODE_LANGUAGES: &[&str] = &["JSON", "Markdown", "TOML", "YAML"];
 
 /// How deep a `**` pattern searches.
 const MAX_GLOB_DEPTH: usize = 6;
@@ -34,6 +44,48 @@ pub struct WorkspacePackage {
     pub name: String,
     /// Its directory, relative to the root (e.g. `./packages/ui`).
     pub path: PathBuf,
+    /// Source files in the package (a nested package's files are its own).
+    #[serde(default)]
+    pub files: usize,
+    /// Code lines in those files.
+    #[serde(default)]
+    pub loc: usize,
+    /// Its main languages, largest first.
+    #[serde(default)]
+    pub languages: Vec<String>,
+    /// Frameworks found in its own manifests.
+    #[serde(default)]
+    pub frameworks: Vec<String>,
+    /// Databases found in its own manifests.
+    #[serde(default)]
+    pub databases: Vec<String>,
+    /// Dead-code candidates inside it.
+    #[serde(default)]
+    pub dead_files: usize,
+    /// Other packages of the repository it uses, by manifest dependency or
+    /// by import.
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    /// Packages that use it.
+    #[serde(default)]
+    pub used_by: Vec<String>,
+}
+
+impl WorkspacePackage {
+    fn new(name: String, path: PathBuf) -> Self {
+        Self {
+            name,
+            path,
+            files: 0,
+            loc: 0,
+            languages: Vec::new(),
+            frameworks: Vec::new(),
+            databases: Vec::new(),
+            dead_files: 0,
+            depends_on: Vec::new(),
+            used_by: Vec::new(),
+        }
+    }
 }
 
 /// Find the workspaces declared at `root`.
@@ -68,6 +120,272 @@ pub fn summary(w: &Workspace) -> String {
         n,
         if n == 1 { "" } else { "s" }
     )
+}
+
+/// One line about a package, e.g. `12.3k LOC · TypeScript · React · uses ui`.
+/// Lists at most five of the packages it uses.
+pub fn package_line(p: &WorkspacePackage) -> String {
+    let mut parts = vec![format!("{} LOC", short_number(p.loc))];
+    if let Some(lang) = p.languages.first() {
+        parts.push(lang.clone());
+    }
+    if !p.frameworks.is_empty() {
+        parts.push(p.frameworks.join(", "));
+    }
+    if !p.depends_on.is_empty() {
+        const SHOWN: usize = 5;
+        let mut uses = p.depends_on[..p.depends_on.len().min(SHOWN)].join(", ");
+        if p.depends_on.len() > SHOWN {
+            uses.push_str(&format!(" +{} more", p.depends_on.len() - SHOWN));
+        }
+        parts.push(format!("uses {uses}"));
+    }
+    if p.dead_files > 0 {
+        parts.push(format!("{} dead", p.dead_files));
+    }
+    parts.join(" · ")
+}
+
+fn short_number(n: usize) -> String {
+    if n >= 1000 {
+        format!("{:.1}k", n as f64 / 1000.0)
+    } else {
+        n.to_string()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Per-package numbers
+// ---------------------------------------------------------------------------
+
+/// What [`profile`] needs from the repository analysis. Paths are relative
+/// to the root and start with `./`, as in `AnalysisResult`.
+pub struct RepoFacts<'a> {
+    /// Every scanned file, absolute.
+    pub files: &'a [PathBuf],
+    /// `(file, code lines, language)` for each counted file.
+    pub file_loc: &'a [(PathBuf, usize, String)],
+    pub dead_code: &'a [PathBuf],
+    pub dependency_graph: &'a HashMap<PathBuf, Vec<PathBuf>>,
+}
+
+/// Fill in each package's numbers. A file belongs to the deepest package
+/// whose directory holds it.
+pub fn profile(root: &Path, workspaces: &mut [Workspace], facts: &RepoFacts) {
+    // Every package once, deepest first, so the first match is the owner.
+    let mut dirs: Vec<(PathBuf, usize, usize)> = Vec::new();
+    for (wi, w) in workspaces.iter().enumerate() {
+        for (pi, p) in w.packages.iter().enumerate() {
+            dirs.push((p.path.clone(), wi, pi));
+        }
+    }
+    dirs.sort_by_key(|(d, _, _)| std::cmp::Reverse(d.components().count()));
+    let owner = |file: &Path| -> Option<(usize, usize)> {
+        dirs.iter()
+            .find(|(d, _, _)| file.starts_with(d))
+            .map(|(_, w, p)| (*w, *p))
+    };
+
+    // Size and languages.
+    let mut langs: HashMap<(usize, usize), HashMap<&str, usize>> = HashMap::new();
+    for (file, loc, language) in facts.file_loc {
+        if let Some(key) = owner(file) {
+            let p = &mut workspaces[key.0].packages[key.1];
+            p.files += 1;
+            if language != "Other" {
+                p.loc += loc;
+                *langs.entry(key).or_default().entry(language).or_default() += loc;
+            }
+        }
+    }
+    for (key, map) in langs {
+        let mut list: Vec<(&str, usize)> = map.into_iter().filter(|(_, n)| *n > 0).collect();
+        list.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+        if list.iter().any(|(l, _)| !NON_CODE_LANGUAGES.contains(l)) {
+            list.retain(|(l, _)| !NON_CODE_LANGUAGES.contains(l));
+        }
+        workspaces[key.0].packages[key.1].languages = list
+            .into_iter()
+            .take(PACKAGE_LANGUAGES)
+            .map(|(l, _)| l.to_string())
+            .collect();
+    }
+
+    for file in facts.dead_code {
+        if let Some((w, p)) = owner(file) {
+            workspaces[w].packages[p].dead_files += 1;
+        }
+    }
+
+    // Stack: the manifests inside each package (not those of a nested one).
+    let mut manifests: HashMap<(usize, usize), Vec<PathBuf>> = HashMap::new();
+    for file in facts.files {
+        let rel = match file.strip_prefix(root) {
+            Ok(r) => PathBuf::from(".").join(r),
+            Err(_) => continue,
+        };
+        if let Some(key) = owner(&rel) {
+            manifests.entry(key).or_default().push(file.clone());
+        }
+    }
+    for (key, files) in manifests {
+        let found = crate::framework_detector::detect_frameworks(&files);
+        let p = &mut workspaces[key.0].packages[key.1];
+        p.frameworks = found.frameworks;
+        p.databases = found.databases;
+    }
+
+    // Links between packages: manifest dependencies on another package's
+    // name, and imports of a file in another package.
+    let by_name: HashMap<String, (usize, usize)> = workspaces
+        .iter()
+        .enumerate()
+        .flat_map(|(wi, w)| {
+            w.packages
+                .iter()
+                .enumerate()
+                .map(move |(pi, p)| (normal_name(&p.name), (wi, pi)))
+        })
+        .collect();
+    let mut links: BTreeSet<((usize, usize), (usize, usize))> = BTreeSet::new();
+    for (wi, w) in workspaces.iter().enumerate() {
+        for (pi, p) in w.packages.iter().enumerate() {
+            for dep in manifest_dependencies(&root.join(&p.path)) {
+                if let Some(&target) = by_name.get(&normal_name(&dep)) {
+                    links.insert(((wi, pi), target));
+                }
+            }
+        }
+    }
+    for (from, targets) in facts.dependency_graph {
+        let Some(a) = owner(from) else { continue };
+        for to in targets {
+            if let Some(b) = owner(to) {
+                links.insert((a, b));
+            }
+        }
+    }
+    let names: Vec<Vec<String>> = workspaces
+        .iter()
+        .map(|w| w.packages.iter().map(|p| p.name.clone()).collect())
+        .collect();
+    for (a, b) in links {
+        if a == b {
+            continue;
+        }
+        let (to, from) = (names[b.0][b.1].clone(), names[a.0][a.1].clone());
+        workspaces[a.0].packages[a.1].depends_on.push(to);
+        workspaces[b.0].packages[b.1].used_by.push(from);
+    }
+    for w in workspaces.iter_mut() {
+        for p in &mut w.packages {
+            p.depends_on.sort();
+            p.depends_on.dedup();
+            p.used_by.sort();
+            p.used_by.dedup();
+        }
+    }
+}
+
+/// Package names compare case-insensitively, with `_` and `-` equal
+/// (Cargo and Python treat them the same).
+fn normal_name(name: &str) -> String {
+    name.trim().to_ascii_lowercase().replace('_', "-")
+}
+
+/// The dependency names declared in a package directory's manifests.
+fn manifest_dependencies(dir: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(json) = read(&dir.join("package.json"))
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+    {
+        for section in [
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+        ] {
+            if let Some(obj) = json.get(section).and_then(|v| v.as_object()) {
+                out.extend(obj.keys().cloned());
+            }
+        }
+    }
+    if let Some(doc) = read(&dir.join("Cargo.toml")).and_then(|t| t.parse::<toml::Table>().ok()) {
+        let mut tables: Vec<&toml::Table> = Vec::new();
+        for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+            tables.extend(doc.get(section).and_then(|v| v.as_table()));
+        }
+        if let Some(targets) = doc.get("target").and_then(|v| v.as_table()) {
+            for t in targets.values() {
+                for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+                    tables.extend(t.get(section).and_then(|v| v.as_table()));
+                }
+            }
+        }
+        for table in tables {
+            for (key, value) in table {
+                // `alias = { package = "real-name", … }`
+                let real = value.get("package").and_then(|v| v.as_str());
+                out.push(real.unwrap_or(key).to_string());
+            }
+        }
+    }
+    if let Some(doc) = read(&dir.join("pyproject.toml")).and_then(|t| t.parse::<toml::Table>().ok())
+    {
+        let project = doc.get("project");
+        let mut specs = toml_strings(project.and_then(|p| p.get("dependencies")));
+        if let Some(optional) = project
+            .and_then(|p| p.get("optional-dependencies"))
+            .and_then(|v| v.as_table())
+        {
+            for list in optional.values() {
+                specs.extend(toml_strings(Some(list)));
+            }
+        }
+        if let Some(groups) = doc.get("dependency-groups").and_then(|v| v.as_table()) {
+            for list in groups.values() {
+                specs.extend(toml_strings(Some(list)));
+            }
+        }
+        out.extend(specs.iter().map(|s| python_requirement_name(s).to_string()));
+    }
+    if let Some(text) = read(&dir.join("go.mod")) {
+        let mut in_block = false;
+        for line in text.lines() {
+            let line = line.split("//").next().unwrap_or("").trim();
+            let module = if in_block {
+                if line == ")" {
+                    in_block = false;
+                    continue;
+                }
+                line
+            } else if let Some(rest) = line.strip_prefix("require") {
+                let rest = rest.trim();
+                if rest == "(" {
+                    in_block = true;
+                    continue;
+                }
+                rest
+            } else {
+                continue;
+            };
+            if let Some(path) = module.split_whitespace().next() {
+                out.push(path.to_string());
+            }
+        }
+    }
+    out.retain(|n| !n.is_empty());
+    out
+}
+
+/// The project name at the start of a PEP 508 requirement, e.g. `core` in
+/// `core[extra]>=1.0; python_version>"3.9"`.
+fn python_requirement_name(spec: &str) -> &str {
+    let spec = spec.trim();
+    let end = spec
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.'))
+        .unwrap_or(spec.len());
+    &spec[..end]
 }
 
 // ---------------------------------------------------------------------------
@@ -247,10 +565,7 @@ fn workspace(
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default()
             });
-            Some(WorkspacePackage {
-                name,
-                path: PathBuf::from(".").join(rel),
-            })
+            Some(WorkspacePackage::new(name, PathBuf::from(".").join(rel)))
         })
         .take(MAX_PACKAGES)
         .collect();
@@ -617,5 +932,75 @@ mod tests {
             yaml_list("packages: ['a/*', b]\n", "packages"),
             ["a/*", "b"]
         );
+    }
+    #[test]
+    fn profile_sizes_stacks_and_links_packages() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        write(
+            root,
+            "package.json",
+            r#"{"workspaces":["apps/*","packages/*"]}"#,
+        );
+        write(
+            root,
+            "apps/web/package.json",
+            r#"{"name":"web","dependencies":{"react":"18","@acme/ui":"workspace:*"}}"#,
+        );
+        write(
+            root,
+            "apps/web/src/index.js",
+            "import { button } from '../../../packages/util/index.js';\nconsole.log(button);\n",
+        );
+        write(root, "packages/ui/package.json", r#"{"name":"@acme/ui"}"#);
+        write(root, "packages/ui/index.js", "export const ui = 1;\n");
+        write(root, "packages/util/package.json", r#"{"name":"util"}"#);
+        write(
+            root,
+            "packages/util/index.js",
+            "export const button = 1;\nexport const other = 2;\n",
+        );
+
+        let result = crate::analysis::analyze(root);
+        let ws = &result.workspaces[0];
+        let get = |name: &str| ws.packages.iter().find(|p| p.name == name).unwrap();
+
+        let web = get("web");
+        assert_eq!(web.languages, ["JavaScript"]);
+        assert_eq!(web.loc, 3);
+        assert!(web.frameworks.contains(&"React".to_string()));
+        assert_eq!(web.depends_on, ["@acme/ui", "util"]);
+        assert!(web.used_by.is_empty());
+        assert_eq!(get("@acme/ui").used_by, ["web"]);
+        assert_eq!(get("util").used_by, ["web"]);
+        assert_eq!(get("util").loc, 3);
+        assert!(package_line(web).contains("uses @acme/ui, util"));
+    }
+
+    #[test]
+    fn manifest_dependencies_read_cargo_and_python() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        write(
+            root,
+            "Cargo.toml",
+            "[package]\nname = \"app\"\n[dependencies]\nserde = \"1\"\ncore = { package = \"my_core\", path = \"../core\" }\n[target.'cfg(unix)'.dev-dependencies]\nunix-bits = \"1\"\n",
+        );
+        write(
+            root,
+            "pyproject.toml",
+            "[project]\nname = \"app\"\ndependencies = [\"lib-a[extra]>=1.0; python_version>'3.9'\"]\n[dependency-groups]\ndev = [\"pytest\"]\n",
+        );
+        let mut deps = manifest_dependencies(root);
+        deps.sort();
+        assert_eq!(deps, ["lib-a", "my_core", "pytest", "serde", "unix-bits"]);
+        assert_eq!(normal_name("My_Core"), "my-core");
+    }
+
+    #[test]
+    fn python_requirement_names() {
+        assert_eq!(python_requirement_name("core[extra]>=1.0"), "core");
+        assert_eq!(python_requirement_name("  a.b-c ; os_name=='nt'"), "a.b-c");
+        assert_eq!(python_requirement_name("pkg @ https://x"), "pkg");
     }
 }

@@ -49,7 +49,8 @@ pub struct ImportedFile {
 }
 
 /// A file and its size.
-/// A workspace and the first of its packages, each as `name (path)`.
+/// A workspace and the first of its packages, each as
+/// `name (path): 1.2k LOC · TypeScript · React · uses ui`.
 #[derive(Debug, Serialize)]
 pub struct WorkspaceLine {
     pub summary: String,
@@ -140,7 +141,14 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
                     .packages
                     .iter()
                     .take(WORKSPACE_PACKAGE_LIMIT)
-                    .map(|p| format!("{} ({})", p.name, show(&p.path)))
+                    .map(|p| {
+                        format!(
+                            "{} ({}): {}",
+                            p.name,
+                            show(&p.path),
+                            crate::workspaces::package_line(p)
+                        )
+                    })
                     .collect(),
             })
             .collect(),

@@ -325,6 +325,13 @@ impl Server {
                     "routes": book.routes,
                 })))
             }
+            "list_packages" => {
+                let result = analysis::analyze(&root);
+                Ok(pretty(&json!({
+                    "note": "Packages declared by the repository's workspace manifests (npm, pnpm, Yarn, Lerna, Cargo, Go, uv). Links come from manifest dependencies and imports that cross package folders.",
+                    "workspaces": result.workspaces,
+                })))
+            }
             "repo_map" => {
                 let depth = usize_arg(args, "depth")?
                     .unwrap_or(DEFAULT_MAP_DEPTH)
@@ -413,6 +420,7 @@ const TOOL_NAMES: &[&str] = &[
     "find_hotspots",
     "audit_repo",
     "get_runbook",
+    "list_packages",
 ];
 
 /// Longest time window `find_hotspots` accepts, in days.
@@ -528,6 +536,15 @@ fn tool_definitions() -> Value {
         {
             "name": "get_runbook",
             "description": "How to run a project: package.json scripts, Make and just targets, Dockerfiles, Compose services, Cargo binaries, Python entry points and Procfile commands; the environment variables it reads (names only, values never read); and the HTTP routes it declares. Use before running, configuring or calling an unfamiliar project.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "path": path }
+            },
+            "annotations": read_only,
+        },
+        {
+            "name": "list_packages",
+            "description": "Monorepo packages with each one's folder, size, languages, frameworks, databases, dead files, and the other packages it uses and is used by. Use before changing code in a monorepo, to see which packages a change touches.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "path": path }

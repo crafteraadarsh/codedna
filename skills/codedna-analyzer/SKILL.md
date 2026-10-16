@@ -34,7 +34,7 @@ It detects and reports:
 - Per-file framework import usage
 - Unused / dead code via dependency graph traversal
 - Circular imports (files that import each other)
-- Monorepo workspaces and their packages (npm, Yarn, Bun, pnpm, Lerna, Cargo, Go, uv)
+- Monorepo workspaces and their packages (npm, Yarn, Bun, pnpm, Lerna, Cargo, Go, uv), each with its size, languages, stack, dead files and the packages it uses and is used by
 - Directory tree structure
 
 Supports both **local directories** and **remote Git repositories** (GitHub, GitLab, Bitbucket, etc.).
@@ -81,6 +81,8 @@ Trigger this skill when the user asks any of the following:
 | "Any red flags before I install this repo?" | `codedna audit <url>` |
 | "How do I run this project?" | `codedna runbook .` |
 | "Which env vars / API routes does it have?" | `codedna runbook .` |
+| "What packages are in this monorepo?" | `codedna packages .` |
+| "Which packages does a change to X affect?" | `codedna packages .` (see "Used by") |
 | "What did this change do to the project?" | `codedna diff before.json .` |
 | "Analyze this GitHub repo" | `codedna analyze <url>` |
 | "What does this remote repo use?" | `codedna stack <url>` |
@@ -147,6 +149,15 @@ The risk score adds 25 per high, 10 per medium and 2 per low finding, capped at 
 
 `--deps` (MCP: `check_dependencies: true`) is the only part of the audit that uses the network, so it is off by default. It reads `Cargo.lock`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements*.txt` (`==` pins), `poetry.lock`, `uv.lock`, `Pipfile.lock`, `go.mod`, `Gemfile.lock` and `composer.lock` (not inside `node_modules`, `vendor` or `target`), and sends package names and versions, nothing else, to osv.dev. Each vulnerable package is one finding: its severity is the worst advisory's (GitHub's rating, else the CVSS score; RustSec "unmaintained" notices are low). The JSON adds `dependencies` with `packages_checked`, `lockfiles` and an `error` if the database could not be reached; with `--fail-on`, that exits with status 2 so a CI gate cannot pass unchecked. A matched version means the advisory applies to that release, not that the vulnerable code is reachable from this project.
 
+### Packages
+
+```bash
+codedna packages .
+codedna packages https://github.com/user/repo --json
+```
+
+Lists the packages of each monorepo workspace declared at the root. For each one: lines of code, files, main languages, frameworks and databases found in its own manifests, dead-code candidates, the other packages it uses (manifest dependencies and imports across package folders) and the packages that use it. A file belongs to the deepest package folder that holds it. `--json` prints the `workspaces` array. To analyse one package fully, run `codedna analyze <package path>`.
+
 ### Runbook
 
 ```bash
@@ -179,7 +190,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`, `list_packages`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 
