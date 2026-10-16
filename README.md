@@ -544,7 +544,7 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
   "infrastructure": ["Docker"],
   "architecture": "API → Database",
   "architecture_details": {
-    "layers": [{ "name": "Routes", "files": 11, "dirs": ["./src/app/routes/auth/", "..."] }],
+    "layers": [{ "name": "Routes", "files": 11, "confirmed_by_code": 5, "placed_by_imports": 0, "dirs": ["./src/app/routes/auth/", "..."] }],
     "flows": [{ "from": "Services", "to": "Data", "imports": 12 }],
     "confidence": "high",
     "evidence": ["Services → Data: 12 imports"]
@@ -581,7 +581,7 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 | `databases` | string[] | Detected databases and ORMs |
 | `infrastructure` | string[] | Detected DevOps tooling |
 | `architecture` | string | Architecture summary from detected frameworks and databases |
-| `architecture_details` | object | Layers found in the code (`layers`), import counts between them (`flows`), `confidence` (`high`/`medium`/`low`) and `evidence` |
+| `architecture_details` | object | Layers found in the code (`layers`, each with `confirmed_by_code` and `placed_by_imports`), import counts between them (`flows`), `confidence` (`high`/`medium`/`low`) and `evidence` |
 | `dead_code` | string[] | Files nothing reaches from an entry point |
 | `dead_code_details` | object[] | Per file `{ file, confidence, reason }`: how likely it is to be really unused, and why |
 | `circular_imports` | string[][] | Groups of files that import each other, directly or through other files |
@@ -668,7 +668,14 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 <br>
 
-- **Architecture** comes from two sources. The summary line uses detected frameworks and databases. `architecture_details` then checks the code: files are grouped into layers by folder and file name (`routes/`, `user.controller.ts`, `services/`, `models.py`, …), tests are left out, and imports between layers are counted. Confidence is high when layers import each other top-down, medium when the folders exist without supporting imports, and low when no layers are found.
+- **Architecture** comes from two sources. The summary line uses detected frameworks and databases. `architecture_details` then checks every source file, tests left out. A file is placed in a layer by its folder or file name (`routes/`, `user.controller.ts`, `services/`, `models.py`, …) or, when the name says nothing, by its code: route handlers (Express, Nest, FastAPI, Django, Go, Spring, ASP.NET, Rails, Laravel, Rust), middleware signatures, ORM models and tables, and service annotations. A file with no other signal that routes import and that imports data is placed in Services. Imports between layers are then counted. Confidence is high when layers import each other top-down, or when every layer's name is backed by its code; medium when layers exist without that support; and low when none are found. Each layer reports `confirmed_by_code` and `placed_by_imports`.
+- **Unusual layouts** can name their layers in a `.codedna.toml` at the repository root. Keys are `ui`, `routes`, `middleware`, `services` and `data`; values are path prefixes. The longest prefix wins, and settings win over names and code:
+
+  ```toml
+  [layers]
+  routes = ["src/http/"]
+  data = ["src/store/", "src/tables.rs"]
+  ```
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
 - **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. Check before deleting anything, even at high confidence.
 - **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`.
