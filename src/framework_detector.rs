@@ -3,6 +3,7 @@
 //! Detects frameworks and databases from dependency manifests:
 //! - `package.json`     → JavaScript / Node.js frameworks + databases
 //! - `requirements.txt` → Python frameworks + databases
+//! - `pyproject.toml`   → Python frameworks + databases (PEP 621 and Poetry)
 //! - `Cargo.toml`       → Rust crates + databases
 //! - `go.mod`           → Go modules
 //!
@@ -31,14 +32,41 @@ pub struct FrameworkDetectionResult {
 
 /// Scan a list of repository files and detect frameworks + databases from any
 /// manifest files found among them.
+///
+/// Manifests in example, test and docs folders are used only when the
+/// repository has no others, so a library's sample apps don't make it look
+/// like a web service.
 pub fn detect_frameworks(files: &[PathBuf]) -> FrameworkDetectionResult {
     let mut frameworks: Vec<String> = Vec::new();
     let mut databases: Vec<String> = Vec::new();
 
-    for file in files {
+    let manifests: Vec<&PathBuf> = files
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.file_name().and_then(|n| n.to_str()),
+                Some(
+                    "package.json"
+                        | "requirements.txt"
+                        | "pyproject.toml"
+                        | "Cargo.toml"
+                        | "go.mod"
+                )
+            )
+        })
+        .collect();
+    let own: Vec<&PathBuf> = manifests
+        .iter()
+        .copied()
+        .filter(|f| !in_sample_dir(f))
+        .collect();
+    let manifests = if own.is_empty() { manifests } else { own };
+
+    for file in manifests {
         let (fw, db) = match file.file_name().and_then(|n| n.to_str()) {
             Some("package.json") => parse_package_json(file),
             Some("requirements.txt") => parse_requirements_txt(file),
+            Some("pyproject.toml") => parse_pyproject_toml(file),
             Some("Cargo.toml") => parse_cargo_toml(file),
             Some("go.mod") => parse_go_mod(file),
             _ => continue,
@@ -81,6 +109,21 @@ pub fn detect_infrastructure(files: &[PathBuf]) -> Vec<String> {
 }
 
 /// Sort and deduplicate a `Vec<String>` in place.
+/// Folders whose manifests describe samples rather than the project.
+const SAMPLE_DIRS: &[&str] = &[
+    "examples", "example", "samples", "sample", "demo", "demos", "test", "tests", "fixtures",
+    "docs", "docs_src",
+];
+
+/// Whether a file sits in an example, test or docs folder.
+pub(crate) fn in_sample_dir(path: &Path) -> bool {
+    path.parent().is_some_and(|dir| {
+        dir.iter()
+            .filter_map(|c| c.to_str())
+            .any(|c| SAMPLE_DIRS.contains(&c.to_ascii_lowercase().as_str()))
+    })
+}
+
 fn dedup_sorted(v: &mut Vec<String>) {
     v.sort_unstable();
     v.dedup();
@@ -266,17 +309,59 @@ fn parse_requirements_txt(path: &Path) -> (Vec<String>, Vec<String>) {
             continue;
         }
 
-        // Strip version specifiers: `fastapi==0.95.0` → `fastapi`
-        let package_name = line
-            .split(['=', '>', '<', '!', '[', ';'])
-            .next()
-            .unwrap_or(line)
-            .trim()
-            .to_lowercase();
-
-        match_package(rules, &package_name, &mut frameworks, &mut databases);
+        match_package(rules, &pypi_name(line), &mut frameworks, &mut databases);
     }
 
+    (frameworks, databases)
+}
+
+/// Package name from a requirement: `fastapi[standard]>=0.95` → `fastapi`.
+fn pypi_name(requirement: &str) -> String {
+    requirement
+        .split(['=', '>', '<', '!', '~', '[', ';', ' ', '('])
+        .next()
+        .unwrap_or(requirement)
+        .trim()
+        .to_lowercase()
+}
+
+/// Parse `pyproject.toml` and return `(frameworks, databases)`.
+///
+/// Reads the runtime dependencies only: `[project] dependencies` and
+/// `[tool.poetry.dependencies]`. Optional and dev groups are left out, since
+/// a library's extras say little about what the project is.
+fn parse_pyproject_toml(path: &Path) -> (Vec<String>, Vec<String>) {
+    let Some(table) = fs::read_to_string(path)
+        .ok()
+        .and_then(|text| text.parse::<toml::Table>().ok())
+    else {
+        return (Vec::new(), Vec::new());
+    };
+
+    let mut names: Vec<String> = table
+        .get("project")
+        .and_then(|p| p.get("dependencies"))
+        .and_then(|d| d.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|d| d.as_str())
+        .map(pypi_name)
+        .collect();
+    if let Some(poetry) = table
+        .get("tool")
+        .and_then(|t| t.get("poetry"))
+        .and_then(|p| p.get("dependencies"))
+        .and_then(|d| d.as_table())
+    {
+        names.extend(poetry.keys().map(|k| k.to_lowercase()));
+    }
+
+    let rules = &rules::rules().pypi;
+    let mut frameworks = Vec::new();
+    let mut databases = Vec::new();
+    for name in &names {
+        match_package(rules, name, &mut frameworks, &mut databases);
+    }
     (frameworks, databases)
 }
 
@@ -805,6 +890,54 @@ mod tests {
         fs::write(&file, "flask==2.3.0\nclick\n").unwrap();
         let result = detect_frameworks(&[file]);
         assert!(result.frameworks.contains(&"Flask".to_string()));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn example_manifests_count_only_when_there_are_no_others() {
+        let dir = unique_temp_dir("codedna_fw_examples");
+        let own = dir.join("lib").join("requirements.txt");
+        let sample = dir
+            .join("lib")
+            .join("examples")
+            .join("app")
+            .join("requirements.txt");
+        fs::create_dir_all(sample.parent().unwrap()).unwrap();
+        fs::write(&own, "click\n").unwrap();
+        fs::write(&sample, "flask\nredis\n").unwrap();
+        let result = detect_frameworks(&[own, sample.clone()]);
+        assert!(result.frameworks.is_empty());
+        assert!(result.databases.is_empty());
+        let result = detect_frameworks(&[sample]);
+        assert_eq!(result.frameworks, vec!["Flask".to_string()]);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn detects_frameworks_from_pyproject_toml() {
+        let dir = unique_temp_dir("codedna_fw_pyproject");
+        let file = dir.join("pyproject.toml");
+        fs::write(
+            &file,
+            "[project]\nname = \"app\"\ndependencies = [\"fastapi[standard]>=0.1\", \"sqlmodel\", \"psycopg[binary]>=3\"]\n\n[project.optional-dependencies]\nweb = [\"flask\"]\n\n[dependency-groups]\ndev = [\"django\"]\n",
+        )
+        .unwrap();
+        let result = detect_frameworks(&[file]);
+        assert_eq!(result.frameworks, vec!["FastAPI".to_string()]);
+        assert_eq!(
+            result.databases,
+            vec!["PostgreSQL".to_string(), "SQLModel".to_string()]
+        );
+
+        let poetry = dir.join("poetry").join("pyproject.toml");
+        fs::create_dir_all(poetry.parent().unwrap()).unwrap();
+        fs::write(
+            &poetry,
+            "[tool.poetry.dependencies]\npython = \"^3.11\"\nDjango = \"^5\"\n\n[tool.poetry.group.dev.dependencies]\nflask = \"*\"\n",
+        )
+        .unwrap();
+        let result = detect_frameworks(&[poetry]);
+        assert_eq!(result.frameworks, vec!["Django".to_string()]);
         fs::remove_dir_all(dir).ok();
     }
 

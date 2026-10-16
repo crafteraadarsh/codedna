@@ -274,6 +274,16 @@ pub enum Commands {
 
     /// Print the JSON Schema of the `codedna json` report
     Schema,
+
+    /// Show how often each confidence level was right on hand-checked repositories
+    Calibration {
+        /// Output JSON
+        #[arg(long)]
+        json: bool,
+        /// Re-measure this build on the corpus repositories cloned in DIR
+        #[arg(long, value_name = "DIR")]
+        corpus: Option<PathBuf>,
+    },
 }
 
 /// How many hotspots a report lists.
@@ -745,6 +755,22 @@ pub fn run() {
         Commands::Schema => {
             println!("{}", crate::analysis::json_schema());
         }
+
+        // ── calibration ───────────────────────────────────────────────────────
+        Commands::Calibration { json, corpus } => {
+            let c = match corpus {
+                Some(dir) => crate::calibration::measure(&dir),
+                None => crate::calibration::published(),
+            };
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&c).expect("calibration serializes")
+                );
+            } else {
+                print!("{}", crate::calibration::render(&c));
+            }
+        }
     }
 }
 
@@ -752,6 +778,19 @@ pub fn run() {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn parses_calibration() {
+        let cli =
+            Cli::try_parse_from(["codedna", "calibration", "--json", "--corpus", "/x"]).unwrap();
+        match cli.command {
+            Commands::Calibration { json, corpus } => {
+                assert!(json);
+                assert_eq!(corpus, Some(PathBuf::from("/x")));
+            }
+            _ => panic!("expected calibration"),
+        }
+    }
 
     #[test]
     fn parses_report_with_options() {

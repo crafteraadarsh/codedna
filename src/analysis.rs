@@ -277,13 +277,14 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     // whether the root was a local `.` or an absolute temp-dir path.
     let make_relative = |p: &Path| relative_path(root, p);
 
-    let dead_code_details = dead_code_detector::assess_with(root, &dead_code, &files, &cache)
-        .into_iter()
-        .map(|c| DeadCodeCandidate {
-            file: make_relative(&c.file),
-            ..c
-        })
-        .collect();
+    let dead_code_details =
+        dead_code_detector::assess_with(root, &dead_code, &files, &dep_graph, &cache)
+            .into_iter()
+            .map(|c| DeadCodeCandidate {
+                file: make_relative(&c.file),
+                ..c
+            })
+            .collect();
     cache.save();
     let dead_code = dead_code
         .into_iter()
