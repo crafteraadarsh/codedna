@@ -94,6 +94,9 @@ pub struct Unit {
     /// HTTP routes, queues.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub triggers: Vec<String>,
+    /// Other units it waits for before starting (Compose `depends_on`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub depends_on: Vec<String>,
     /// Folders or files in the repository that hold its code.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub code: Vec<String>,
@@ -618,6 +621,7 @@ fn restore_unit(u: &mut Unit, t: &[String]) {
         .iter_mut()
         .chain(&mut u.ports)
         .chain(&mut u.triggers)
+        .chain(&mut u.depends_on)
     {
         *s = restore(s, t);
     }
@@ -906,6 +910,15 @@ fn compose(file: &str, doc: &Node, repo: &Repo, found: &mut Found) {
             })
             .collect();
         u.replicas = number(svc.at(&["deploy", "replicas"]));
+        // A list of names, or a map from name to start condition.
+        u.depends_on = match svc.get("depends_on") {
+            Some(d) if !d.items().is_empty() => {
+                d.items().iter().filter_map(Node::str).map(clean).collect()
+            }
+            Some(d) => d.entries().iter().map(|(k, _)| clean(k)).collect(),
+            None => Vec::new(),
+        };
+        u.depends_on.truncate(MAX_TRIGGERS);
         let context = match svc.get("build") {
             Some(b) if b.str().is_some() => b.str(),
             Some(b) => Some(b.str_at("context").unwrap_or(".")),
@@ -1693,6 +1706,9 @@ pub fn render_text(t: &Topology) -> String {
         if !u.triggers.is_empty() {
             let _ = writeln!(out, "    reached by {}", u.triggers.join(" · "));
         }
+        if !u.depends_on.is_empty() {
+            let _ = writeln!(out, "    starts after {}", u.depends_on.join(", "));
+        }
         if !u.code.is_empty() {
             let _ = writeln!(
                 out,
@@ -1903,6 +1919,19 @@ Resources:
         ]);
         assert_eq!(named(&t, "web")[0].code, vec!["./web/".to_string()]);
         assert_eq!(named(&t, "db")[0].images, vec!["postgres:16".to_string()]);
+    }
+
+    #[test]
+    fn compose_depends_on_lists_and_maps() {
+        let (_d, t) = repo(&[(
+            "compose.yaml",
+            "services:\n  web:\n    image: web\n    depends_on: [db, cache]\n  worker:\n    image: worker\n    depends_on:\n      db:\n        condition: service_healthy\n  db:\n    image: postgres:16\n  cache:\n    image: redis\n",
+        )]);
+        let deps = |n| named(&t, n)[0].depends_on.clone();
+        assert_eq!(deps("web"), vec!["db".to_string(), "cache".to_string()]);
+        assert_eq!(deps("worker"), vec!["db".to_string()]);
+        assert!(deps("db").is_empty());
+        assert!(render_text(&t).contains("starts after db, cache"));
     }
 
     #[test]
