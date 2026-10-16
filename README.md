@@ -61,8 +61,8 @@ Read-only. It never runs scripts or installs anything from the repo, never opens
 </td>
 <td valign="top">
 
-### 🔥 Hotspots and runbook
-Find the files that are large *and* change often, and learn how to run a project: its scripts, env var names and API routes.
+### 🔥 Hotspots, runbook and deployment
+Find the files that are large *and* change often, learn how to run a project (its scripts, env var names and API routes), and see what its Kubernetes, Helm, Compose or serverless files say will run.
 
 </td>
 <td valign="top">
@@ -137,6 +137,7 @@ codedna audit . --deps                         # plus known vulnerabilities in d
 codedna audit . --baseline audit.json --fail-on high   # in CI: fail only on new findings
 codedna hotspots .                             # large files that change often
 codedna runbook .                              # scripts, env var names, API routes
+codedna topology .                             # what deployment files run, how it is reached, which code
 codedna packages .                             # monorepo packages: size, stack, who uses whom
 codedna impact . --base origin/main            # what your branch affects: importers, layers, routes, tests
 
@@ -154,7 +155,7 @@ CodeDna works with any agent that can run a shell command, and connects natively
 **2. MCP server.** `codedna mcp` serves read-only tools over stdio:
 
 <p>
-<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code> · <code>list_packages</code> · <code>get_impact</code>
+<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code> · <code>get_topology</code> · <code>list_packages</code> · <code>get_impact</code>
 </p>
 
 | Agent | Setup |
@@ -227,6 +228,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna audit [path\|url]` | Supply-chain red flags (`--json`, `--fail-on LEVEL` for CI, `--deps` for known vulnerabilities in dependencies, `--baseline FILE` / `--write-baseline FILE` to report only new findings) |
 | `codedna hotspots [path\|url]` | Files ranked by commits × lines of code, plus files that change together (`--days N`, `--limit N`, `--json`) |
 | `codedna runbook [path\|url]` | Scripts and targets, env var names (values are never read), API routes (`--json`) |
+| `codedna topology [path\|url]` | What the deployment files say will run: Kubernetes, Helm, Skaffold, Docker Compose, Serverless Framework, AWS SAM and CloudFormation, Vercel, Netlify, Cloudflare Workers, Fly.io, Render, App Engine and Procfile. Each unit with its image, ports, replicas, schedule, what reaches it (Services, Ingress, HTTP and queue events) and the code it runs (`--json`) |
 | `codedna packages [path\|url]` | Monorepo packages with size, languages, stack, dead files and the packages each one uses and is used by (`--json`) |
 | `codedna impact [path]` | What a change affects: changed files, the files that import them, layers, API routes and tests to run. Compares uncommitted work with `HEAD`, or a branch with `--base origin/main` from where it left it (`--json`, `--markdown`) |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report (`--format html` for a self-contained page) |
@@ -463,6 +465,28 @@ Without `--deps` nothing leaves your machine, and this project has no other find
 
   Nothing was run. Routes come from common framework patterns and may
   be incomplete.
+```
+
+</details>
+
+<details>
+<summary><b><code>topology</code>: what will run</b></summary>
+
+<br>
+
+On [Google's microservices demo](https://github.com/GoogleCloudPlatform/microservices-demo):
+
+```text
+Kubernetes
+  Deployment frontend  (./kubernetes-manifests/frontend.yaml:15)
+    image frontend · port 8080
+    reached by Service frontend (ClusterIP, port 80→8080) · Service frontend-external (LoadBalancer, port 80→8080)
+    code ./src/frontend/ (from skaffold)
+  Deployment redis-cart  (./kubernetes-manifests/cartservice.yaml:89)
+    image redis:alpine · port 6379
+    reached by Service redis-cart (ClusterIP, port 6379)
+
+51 unit(s) in 39 file(s). Read from configuration only; nothing was run or deployed.
 ```
 
 </details>
@@ -707,6 +731,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 - **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`.
 - **Monorepos**: workspaces declared at the repository root are listed with their packages (`workspaces` in JSON): npm, Yarn and Bun workspaces, pnpm (`pnpm-workspace.yaml`), Lerna, Cargo, Go (`go.work`) and uv. Each package gets its own size, languages, stack, dead files and links to the other packages (`codedna packages`).
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.
+- **Topology** reads deployment files as written; nothing is rendered or deployed. Helm values are not applied, so templated names stay as `{{ … }}`, and Kustomize overlays are listed as files, not merged. A Service links to the workloads its selector matches, preferring ones in the same file, then the same folder. Code is found from Skaffold and Compose build contexts, an image named like a folder with a Dockerfile, or a function's handler. Files in test, example and docs folders are skipped and counted.
 - **Change impact** follows the same imports as the dependency graph, backwards from the changed files, so a file reached another way (configuration, reflection, a language whose imports are not followed) is not listed. Untracked files count as added. Tests are files that look like tests (`*.test.ts`, `test_*.py`, `tests/`, …) and import changed code, directly or through other files.
 
 </details>
@@ -792,6 +817,8 @@ src/
 ├── cache.rs                per-file results reused on repeat runs
 ├── vulns.rs                lockfile versions checked against OSV
 ├── runbook.rs              commands, env var names, API routes
+├── topology.rs             deployment files: what runs, how it is reached, which code
+├── yaml.rs                 bounded YAML reader for untrusted files
 ├── diff.rs                 compare two snapshots or versions
 ├── impact.rs               what a change affects: importers, layers, routes, tests
 ├── report.rs               Markdown / HTML reports

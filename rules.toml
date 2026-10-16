@@ -435,7 +435,7 @@ files = ["Dockerfile"]
 
 [[infra]]
 name = "Docker Compose"
-files = ["docker-compose.yml", "docker-compose.yaml"]
+files = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]
 
 [[infra]]
 name = "Makefile"
@@ -449,3 +449,43 @@ dirs = [".github/workflows"]
 name = "Kubernetes"
 dirs = ["k8s", "kubernetes"]
 extensions = ["yaml", "yml"]
+
+[[infra]]
+name = "Helm"
+files = ["Chart.yaml"]
+
+[[infra]]
+name = "Skaffold"
+files = ["skaffold.yaml", "skaffold.yml"]
+
+[[infra]]
+name = "Serverless Framework"
+files = ["serverless.yml", "serverless.yaml"]
+
+[[infra]]
+name = "AWS SAM"
+files = ["samconfig.toml"]
+
+[[infra]]
+name = "Vercel"
+files = ["vercel.json"]
+
+[[infra]]
+name = "Netlify"
+files = ["netlify.toml"]
+
+[[infra]]
+name = "Cloudflare Workers"
+files = ["wrangler.toml", "wrangler.json", "wrangler.jsonc"]
+
+[[infra]]
+name = "Fly.io"
+files = ["fly.toml"]
+
+[[infra]]
+name = "Render"
+files = ["render.yaml"]
+
+[[infra]]
+name = "Heroku"
+files = ["Procfile"]
