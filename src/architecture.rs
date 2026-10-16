@@ -860,6 +860,10 @@ fn content_layer(path: &Path, text: &str) -> Option<(usize, CodeSign)> {
         };
         return Some((0, sign));
     }
+    // Signs count only in code, not in strings, comments or fixtures.
+    let original = text;
+    let code = crate::code_text::code_only(&ext, text);
+    let text = code.as_str();
     if matches!(ext.as_str(), "tsx" | "jsx") {
         let markup = [text.find("/>"), text.find("</")]
             .into_iter()
@@ -877,7 +881,7 @@ fn content_layer(path: &Path, text: &str) -> Option<(usize, CodeSign)> {
             .map(|(at, s)| sign_at(text, at, s))
     };
     let file = path.to_string_lossy().replace('\\', "/");
-    if let Some(route) = crate::runbook::routes(&file, text).into_iter().next() {
+    if let Some(route) = crate::runbook::routes(&file, original).into_iter().next() {
         let sign = CodeSign {
             line: route.line,
             sign: sanitize(&format!("{} {}", route.method, route.path)),
@@ -1178,6 +1182,24 @@ mod tests {
             .layers
             .iter()
             .all(|l| l.examples.len() <= MAX_EXAMPLES));
+    }
+
+    #[test]
+    fn signs_in_strings_and_comments_are_not_evidence() {
+        let at = |p: &str, t: &str| content_layer(Path::new(p), t).map(|(i, _)| LAYERS[i].0);
+        let fixture =
+            "export const samples = [\"@RestController\", 'pgTable(', `@Injectable()`];\n\
+                       // app.get(\"/old\", h)\n/* (req, res, next) */\n\
+                       const doc = \"router.post('/x', h)\";\n";
+        assert_eq!(at("src/fixtures.ts", fixture), None);
+        let py = "SQL = '''\nCREATE TABLE t (id int)\n'''\n# class U(models.Model)\n";
+        assert_eq!(at("app/notes.py", py), None);
+        let java = "class Doc { String s = \"@RestController\"; }";
+        assert_eq!(at("src/Doc.java", java), None);
+        // The real thing next to a string still counts.
+        let mixed = "const label = \"pgTable(\";\nexport const t = pgTable(\"t\", {});\n";
+        let (layer, sign) = content_layer(Path::new("src/t.ts"), mixed).unwrap();
+        assert_eq!((LAYERS[layer].0, sign.line), ("Data", 2));
     }
 
     #[test]
