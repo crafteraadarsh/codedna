@@ -140,6 +140,11 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = ContextFormat::Md)]
         format: ContextFormat,
+
+        /// Describe a task to list the files that matter for it first,
+        /// e.g. --task "add rate limiting to login"
+        #[arg(long)]
+        task: Option<String>,
     },
 
     /// Write a shareable report (Markdown, or HTML you can print to PDF)
@@ -536,11 +541,13 @@ pub fn run() {
             path,
             max_tokens,
             format,
+            task,
         } => {
             let (local_path, _guard) = resolve(&path);
             let result = crate::analysis::analyze(&local_path);
             let tree = crate::repo_map::render_tree(&local_path, crate::context::MAP_DEPTH);
-            let pack = crate::context::build(&result, &tree, max_tokens);
+            let task = task.map(|t| crate::task::find(&local_path, &result, &t));
+            let pack = crate::context::build_with_task(&result, &tree, max_tokens, task);
             match format {
                 ContextFormat::Md => print!("{}", crate::context::render_markdown(&pack)),
                 ContextFormat::Json => match serde_json::to_string_pretty(&pack) {
@@ -1069,6 +1076,8 @@ mod tests {
             "800",
             "--format",
             "json",
+            "--task",
+            "add login",
         ])
         .unwrap();
 
@@ -1077,10 +1086,12 @@ mod tests {
                 path,
                 max_tokens,
                 format,
+                task,
             } => {
                 assert_eq!(path, ".");
                 assert_eq!(max_tokens, 800);
                 assert_eq!(format, ContextFormat::Json);
+                assert_eq!(task.as_deref(), Some("add login"));
             }
             _ => panic!("expected context command"),
         }

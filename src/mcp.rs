@@ -195,7 +195,10 @@ impl Server {
                     .clamp(crate::context::MIN_MAX_TOKENS, 50_000);
                 let result = analysis::analyze(&root);
                 let tree = crate::repo_map::render_tree(&root, crate::context::MAP_DEPTH);
-                let pack = crate::context::build(&result, &tree, max_tokens);
+                let task = str_arg(args, "task")?
+                    .filter(|t| !t.trim().is_empty())
+                    .map(|t| crate::task::find(&root, &result, t));
+                let pack = crate::context::build_with_task(&result, &tree, max_tokens, task);
                 Ok(crate::context::render_markdown(&pack))
             }
             "analyze_repo" => {
@@ -479,12 +482,13 @@ fn tool_definitions() -> Value {
     json!([
         {
             "name": "get_context",
-            "description": "Compact Markdown briefing on a codebase for an AI agent: project type, stack, architecture, entry points, most imported and largest files, and a trimmed directory map. Call this first.",
+            "description": "Compact Markdown briefing on a codebase for an AI agent: project type, stack, architecture, entry points, most imported and largest files, and a trimmed directory map. Call this first; pass task to list the files that matter for what you are about to do.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "path": path,
-                    "max_tokens": { "type": "integer", "minimum": 300, "maximum": 50000, "description": "Approximate size limit in tokens (default 2000)." }
+                    "max_tokens": { "type": "integer", "minimum": 300, "maximum": 50000, "description": "Approximate size limit in tokens (default 2000)." },
+                    "task": { "type": "string", "maxLength": 500, "description": "What you are about to do, e.g. \"add rate limiting to login\". Lists the files that matter for it first, with why." }
                 }
             },
             "annotations": read_only,
@@ -930,6 +934,19 @@ mod tests {
         let text = r["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("# Codebase context"));
         assert!(text.contains("main.rs"));
+        assert!(!text.contains("Relevant to the task"));
+
+        let r = tool(
+            &s,
+            "get_context",
+            json!({ "path": path, "task": "change the helper" }),
+        );
+        let text = r["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("## Relevant to the task"));
+        assert!(text.contains("`./src/util.rs`: mentions \"helper\" 1×"));
+
+        let r = tool(&s, "get_context", json!({ "path": path, "task": 3 }));
+        assert_eq!(r["result"]["isError"], true);
 
         let r = tool(&s, "list_files", json!({ "path": path, "limit": 1 }));
         let text = r["result"]["content"][0]["text"].as_str().unwrap();

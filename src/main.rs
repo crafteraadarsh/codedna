@@ -26,6 +26,7 @@ mod rules;
 mod runbook;
 mod safe_text;
 mod scanner;
+mod task;
 mod topology;
 mod vulns;
 mod workspaces;

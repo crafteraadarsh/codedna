@@ -105,6 +105,9 @@ pub struct ContextPack {
     pub unresolved_imports: Vec<String>,
     pub map: String,
     pub map_truncated: bool,
+    /// Files that matter for the task given with `--task`, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task: Option<crate::task::TaskContext>,
 }
 
 /// Build a context pack from an analysis and a rendered directory map.
@@ -113,6 +116,16 @@ pub struct ContextPack {
 /// label, which for a cloned repository is a random temp-dir name) is
 /// replaced with `./`.
 pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextPack {
+    build_with_task(result, tree, max_tokens, None)
+}
+
+/// Build a context pack that opens with the files relevant to a task.
+pub fn build_with_task(
+    result: &AnalysisResult,
+    tree: &str,
+    max_tokens: usize,
+    task: Option<crate::task::TaskContext>,
+) -> ContextPack {
     let mut pack = ContextPack {
         schema_version: result.schema_version,
         analyzer: result.analyzer.clone(),
@@ -189,6 +202,7 @@ pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextP
             .collect(),
         map: String::new(),
         map_truncated: false,
+        task,
     };
 
     // Everything except the map is fixed in size; the map gets what is left.
@@ -238,6 +252,10 @@ pub fn render_markdown(pack: &ContextPack) -> String {
         "- Size: {} lines of code in {} files",
         pack.total_loc, pack.file_count
     );
+
+    if let Some(task) = &pack.task {
+        render_task(&mut out, task);
+    }
 
     let _ = writeln!(out, "\n## Stack\n");
     let langs: Vec<String> = pack
@@ -341,6 +359,38 @@ pub fn render_markdown(pack: &ContextPack) -> String {
     }
 
     out
+}
+
+/// The task section: the files to read first, each with why.
+fn render_task(out: &mut String, task: &crate::task::TaskContext) {
+    let _ = writeln!(out, "\n## Relevant to the task\n");
+    let _ = writeln!(out, "Task: {}\n", task.task);
+    if task.terms.is_empty() {
+        let _ = writeln!(
+            out,
+            "No specific words to match; name a feature, file or function."
+        );
+        return;
+    }
+    if task.files.is_empty() && task.tests.is_empty() {
+        let _ = writeln!(
+            out,
+            "No file names or code mention {}.",
+            task.terms.join(", ")
+        );
+        return;
+    }
+    for f in &task.files {
+        let _ = writeln!(out, "- {}: {}", code(&f.file), f.reasons.join("; "));
+    }
+    if !task.tests.is_empty() {
+        let tests: Vec<String> = task.tests.iter().map(|t| code(&t.file)).collect();
+        let _ = writeln!(out, "- Tests: {}", tests.join(", "));
+    }
+    let _ = writeln!(
+        out,
+        "\nMatched by name and wording, not meaning; check before relying on it."
+    );
 }
 
 /// A cycle as `a → b → a`, with long cycles shortened to their first files.
@@ -537,6 +587,30 @@ mod tests {
         let md = render_markdown(&pack);
         // A little slack for the trimmed-map notice.
         assert!(md.chars().count() <= MIN_MAX_TOKENS * CHARS_PER_TOKEN + 100);
+    }
+
+    #[test]
+    fn task_section_comes_first_and_fits() {
+        let task = crate::task::TaskContext {
+            task: "speed up the cli".to_string(),
+            terms: vec!["speed".to_string(), "cli".to_string()],
+            files: vec![crate::task::TaskFile {
+                file: "./src/cli.rs".to_string(),
+                score: 100,
+                reasons: vec!["name matches \"cli\"".to_string()],
+            }],
+            tests: vec![],
+        };
+        let pack = build_with_task(&sample(), TREE, DEFAULT_MAX_TOKENS, Some(task));
+        let md = render_markdown(&pack);
+        let at = md.find("## Relevant to the task").unwrap();
+        assert!(at < md.find("## Stack").unwrap());
+        assert!(md.contains("- `./src/cli.rs`: name matches \"cli\""));
+        assert!(md.chars().count() <= DEFAULT_MAX_TOKENS * CHARS_PER_TOKEN + 100);
+        assert!(
+            !render_markdown(&build(&sample(), TREE, DEFAULT_MAX_TOKENS))
+                .contains("Relevant to the task")
+        );
     }
 
     #[test]
