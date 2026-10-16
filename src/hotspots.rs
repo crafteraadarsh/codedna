@@ -329,6 +329,7 @@ mod tests {
 
     fn result(files: &[(&str, usize)]) -> AnalysisResult {
         AnalysisResult {
+            coverage: Default::default(),
             project_type: String::new(),
             total_loc: files.iter().map(|f| f.1).sum(),
             comment_lines: 0,

@@ -37,20 +37,80 @@ pub type DependencyGraph = HashMap<PathBuf, Vec<PathBuf>>;
 /// Only those source files become nodes: READMEs, configs, lockfiles and
 /// other files that cannot import anything are left out, so they are never
 /// reported as dead code. Files that cannot be read are kept with no edges.
+#[cfg(test)]
 pub fn build_dependency_graph(files: &[PathBuf]) -> DependencyGraph {
+    build_with_tallies(files).0
+}
+
+/// What happened to the imports of one source file.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ImportTally {
+    /// Whether the file could be read at all.
+    pub readable: bool,
+    /// Imports of the repository's own files that were found on disk.
+    pub resolved: usize,
+    /// Imports that point into the repository but matched no file, as
+    /// `(line, import)`: relative paths, configured aliases, workspace
+    /// packages and local Python packages.
+    pub unresolved: Vec<(usize, String)>,
+    /// Imports of packages from outside the repository (npm packages, the
+    /// standard library, ...).
+    pub external: usize,
+}
+
+impl ImportTally {
+    fn internal(&mut self, line: usize, import: &str, found: bool) {
+        if found {
+            self.resolved += 1;
+        } else {
+            self.unresolved.push((line, import.to_string()));
+        }
+    }
+}
+
+/// Build the dependency graph and record, for every source file, how many
+/// of its imports were resolved, left unresolved or point outside the
+/// repository.
+pub fn build_with_tallies(files: &[PathBuf]) -> (DependencyGraph, HashMap<PathBuf, ImportTally>) {
     BUILD.fetch_add(1, Ordering::Relaxed);
     let aliases = Aliases::from_files(files);
+    let python_packages = python_packages(files);
 
     // Each file is parsed independently — no shared mutable state needed.
-    // rayon collects directly into a HashMap via the FromParallelIterator impl.
-    files
+    let parsed: Vec<(PathBuf, Vec<PathBuf>, ImportTally)> = files
         .par_iter()
         .filter(|file| is_source_file(file))
         .map(|file| {
             let key = normalize(file);
-            let deps = parse_dependencies_with(&key, &aliases);
-            (key, deps)
+            let mut tally = ImportTally::default();
+            let deps = parse_dependencies_with(&key, &aliases, &python_packages, &mut tally);
+            (key, deps, tally)
         })
+        .collect();
+
+    let mut graph = DependencyGraph::with_capacity(parsed.len());
+    let mut tallies = HashMap::with_capacity(parsed.len());
+    for (key, deps, tally) in parsed {
+        tallies.insert(key.clone(), tally);
+        graph.insert(key, deps);
+    }
+    (graph, tallies)
+}
+
+/// Whether `ext` (lowercase) is a source extension whose imports CodeDna
+/// follows.
+pub fn follows_imports(ext: &str) -> bool {
+    SOURCE_EXTENSIONS.contains(&ext)
+}
+
+/// Names of the repository's own Python packages: directories holding an
+/// `__init__.py`. An absolute import of one of these that matches no file
+/// is unresolved rather than a third-party package.
+fn python_packages(files: &[PathBuf]) -> HashSet<String> {
+    files
+        .iter()
+        .filter(|f| f.file_name().is_some_and(|n| n == "__init__.py"))
+        .filter_map(|f| f.parent()?.file_name()?.to_str().map(str::to_string))
         .collect()
 }
 
@@ -131,11 +191,15 @@ struct Aliases {
     /// Every file in the repository; aliases only ever resolve to one of
     /// these, so a config cannot point outside the project.
     known: HashSet<PathBuf>,
+    /// `name` of every `package.json` in the repository: imports of these
+    /// are the repository's own workspace packages.
+    packages: HashSet<String>,
 }
 
 impl Aliases {
     fn from_files(files: &[PathBuf]) -> Self {
         let mut scopes: BTreeMap<PathBuf, AliasScope> = BTreeMap::new();
+        let mut packages = HashSet::new();
         for file in files {
             let name = file.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if !matches!(name, "tsconfig.json" | "jsconfig.json" | "package.json") {
@@ -148,7 +212,9 @@ impl Aliases {
                 base: dir.clone(),
                 ..AliasScope::default()
             });
-            if name != "package.json" {
+            if name == "package.json" {
+                packages.extend(package_name(&path));
+            } else {
                 read_ts_config(&path, scope);
             }
         }
@@ -170,7 +236,34 @@ impl Aliases {
         Self {
             scopes,
             known: files.iter().map(|f| normalize(f)).collect(),
+            packages,
         }
+    }
+
+    /// Whether a non-relative specifier names the repository's own code: it
+    /// matches a path alias in force for `file` or a workspace package.
+    fn is_local(&self, file: &Path, specifier: &str) -> bool {
+        // No npm package name starts with `@/` or `~/`: these are always
+        // aliases of the project's own code, configured or not.
+        if specifier.starts_with("@/") || specifier.starts_with("~/") {
+            return true;
+        }
+        let package_match = self.packages.iter().any(|name| {
+            specifier == name
+                || specifier
+                    .strip_prefix(name.as_str())
+                    .is_some_and(|rest| rest.starts_with('/'))
+        });
+        package_match
+            || self
+                .scopes
+                .iter()
+                .filter(|s| file.starts_with(&s.dir))
+                .flat_map(|s| &s.paths)
+                .any(|(pattern, _)| match pattern.strip_suffix('*') {
+                    Some(prefix) => !prefix.is_empty() && specifier.starts_with(prefix),
+                    None => pattern == specifier,
+                })
     }
 
     /// Resolve a non-relative specifier through the aliases of the nearest
@@ -205,6 +298,18 @@ impl Aliases {
     fn known_file(&self, base: &Path, target: &str) -> Option<PathBuf> {
         resolve_js_ts_path(base, target).filter(|p| self.known.contains(p))
     }
+}
+
+/// The `name` field of a `package.json`, when it has one.
+fn package_name(path: &Path) -> Option<String> {
+    let small = fs::metadata(path).is_ok_and(|m| m.len() <= MAX_CONFIG_BYTES);
+    if !small {
+        return None;
+    }
+    let text = fs::read_to_string(path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let name = json.get("name")?.as_str()?.trim();
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 /// Read `compilerOptions.baseUrl` and `compilerOptions.paths` from a
@@ -344,21 +449,42 @@ fn is_source_file(file: &Path) -> bool {
 /// Parse dependencies for a single file, with no path aliases.
 #[cfg(test)]
 fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
-    parse_dependencies_with(file, &Aliases::default())
+    parse_dependencies_with(
+        file,
+        &Aliases::default(),
+        &HashSet::new(),
+        &mut ImportTally::default(),
+    )
 }
 
-/// Parse dependencies for a single file based on its extension.
-fn parse_dependencies_with(file: &Path, aliases: &Aliases) -> Vec<PathBuf> {
+/// Parse dependencies for a single file based on its extension, counting
+/// what happened to each import in `tally`.
+fn parse_dependencies_with(
+    file: &Path,
+    aliases: &Aliases,
+    python_packages: &HashSet<String>,
+    tally: &mut ImportTally,
+) -> Vec<PathBuf> {
     let ext = file
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
 
+    let Ok(content) = fs::read_to_string(file) else {
+        return Vec::new();
+    };
+    let Some(parent) = file.parent() else {
+        return Vec::new();
+    };
+    tally.readable = true;
+
     match ext.as_str() {
-        "ts" | "tsx" | "js" | "jsx" | "mjs" => parse_js_ts_imports(file, aliases),
-        "py" => parse_python_imports(file),
-        "rs" => parse_rust_imports(file),
+        "ts" | "tsx" | "js" | "jsx" | "mjs" => {
+            parse_js_ts_imports(file, parent, &content, aliases, tally)
+        }
+        "py" => parse_python_imports(parent, &content, python_packages, tally),
+        "rs" => parse_rust_imports(file, parent, &content, tally),
         _ => Vec::new(),
     }
 }
@@ -376,20 +502,17 @@ fn parse_dependencies_with(file: &Path, aliases: &Aliases) -> Vec<PathBuf> {
 /// - `import('./path')` and `import './path'`
 /// - aliased paths such as `@/components/x`, via `tsconfig.json` /
 ///   `jsconfig.json` `paths` and `baseUrl`
-fn parse_js_ts_imports(file: &Path, aliases: &Aliases) -> Vec<PathBuf> {
-    let content = match fs::read_to_string(file) {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-
-    let parent = match file.parent() {
-        Some(p) => p,
-        None => return Vec::new(),
-    };
-
+fn parse_js_ts_imports(
+    file: &Path,
+    parent: &Path,
+    content: &str,
+    aliases: &Aliases,
+    tally: &mut ImportTally,
+) -> Vec<PathBuf> {
     let mut deps = Vec::new();
+    let mut seen: HashSet<&str> = HashSet::new();
 
-    for line in content.lines() {
+    for (number, line) in content.lines().enumerate() {
         let trimmed = line.trim();
 
         // Skip comments
@@ -400,11 +523,23 @@ fn parse_js_ts_imports(file: &Path, aliases: &Aliases) -> Vec<PathBuf> {
         // Collect all quoted string literals on this line that look like
         // relative paths.
         for specifier in extract_quoted_specifiers(trimmed) {
+            // Template literals with `${...}` are built at runtime.
+            if specifier.is_empty() || specifier.contains("${") {
+                continue;
+            }
             let resolved = if is_relative(specifier) {
                 resolve_js_ts_path(parent, specifier)
             } else {
                 aliases.resolve(file, specifier)
             };
+            if seen.insert(specifier) {
+                if resolved.is_some() || is_relative(specifier) || aliases.is_local(file, specifier)
+                {
+                    tally.internal(number + 1, specifier, resolved.is_some());
+                } else {
+                    tally.external += 1;
+                }
+            }
 
             if let Some(resolved) = resolved {
                 if !deps.contains(&resolved) {
@@ -526,20 +661,15 @@ fn append_extension(path: &Path, ext: &str) -> PathBuf {
 ///   `ROOT_URLCONF = "project.urls"` or `include("app.urls")`
 ///
 /// Third-party and stdlib imports find no matching file and are ignored.
-fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
-    let content = match fs::read_to_string(file) {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-
-    let parent = match file.parent() {
-        Some(p) => p,
-        None => return Vec::new(),
-    };
-
+fn parse_python_imports(
+    parent: &Path,
+    content: &str,
+    python_packages: &HashSet<String>,
+    tally: &mut ImportTally,
+) -> Vec<PathBuf> {
     let mut deps = Vec::new();
 
-    for line in content.lines() {
+    for (number, line) in content.lines().enumerate() {
         let trimmed = line.trim();
 
         // Skip comments
@@ -547,7 +677,21 @@ fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
             continue;
         }
 
-        let found = resolve_python_import(parent, trimmed)
+        let mut imported = Vec::new();
+        for (module, found) in python_import_modules(parent, trimmed) {
+            let local = module.starts_with('.')
+                || python_packages.contains(module.split('.').next().unwrap_or(""));
+            match found {
+                Some(files) => {
+                    tally.resolved += 1;
+                    imported.extend(files);
+                }
+                None if local => tally.internal(number + 1, module, false),
+                None => tally.external += 1,
+            }
+        }
+
+        let found = imported
             .into_iter()
             .chain(resolve_python_string_paths(parent, trimmed));
         for resolved in found {
@@ -560,8 +704,12 @@ fn parse_python_imports(file: &Path) -> Vec<PathBuf> {
     deps
 }
 
-/// Resolve one `from ... import ...` or `import ...` line to files on disk.
-fn resolve_python_import(file_parent: &Path, line: &str) -> Vec<PathBuf> {
+/// The modules one `from ... import ...` or `import ...` line imports, each
+/// with the files it loads, or `None` when no enclosing directory has it.
+fn python_import_modules<'a>(
+    file_parent: &Path,
+    line: &'a str,
+) -> Vec<(&'a str, Option<Vec<PathBuf>>)> {
     let line = line.split('#').next().unwrap_or("").trim();
 
     if let Some(rest) = line.strip_prefix("from ") {
@@ -574,17 +722,20 @@ fn resolve_python_import(file_parent: &Path, line: &str) -> Vec<PathBuf> {
             .filter_map(|n| n.split_whitespace().next())
             .filter(|n| *n != "*" && *n != "\\")
             .collect();
-        return resolve_python_module_in(file_parent, module.trim(), &names);
+        let module = module.trim();
+        if module.is_empty() {
+            return Vec::new();
+        }
+        return vec![(module, locate_python_module(file_parent, module, &names))];
     }
 
     if let Some(rest) = line.strip_prefix("import ") {
-        let mut deps = Vec::new();
-        for module in rest.split(',') {
-            if let Some(module) = module.split_whitespace().next() {
-                deps.extend(resolve_python_module_in(file_parent, module, &[]));
-            }
-        }
-        return deps;
+        return rest
+            .split(',')
+            .filter_map(|module| module.split_whitespace().next())
+            .filter(|module| !module.starts_with('(') && !module.ends_with('('))
+            .map(|module| (module, locate_python_module(file_parent, module, &[])))
+            .collect();
     }
 
     Vec::new()
@@ -646,6 +797,13 @@ fn python_string_literals(line: &str) -> Vec<&str> {
 /// enclosing directory, so `from app.core import db` in `backend/app/main.py`
 /// finds `backend/app/core/db.py`.
 fn resolve_python_module_in(file_parent: &Path, module: &str, names: &[&str]) -> Vec<PathBuf> {
+    locate_python_module(file_parent, module, names).unwrap_or_default()
+}
+
+/// Like [`resolve_python_module_in`], but `None` when the module was not
+/// found at all, as opposed to found with no files to load (a namespace
+/// package).
+fn locate_python_module(file_parent: &Path, module: &str, names: &[&str]) -> Option<Vec<PathBuf>> {
     let dot_count = module.chars().take_while(|&c| c == '.').count();
     let dotted = &module[dot_count..];
 
@@ -653,14 +811,12 @@ fn resolve_python_module_in(file_parent: &Path, module: &str, names: &[&str]) ->
         return file_parent
             .ancestors()
             .nth(dot_count - 1)
-            .and_then(|root| resolve_python_module(root, dotted, names))
-            .unwrap_or_default();
+            .and_then(|root| resolve_python_module(root, dotted, names));
     }
 
     file_parent
         .ancestors()
         .find_map(|root| resolve_python_module(root, dotted, names))
-        .unwrap_or_default()
 }
 
 /// Resolve a dotted module under `root`, or `None` when `root` lacks it.
@@ -723,22 +879,18 @@ fn push_if_file(files: &mut Vec<PathBuf>, candidate: &Path) {
 ///
 /// A crate root or `mod.rs` loads `name.rs` / `name/mod.rs` next to it;
 /// any other file `foo.rs` loads them from `foo/`.
-fn parse_rust_imports(file: &Path) -> Vec<PathBuf> {
-    let content = match fs::read_to_string(file) {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-
-    let parent = match file.parent() {
-        Some(p) => p,
-        None => return Vec::new(),
-    };
+fn parse_rust_imports(
+    file: &Path,
+    parent: &Path,
+    content: &str,
+    tally: &mut ImportTally,
+) -> Vec<PathBuf> {
     let module_dir = rust_module_dir(file, parent);
 
     let mut deps = Vec::new();
     let mut path_attr: Option<String> = None;
 
-    for line in content.lines() {
+    for (number, line) in content.lines().enumerate() {
         let trimmed = line.trim();
 
         // Skip comments
@@ -764,6 +916,11 @@ fn parse_rust_imports(file: &Path) -> Vec<PathBuf> {
                 }
                 None => resolve_rust_mod(&module_dir, module_name),
             };
+            tally.internal(
+                number + 1,
+                &format!("mod {module_name};"),
+                resolved.is_some(),
+            );
             if let Some(resolved) = resolved {
                 if !deps.contains(&resolved) {
                     deps.push(resolved);
@@ -1471,6 +1628,94 @@ mod tests {
 
         let deps = parse_dependencies(&cli);
         assert!(deps.contains(&normalize(&common)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    // -----------------------------------------------------------------------
+    // Import tallies (coverage)
+    // -----------------------------------------------------------------------
+
+    fn tally_for<'a>(tallies: &'a HashMap<PathBuf, ImportTally>, file: &Path) -> &'a ImportTally {
+        &tallies[&normalize(file)]
+    }
+
+    #[test]
+    fn tallies_js_relative_alias_workspace_and_external_imports() {
+        let dir = unique_temp_dir("codedna_dg_tally_js");
+        let app = dir.join("web/src/app.ts");
+        let util = dir.join("web/src/util.ts");
+        let pkg = dir.join("packages/ui/package.json");
+        write_file(&pkg, r#"{ "name": "@acme/ui" }"#);
+        write_file(&util, "export {}");
+        write_file(
+            &app,
+            "import u from './util';\n\
+             import again from './util';\n\
+             import gone from './gone';\n\
+             import b from '@/missing';\n\
+             import ui from '@acme/ui/button';\n\
+             import React from 'react';\n\
+             import x from `./${name}`;\n",
+        );
+        let files = [app.clone(), util, pkg];
+        let (_, tallies) = build_with_tallies(&files);
+        let t = tally_for(&tallies, &app);
+        assert!(t.readable);
+        assert_eq!(t.resolved, 1, "./util counts once");
+        assert_eq!(t.external, 1, "only react is external");
+        let unresolved: Vec<&str> = t.unresolved.iter().map(|(_, s)| s.as_str()).collect();
+        assert_eq!(unresolved, ["./gone", "@/missing", "@acme/ui/button"]);
+        assert_eq!(t.unresolved[0].0, 3, "line of ./gone");
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn tallies_python_local_package_misses_but_not_third_party() {
+        let dir = unique_temp_dir("codedna_dg_tally_py");
+        let init = dir.join("shop/__init__.py");
+        let models = dir.join("shop/models.py");
+        let views = dir.join("shop/views.py");
+        write_file(&init, "");
+        write_file(&models, "");
+        write_file(
+            &views,
+            "from shop import models\nfrom shop.gone import thing\nimport django\nfrom . import missing\n",
+        );
+        let files = [init, models, views.clone()];
+        let (_, tallies) = build_with_tallies(&files);
+        let t = tally_for(&tallies, &views);
+        assert_eq!(t.external, 1, "django: {t:?}");
+        assert!(t.resolved >= 1, "{t:?}");
+        let unresolved: Vec<&str> = t.unresolved.iter().map(|(_, s)| s.as_str()).collect();
+        assert!(unresolved.iter().any(|s| s.contains("shop.gone")), "{t:?}");
+        assert!(!unresolved.iter().any(|s| s.contains("django")), "{t:?}");
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn tallies_missing_rust_module() {
+        let dir = unique_temp_dir("codedna_dg_tally_rs");
+        let main = dir.join("src/main.rs");
+        let a = dir.join("src/a.rs");
+        write_file(&a, "");
+        write_file(&main, "mod a;\nmod b;\nuse serde::Serialize;\n");
+        let (_, tallies) = build_with_tallies(&[main.clone(), a]);
+        let t = tally_for(&tallies, &main);
+        assert_eq!(t.resolved, 1);
+        assert_eq!(t.unresolved, vec![(2, "mod b;".to_string())]);
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn unreadable_file_is_tallied_as_unreadable() {
+        let dir = unique_temp_dir("codedna_dg_tally_missing");
+        let ghost = dir.join("ghost.ts");
+        let (_, tallies) = build_with_tallies(std::slice::from_ref(&ghost));
+        assert!(!tally_for(&tallies, &ghost).readable);
 
         fs::remove_dir_all(dir).ok();
     }

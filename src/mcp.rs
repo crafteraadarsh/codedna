@@ -250,6 +250,8 @@ impl Server {
                     "total": candidates.len(),
                     "summary": crate::dead_code_detector::confidence_summary(&candidates),
                     "files": files,
+                    "coverage": result.coverage.summary,
+                    "coverage_partial": result.coverage.is_partial(),
                 })))
             }
             "find_circular_imports" => {
@@ -267,6 +269,8 @@ impl Server {
                              cycle is not always a runtime problem.",
                     "total": result.circular_imports.len(),
                     "cycles": cycles,
+                    "coverage": result.coverage.summary,
+                    "coverage_partial": result.coverage.is_partial(),
                 })))
             }
             "find_hotspots" => {
@@ -616,6 +620,7 @@ fn summary(result: &AnalysisResult, limit: usize) -> Value {
         "largest_files": largest,
         "dead_code_total": result.dead_code.len(),
         "dead_code": dead,
+        "coverage": result.coverage,
     })
 }
 

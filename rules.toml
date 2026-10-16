@@ -8,6 +8,8 @@
 # ---------------------------------------------------------------------------
 # Languages: file extension (lowercase, no dot) -> language name.
 # An extension may belong to only one language.
+# `imports = false` marks data and markup languages: their files never count
+# as source files whose imports CodeDna could not follow.
 # ---------------------------------------------------------------------------
 
 [[language]]
@@ -31,35 +33,90 @@ name = "Go"
 extensions = ["go"]
 
 [[language]]
+name = "Java"
+extensions = ["java"]
+
+[[language]]
+name = "Kotlin"
+extensions = ["kt", "kts"]
+
+[[language]]
+name = "C#"
+extensions = ["cs"]
+
+[[language]]
+name = "Ruby"
+extensions = ["rb"]
+
+[[language]]
+name = "PHP"
+extensions = ["php"]
+
+[[language]]
+name = "Swift"
+extensions = ["swift"]
+
+[[language]]
+name = "C"
+extensions = ["c", "h"]
+
+[[language]]
+name = "C++"
+extensions = ["cpp", "cc", "cxx", "hpp", "hh"]
+
+[[language]]
+name = "Scala"
+extensions = ["scala"]
+
+[[language]]
+name = "Dart"
+extensions = ["dart"]
+
+[[language]]
+name = "Vue"
+extensions = ["vue"]
+
+[[language]]
+name = "Svelte"
+extensions = ["svelte"]
+
+[[language]]
 name = "Solidity"
 extensions = ["sol"]
 
 [[language]]
 name = "CSS"
+imports = false
 extensions = ["css", "scss", "sass"]
 
 [[language]]
 name = "HTML"
+imports = false
 extensions = ["html", "htm"]
 
 [[language]]
 name = "TOML"
+imports = false
 extensions = ["toml"]
 
 [[language]]
 name = "JSON"
+imports = false
 extensions = ["json"]
 
 [[language]]
 name = "YAML"
+imports = false
 extensions = ["yml", "yaml"]
 
 [[language]]
 name = "Markdown"
+imports = false
 extensions = ["md", "markdown"]
 
 [[language]]
 name = "Shell"
+imports = false
 extensions = ["sh", "bash", "zsh"]
 
 # ---------------------------------------------------------------------------

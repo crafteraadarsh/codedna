@@ -129,6 +129,7 @@ pub fn render_markdown(report: &Report) -> String {
     if !p.workspaces.is_empty() {
         let _ = writeln!(out, "| Workspaces | {} |", md_list(&workspace_summaries(p)));
     }
+    let _ = writeln!(out, "| Coverage | {} |", md_cell(&p.coverage));
 
     if p.workspaces.iter().any(|w| !w.packages.is_empty()) {
         let _ = writeln!(out, "\n## Packages\n");
@@ -376,6 +377,7 @@ pub fn render_html(report: &Report) -> String {
         &p.dead_code_candidates.to_string(),
     );
     let _ = writeln!(out, "</div>");
+    let _ = writeln!(out, "<p class=\"note\">Coverage: {}</p>", esc(&p.coverage));
 
     let _ = writeln!(out, "<h2>Stack</h2>");
     let _ = writeln!(out, "<table>");
@@ -669,6 +671,7 @@ mod tests {
         let mut languages = HashMap::new();
         languages.insert("Rust".to_string(), 120);
         AnalysisResult {
+            coverage: Default::default(),
             project_type: "CLI tool".to_string(),
             total_loc: 120,
             comment_lines: 0,

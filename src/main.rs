@@ -3,6 +3,7 @@ mod architecture;
 mod audit;
 mod cli;
 mod context;
+mod coverage;
 mod cycles;
 mod dead_code_detector;
 mod dependency_graph;
