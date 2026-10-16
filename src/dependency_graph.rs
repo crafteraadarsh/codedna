@@ -191,15 +191,42 @@ struct Aliases {
     /// Every file in the repository; aliases only ever resolve to one of
     /// these, so a config cannot point outside the project.
     known: HashSet<PathBuf>,
-    /// `name` of every `package.json` in the repository: imports of these
-    /// are the repository's own workspace packages.
-    packages: HashSet<String>,
+    /// Every named `package.json` in the repository, by `name`: imports
+    /// of these are the repository's own workspace packages.
+    packages: HashMap<String, LocalPackage>,
 }
+
+/// One of the repository's own packages.
+#[derive(Debug)]
+struct LocalPackage {
+    /// Directory holding its `package.json`.
+    dir: PathBuf,
+    /// The parsed `package.json`.
+    manifest: serde_json::Value,
+}
+
+/// Export conditions tried first: those naming source before those naming
+/// built output, which is often not in the repository.
+const CONDITIONS: &[&str] = &[
+    "source",
+    "development",
+    "import",
+    "module",
+    "default",
+    "require",
+    "node",
+    "browser",
+    "types",
+];
+
+/// Folders built output usually goes to, mapped back to `src` when the
+/// built file is not in the repository.
+const BUILD_DIRS: &[&str] = &["dist", "build", "lib", "out", "esm", "cjs"];
 
 impl Aliases {
     fn from_files(files: &[PathBuf]) -> Self {
         let mut scopes: BTreeMap<PathBuf, AliasScope> = BTreeMap::new();
-        let mut packages = HashSet::new();
+        let mut packages = HashMap::new();
         for file in files {
             let name = file.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if !matches!(name, "tsconfig.json" | "jsconfig.json" | "package.json") {
@@ -213,7 +240,17 @@ impl Aliases {
                 ..AliasScope::default()
             });
             if name == "package.json" {
-                packages.extend(package_name(&path));
+                if let Some(manifest) = package_manifest(&path) {
+                    if let Some(name) = manifest_name(&manifest) {
+                        packages.insert(
+                            name,
+                            LocalPackage {
+                                dir: dir.clone(),
+                                manifest,
+                            },
+                        );
+                    }
+                }
             } else {
                 read_ts_config(&path, scope);
             }
@@ -248,13 +285,7 @@ impl Aliases {
         if specifier.starts_with("@/") || specifier.starts_with("~/") {
             return true;
         }
-        let package_match = self.packages.iter().any(|name| {
-            specifier == name
-                || specifier
-                    .strip_prefix(name.as_str())
-                    .is_some_and(|rest| rest.starts_with('/'))
-        });
-        package_match
+        self.package_for(specifier).is_some()
             || self
                 .scopes
                 .iter()
@@ -292,7 +323,58 @@ impl Aliases {
                 }
             }
         }
-        None
+        self.resolve_package(specifier)
+    }
+
+    /// The workspace package `specifier` imports, with the subpath after
+    /// its name (`.` for the package itself, else `./rest`).
+    fn package_for(&self, specifier: &str) -> Option<(&LocalPackage, String)> {
+        self.packages
+            .iter()
+            .filter_map(|(name, package)| {
+                let rest = specifier.strip_prefix(name.as_str())?;
+                if rest.is_empty() {
+                    Some((name.len(), package, ".".to_string()))
+                } else {
+                    let rest = rest.strip_prefix('/')?;
+                    Some((name.len(), package, format!("./{rest}")))
+                }
+            })
+            .max_by_key(|(len, _, _)| *len)
+            .map(|(_, package, subpath)| (package, subpath))
+    }
+
+    /// Resolve an import of a workspace package to a file: its `exports`
+    /// entry, then `source` / `module` / `main` / `types`, then
+    /// `src/index` or `index`. Built paths such as `dist/index.js` fall
+    /// back to the same path under `src/` when the build is not checked in.
+    fn resolve_package(&self, specifier: &str) -> Option<PathBuf> {
+        let (package, subpath) = self.package_for(specifier)?;
+        let manifest = &package.manifest;
+        let mut targets = manifest
+            .get("exports")
+            .map(|exports| export_targets(exports, &subpath))
+            .unwrap_or_default();
+        let has_exports = manifest.get("exports").is_some();
+        if subpath == "." {
+            if !has_exports {
+                for field in ["source", "module", "main", "types", "typings"] {
+                    if let Some(target) = manifest.get(field).and_then(|v| v.as_str()) {
+                        targets.push(target.to_string());
+                    }
+                }
+            }
+            targets.extend(["./src/index".to_string(), "./index".to_string()]);
+        } else if !has_exports {
+            let rest = &subpath[2..];
+            targets.extend([format!("./{rest}"), format!("./src/{rest}")]);
+        }
+        targets.iter().find_map(|target| {
+            self.known_file(&package.dir, target).or_else(|| {
+                let source = source_for_built(target)?;
+                self.known_file(&package.dir, &source)
+            })
+        })
     }
 
     fn known_file(&self, base: &Path, target: &str) -> Option<PathBuf> {
@@ -300,16 +382,94 @@ impl Aliases {
     }
 }
 
-/// The `name` field of a `package.json`, when it has one.
-fn package_name(path: &Path) -> Option<String> {
+/// A parsed `package.json`, unless it is too large or invalid.
+fn package_manifest(path: &Path) -> Option<serde_json::Value> {
     let small = fs::metadata(path).is_ok_and(|m| m.len() <= MAX_CONFIG_BYTES);
     if !small {
         return None;
     }
     let text = fs::read_to_string(path).ok()?;
-    let json: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let name = json.get("name")?.as_str()?.trim();
+    serde_json::from_str(&text).ok()
+}
+
+/// The `name` field of a `package.json`, when it has one.
+fn manifest_name(manifest: &serde_json::Value) -> Option<String> {
+    let name = manifest.get("name")?.as_str()?.trim();
     (!name.is_empty()).then(|| name.to_string())
+}
+
+/// Files an `exports` field maps `subpath` (`.` or `./x`) to, most
+/// preferred first. Handles a plain string, condition objects, arrays,
+/// subpath maps and `*` patterns.
+fn export_targets(exports: &serde_json::Value, subpath: &str) -> Vec<String> {
+    let is_subpath_map = exports
+        .as_object()
+        .is_some_and(|map| map.keys().any(|k| k.starts_with('.')));
+    if !is_subpath_map {
+        return if subpath == "." {
+            condition_targets(exports)
+        } else {
+            Vec::new()
+        };
+    }
+    let Some(map) = exports.as_object() else {
+        return Vec::new();
+    };
+    if let Some(entry) = map.get(subpath) {
+        return condition_targets(entry);
+    }
+    // The longest matching `*` pattern wins, as in Node.
+    let best = map
+        .iter()
+        .filter_map(|(key, entry)| {
+            let (prefix, suffix) = key.split_once('*')?;
+            let middle = subpath.strip_prefix(prefix)?.strip_suffix(suffix)?;
+            Some((prefix.len(), middle, entry))
+        })
+        .max_by_key(|(len, _, _)| *len);
+    match best {
+        Some((_, middle, entry)) => condition_targets(entry)
+            .into_iter()
+            .map(|t| t.replace('*', middle))
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+/// Every path in an export entry, preferred conditions first.
+fn condition_targets(entry: &serde_json::Value) -> Vec<String> {
+    match entry {
+        serde_json::Value::String(s) => vec![s.clone()],
+        serde_json::Value::Array(items) => items.iter().flat_map(condition_targets).collect(),
+        serde_json::Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort_by_key(|k| {
+                CONDITIONS
+                    .iter()
+                    .position(|c| c == k)
+                    .unwrap_or(CONDITIONS.len())
+            });
+            keys.into_iter()
+                .flat_map(|k| condition_targets(&map[k]))
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// `./dist/x.js` → `./src/x`: where the source of a built file usually
+/// lives. `None` when the path is not under a build folder.
+fn source_for_built(target: &str) -> Option<String> {
+    let trimmed = target.strip_prefix("./").unwrap_or(target);
+    let (first, rest) = trimmed.split_once('/')?;
+    if !BUILD_DIRS.contains(&first) {
+        return None;
+    }
+    let rest = [".d.ts", ".d.mts", ".d.cts", ".js", ".mjs", ".cjs"]
+        .iter()
+        .find_map(|ext| rest.strip_suffix(ext))
+        .unwrap_or(rest);
+    Some(format!("./src/{rest}"))
 }
 
 /// Read `compilerOptions.baseUrl` and `compilerOptions.paths` from a
@@ -1667,6 +1827,85 @@ mod tests {
         let unresolved: Vec<&str> = t.unresolved.iter().map(|(_, s)| s.as_str()).collect();
         assert_eq!(unresolved, ["./gone", "@/missing", "@acme/ui/button"]);
         assert_eq!(t.unresolved[0].0, 3, "line of ./gone");
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn resolves_workspace_package_imports_through_exports() {
+        let dir = unique_temp_dir("codedna_dg_workspace");
+        let write = |rel: &str, text: &str| {
+            let path = dir.join(rel);
+            write_file(&path, text);
+            path
+        };
+        let files = vec![
+            write(
+                "packages/shared/package.json",
+                r#"{ "name": "@demo/shared", "exports": "./src/index.ts" }"#,
+            ),
+            write("packages/shared/src/index.ts", "export {}"),
+            write(
+                "packages/ui/package.json",
+                r#"{ "name": "@demo/ui", "exports": {
+                    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+                    "./button": "./src/button.tsx",
+                    "./icons/*": { "default": "./dist/icons/*.js" }
+                } }"#,
+            ),
+            write("packages/ui/src/index.ts", "export {}"),
+            write("packages/ui/src/button.tsx", "export {}"),
+            write("packages/ui/src/icons/star.tsx", "export {}"),
+            write(
+                "packages/old/package.json",
+                r#"{ "name": "old-style", "main": "lib/main.js" }"#,
+            ),
+            write("packages/old/src/main.ts", "export {}"),
+            write("packages/old/src/extra/util.ts", "export {}"),
+            write(
+                "apps/web/app.ts",
+                "import a from '@demo/shared';\n\
+                 import b from '@demo/ui';\n\
+                 import c from '@demo/ui/button';\n\
+                 import d from '@demo/ui/icons/star';\n\
+                 import e from 'old-style';\n\
+                 import f from 'old-style/extra/util';\n\
+                 import g from '@demo/ui/not-exported';\n",
+            ),
+        ];
+        let app = normalize(&dir.join("apps/web/app.ts"));
+        let (graph, tallies) = build_with_tallies(&files);
+        let mut deps: Vec<String> = graph[&app]
+            .iter()
+            .map(|p| {
+                p.strip_prefix(normalize(&dir))
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        deps.sort();
+        assert_eq!(
+            deps,
+            [
+                "packages/old/src/extra/util.ts",
+                "packages/old/src/main.ts",
+                "packages/shared/src/index.ts",
+                "packages/ui/src/button.tsx",
+                "packages/ui/src/icons/star.tsx",
+                "packages/ui/src/index.ts",
+            ]
+        );
+        let unresolved: Vec<&str> = tallies[&app]
+            .unresolved
+            .iter()
+            .map(|(_, s)| s.as_str())
+            .collect();
+        assert_eq!(
+            unresolved,
+            ["@demo/ui/not-exported"],
+            "exports hide other paths"
+        );
 
         fs::remove_dir_all(dir).ok();
     }

@@ -731,6 +731,8 @@ pub(crate) fn routes(file: &str, text: &str) -> Vec<Route> {
     let name = file_name(file);
     let ext = extension(name);
     let lines: Vec<&str> = text.lines().collect();
+    let code = crate::code_text::code_only(&ext.to_ascii_lowercase(), text);
+    let code_lines: Vec<&str> = code.lines().collect();
     let mut out: Vec<(usize, String, String)> = Vec::new();
     let mut prefix = String::new();
     for (i, line) in lines.iter().enumerate() {
@@ -739,8 +741,12 @@ pub(crate) fn routes(file: &str, text: &str) -> Vec<Route> {
         }
         let joined = continued(&lines, i);
         let line: &str = &joined;
-        let mut push =
-            |method: &str, path: &str| out.push((i + 1, method.to_string(), path.to_string()));
+        let code_line = code_lines.get(i).copied().unwrap_or("");
+        let mut push = |method: &str, path: &str| {
+            if declared_in_code(code_line, method) {
+                out.push((i + 1, method.to_string(), path.to_string()));
+            }
+        };
         match ext {
             "js" | "mjs" | "cjs" | "jsx" | "ts" | "mts" | "cts" | "tsx" => {
                 for (m, p) in method_calls(line) {
@@ -818,6 +824,24 @@ pub(crate) fn routes(file: &str, text: &str) -> Vec<Route> {
             line,
         })
         .collect()
+}
+
+/// Whether a route found on a line was declared by code there, not written
+/// inside a string or a comment: `code_line` is the line with strings and
+/// comments blanked, so it still holds the call or annotation that declared
+/// the route.
+fn declared_in_code(code_line: &str, method: &str) -> bool {
+    let lower = code_line.to_ascii_lowercase();
+    lower.contains('@')
+        || lower.contains("#[")
+        || method
+            .split(',')
+            .any(|m| lower.contains(&m.to_ascii_lowercase()))
+        || [
+            "route", "mapping", "path", "resource", "root", "handle", "match", "all",
+        ]
+        .iter()
+        .any(|w| lower.contains(w))
 }
 
 /// A line ending in an open call, joined to the next non-empty line so
@@ -1362,6 +1386,17 @@ mod tests {
             routes_of("Api.java", java),
             ["GET /api/items", "POST /api/items"]
         );
+    }
+
+    #[test]
+    fn ignores_routes_written_in_strings_and_comments() {
+        let js =
+            "// app.get('/old', h)\nconst doc = \"router.post('/x', h)\";\napp.get('/live', h);\n";
+        assert_eq!(routes_of("server.js", js), ["GET /live"]);
+        let py = "# @app.route('/old')\nHELP = \"@app.get('/x')\"\n@app.get('/items')\n";
+        assert_eq!(routes_of("api.py", py), ["GET /items"]);
+        let java = "/* @GetMapping(\"/old\") */\nclass A {\n  @GetMapping(\"/items\")\n}\n";
+        assert_eq!(routes_of("A.java", java), ["GET /items"]);
     }
 
     #[test]
