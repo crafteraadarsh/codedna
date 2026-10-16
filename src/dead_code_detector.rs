@@ -11,7 +11,7 @@
 //! `main.rs`, `index.ts`, `index.js`, `app.py`, `manage.py`, etc.
 
 use crate::analysis::is_lockfile;
-use crate::architecture::{is_test, Confidence};
+use crate::architecture::{is_test, Confidence, Location};
 use crate::safe_text::sanitize;
 use aho_corasick::{AhoCorasick, AhoCorasickKind};
 use rayon::prelude::*;
@@ -219,6 +219,10 @@ pub struct DeadCodeCandidate {
     pub file: PathBuf,
     pub confidence: Confidence,
     pub reason: String,
+    /// Lines that back the reason: where the name is mentioned, or the
+    /// dynamic loader that may load the file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<Location>,
 }
 
 /// Candidates with confidence, falling back to the plain list for results
@@ -232,6 +236,7 @@ pub fn candidates_of(dead: &[PathBuf], details: &[DeadCodeCandidate]) -> Vec<Dea
             file: file.clone(),
             confidence: Confidence::Medium,
             reason: "Nothing imports it; no confidence was recorded".to_string(),
+            evidence: Vec::new(),
         })
         .collect()
 }
@@ -320,9 +325,12 @@ const MAX_SEARCH_BYTES: u64 = 1024 * 1024;
 /// Longest loader line kept in a reason.
 const MAX_LOADER_TEXT: usize = 60;
 
-/// What one file contributes: `(candidate index, file is unused)` for each
-/// name it mentions, plus its dynamic loaders.
-type FileFindings = (Vec<(usize, bool)>, Vec<Loader>);
+/// Most mention lines kept as evidence for one candidate.
+const MAX_MENTIONS: usize = 3;
+
+/// What one file contributes: `(candidate index, file is unused, line)` for
+/// the first mention of each name, plus its dynamic loaders.
+type FileFindings = (PathBuf, Vec<(usize, bool, usize)>, Vec<Loader>);
 
 /// A line that loads modules by a computed name.
 struct Loader {
@@ -396,13 +404,14 @@ pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeC
             let text = std::str::from_utf8(&bytes).ok()?;
             let from_dead = dead_set.contains(file);
             let mut seen = vec![false; dead.len()];
-            let mut mentions: Vec<(usize, bool)> = Vec::new();
-            let mut note = |index: usize| {
+            let mut mentions: Vec<(usize, bool, usize)> = Vec::new();
+            let mut lines = LineIndex::default();
+            let mut note = |index: usize, offset: usize| {
                 // `seen` first: comparing paths is slow and names repeat often.
                 if !std::mem::replace(&mut seen[index], true)
                     && dead[index].as_os_str() != file.as_os_str()
                 {
-                    mentions.push((index, from_dead));
+                    mentions.push((index, from_dead, lines.line_of(text, offset)));
                 }
             };
             if !by_word.is_empty() {
@@ -410,31 +419,37 @@ pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeC
                 for token in words.candidates(text.as_bytes()) {
                     word.clear();
                     word.extend(token.iter().map(|b| b.to_ascii_lowercase() as char));
+                    let offset = token.as_ptr() as usize - text.as_ptr() as usize;
                     for &index in by_word.get(&word).into_iter().flatten() {
-                        note(index);
+                        note(index, offset);
                     }
                 }
             }
             if let Some(m) = &matcher {
                 for hit in m.find_overlapping_iter(text) {
                     if is_word(text, hit.start(), hit.end()) {
-                        note(other[hit.pattern().as_usize()].0);
+                        note(other[hit.pattern().as_usize()].0, hit.start());
                     }
                 }
             }
-            Some((mentions, find_loaders(file, text)))
+            Some((file.clone(), mentions, find_loaders(file, text)))
         })
         .collect();
 
-    let mut live_mentions = vec![0usize; dead.len()];
-    let mut dead_mentions = vec![0usize; dead.len()];
+    // Counts, plus the first few mentioning lines in file order.
+    let mut live_mentions = vec![Mentions::default(); dead.len()];
+    let mut dead_mentions = vec![Mentions::default(); dead.len()];
     let mut loaders: Vec<Loader> = Vec::new();
-    for (mentions, file_loaders) in per_file {
-        for (index, from_dead) in mentions {
-            if from_dead {
-                dead_mentions[index] += 1;
+    for (file, mentions, file_loaders) in per_file {
+        for (index, from_dead, line) in mentions {
+            let found = if from_dead {
+                &mut dead_mentions[index]
             } else {
-                live_mentions[index] += 1;
+                &mut live_mentions[index]
+            };
+            found.count += 1;
+            if found.at.len() < MAX_MENTIONS {
+                found.at.push((file.clone(), line));
             }
         }
         loaders.extend(file_loaders);
@@ -453,18 +468,22 @@ pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeC
         .map(|(index, file)| {
             let relative = file.strip_prefix(root).unwrap_or(file);
             let in_live_package = file.parent().is_some_and(|p| live_packages.contains(p));
-            let (confidence, reason) = rate(
+            let (confidence, reason, at) = rate(
                 relative,
                 in_live_package,
                 &stems[index],
-                live_mentions[index],
-                dead_mentions[index],
+                &live_mentions[index],
+                &dead_mentions[index],
                 &loaders,
             );
             DeadCodeCandidate {
                 file: file.clone(),
                 confidence,
                 reason,
+                evidence: at
+                    .iter()
+                    .map(|(path, line)| Location::read(root, path, *line))
+                    .collect(),
             }
         })
         .collect();
@@ -473,14 +492,24 @@ pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeC
     candidates
 }
 
+/// How many files mention a name, and where the first few do.
+#[derive(Debug, Clone, Default)]
+struct Mentions {
+    count: usize,
+    at: Vec<(PathBuf, usize)>,
+}
+
+/// Confidence, reason and the lines that back it.
+type Rating = (Confidence, String, Vec<(PathBuf, usize)>);
+
 fn rate(
     file: &Path,
     in_live_package: bool,
     stem: &str,
-    live_mentions: usize,
-    dead_mentions: usize,
+    live_mentions: &Mentions,
+    dead_mentions: &Mentions,
     loaders: &[Loader],
-) -> (Confidence, String) {
+) -> Rating {
     let dirs: Vec<String> = file
         .parent()
         .map(|p| {
@@ -495,6 +524,7 @@ fn rate(
         return (
             Confidence::Low,
             format!("In {dir}/, a folder tools and frameworks often load by convention"),
+            Vec::new(),
         );
     }
 
@@ -502,6 +532,7 @@ fn rate(
         return (
             Confidence::Low,
             "A test file, run by the test runner rather than imported".to_string(),
+            Vec::new(),
         );
     }
 
@@ -510,6 +541,7 @@ fn rate(
         return (
             Confidence::Low,
             format!("Frameworks such as Django load {stem}.py from every installed app"),
+            Vec::new(),
         );
     }
 
@@ -528,6 +560,7 @@ fn rate(
                 file_name(&l.file),
                 l.line
             ),
+            vec![(l.file.clone(), l.line)],
         );
     }
 
@@ -535,15 +568,18 @@ fn rate(
         return (
             Confidence::Medium,
             format!("Nothing imports it; the name \"{stem}\" is too common to search for"),
+            Vec::new(),
         );
     }
-    if live_mentions > 0 {
+    if live_mentions.count > 0 {
+        let n = live_mentions.count;
         return (
             Confidence::Medium,
             format!(
-                "Nothing imports it, but \"{stem}\" is mentioned in {live_mentions} other file{}",
-                if live_mentions == 1 { "" } else { "s" }
+                "Nothing imports it, but \"{stem}\" is mentioned in {n} other file{}",
+                if n == 1 { "" } else { "s" }
             ),
+            live_mentions.at.clone(),
         );
     }
     if let Some(l) = loaders.first() {
@@ -554,18 +590,44 @@ fn rate(
                 file_name(&l.file),
                 l.line
             ),
+            vec![(l.file.clone(), l.line)],
         );
     }
-    if dead_mentions > 0 {
+    if dead_mentions.count > 0 {
         return (
             Confidence::High,
             format!("Nothing imports it; \"{stem}\" appears only in other unused files"),
+            dead_mentions.at.clone(),
         );
     }
     (
         Confidence::High,
         format!("Nothing imports it and \"{stem}\" appears in no other file"),
+        Vec::new(),
     )
+}
+
+/// Line numbers for byte offsets, built on first use.
+#[derive(Default)]
+struct LineIndex {
+    starts: Option<Vec<usize>>,
+}
+
+impl LineIndex {
+    /// 1-based line holding `offset`.
+    fn line_of(&mut self, text: &str, offset: usize) -> usize {
+        let starts = self.starts.get_or_insert_with(|| {
+            std::iter::once(0)
+                .chain(
+                    text.bytes()
+                        .enumerate()
+                        .filter(|(_, b)| *b == b'\n')
+                        .map(|(i, _)| i + 1),
+                )
+                .collect()
+        });
+        starts.partition_point(|&start| start <= offset)
+    }
 }
 
 /// Lower-cased file stem without secondary extensions (`user.service.ts` →
@@ -827,6 +889,10 @@ mod tests {
         let legacy = rated(&c, &root, "src/legacyParser.ts");
         assert_eq!(legacy.confidence, Confidence::Medium, "{}", legacy.reason);
         assert!(legacy.reason.contains("mentioned in 1 other file"));
+        assert_eq!(legacy.evidence.len(), 1);
+        assert_eq!(legacy.evidence[0].file, "src/live.ts");
+        assert_eq!(legacy.evidence[0].line, 1);
+        assert!(legacy.evidence[0].text.contains("legacyParser"));
 
         let orphan = rated(&c, &root, "src/orphan.ts");
         assert_eq!(orphan.confidence, Confidence::High, "{}", orphan.reason);
@@ -855,6 +921,17 @@ mod tests {
     }
 
     #[test]
+    fn line_index_counts_from_one() {
+        let text = "a\nbb\n\nccc";
+        let mut lines = LineIndex::default();
+        assert_eq!(lines.line_of(text, 0), 1);
+        assert_eq!(lines.line_of(text, 1), 1);
+        assert_eq!(lines.line_of(text, 2), 2);
+        assert_eq!(lines.line_of(text, 5), 3);
+        assert_eq!(lines.line_of(text, 6), 4);
+    }
+
+    #[test]
     fn dynamic_loaders_lower_confidence() {
         let (root, files) = temp_repo(
             "codedna_dead_dynamic",
@@ -870,6 +947,8 @@ mod tests {
         let refund = rated(&c, &root, "src/handlers/refund.js");
         assert_eq!(refund.confidence, Confidence::Low, "{}", refund.reason);
         assert!(refund.reason.contains("index.js:1"));
+        assert_eq!(refund.evidence[0].file, "src/index.js");
+        assert_eq!(refund.evidence[0].line, 1);
 
         let stray = rated(&c, &root, "src/other/stray.js");
         assert_eq!(stray.confidence, Confidence::Medium, "{}", stray.reason);

@@ -191,6 +191,15 @@ pub fn print_report(result: &AnalysisResult) {
     for line in &details.evidence {
         println!("    \x1b[2m· {line}\x1b[0m");
     }
+    for layer in &details.layers {
+        if let Some(example) = layer.examples.first() {
+            println!(
+                "    \x1b[2m· e.g. {}: {}\x1b[0m",
+                layer.name,
+                example.describe()
+            );
+        }
+    }
 
     // ── Languages ─────────────────────────────────────────────────────────────
     section("Languages");
@@ -500,6 +509,12 @@ fn print_candidates(candidates: &[crate::dead_code_detector::DeadCodeCandidate])
             sanitize(&c.file.to_string_lossy())
         );
         println!("          \x1b[2m{}\x1b[0m", sanitize(&c.reason));
+        for at in &c.evidence {
+            println!(
+                "          \x1b[2m  {}:{}  {}\x1b[0m",
+                at.file, at.line, at.text
+            );
+        }
     }
 }
 
