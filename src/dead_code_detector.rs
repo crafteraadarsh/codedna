@@ -89,7 +89,18 @@ const ENTRY_POINT_NAMES: &[&str] = &[
 /// 4. Files in the graph that were never marked are dead code.
 ///
 /// Returns a sorted `Vec<PathBuf>` of unreachable files.
+#[cfg(test)]
 pub fn detect_dead_code(graph: &HashMap<PathBuf, Vec<PathBuf>>) -> Vec<PathBuf> {
+    detect_dead_code_from(graph, &[])
+}
+
+/// [`detect_dead_code`], also starting from `extra_entries`: files a
+/// manifest names, or directories whose files all load (see
+/// [`manifest_entries`]).
+pub fn detect_dead_code_from(
+    graph: &HashMap<PathBuf, Vec<PathBuf>>,
+    extra_entries: &[PathBuf],
+) -> Vec<PathBuf> {
     if graph.is_empty() {
         return Vec::new();
     }
@@ -98,7 +109,11 @@ pub fn detect_dead_code(graph: &HashMap<PathBuf, Vec<PathBuf>>) -> Vec<PathBuf> 
     let entry_points: Vec<&PathBuf> = all_files
         .iter()
         .copied()
-        .filter(|f| is_entry_point(f) || is_loaded_by_tooling(f))
+        .filter(|f| {
+            is_entry_point(f)
+                || is_loaded_by_tooling(f)
+                || extra_entries.iter().any(|entry| f.starts_with(entry))
+        })
         .collect();
 
     let reachable = bfs_reachable(graph, &entry_points);
@@ -149,6 +164,85 @@ pub fn is_entry_point(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Entry points that `package.json` files declare: the files named by
+/// `main`, `module`, `bin`, `exports` and the commands in `scripts` and
+/// `prisma.seed` (`node ./seed.js`), and the `app/` (or `src/app/`) directory Expo Router
+/// loads in full when the package depends on `expo-router`.
+pub fn manifest_entries(files: &[PathBuf]) -> Vec<PathBuf> {
+    let mut entries = Vec::new();
+    for manifest in files
+        .iter()
+        .filter(|f| f.file_name().is_some_and(|n| n == "package.json"))
+    {
+        let Some(dir) = manifest.parent() else {
+            continue;
+        };
+        let Ok(text) = fs::read_to_string(manifest) else {
+            continue;
+        };
+        let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        if text.contains("\"expo-router\"") {
+            entries.push(dir.join("app"));
+            entries.push(dir.join("src").join("app"));
+        }
+        let mut named = Vec::new();
+        for key in ["main", "module", "browser", "bin", "exports"] {
+            if let Some(value) = json.get(key) {
+                collect_strings(value, &mut named);
+            }
+        }
+        let mut commands = Vec::new();
+        if let Some(scripts) = json.get("scripts") {
+            collect_strings(scripts, &mut commands);
+        }
+        // Prisma runs its seed command from `"prisma": {"seed": ...}`.
+        if let Some(seed) = json.pointer("/prisma/seed") {
+            collect_strings(seed, &mut commands);
+        }
+        // Only words that name a source file: `eslint src` must not make
+        // all of `src/` an entry point.
+        named.extend(
+            commands
+                .iter()
+                .flat_map(|c| c.split(|ch: char| ch.is_whitespace() || ch == '='))
+                .map(|word| word.trim_matches(|ch| ch == '"' || ch == '\''))
+                .filter(|word| {
+                    Path::new(word)
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .is_some_and(|e| SCRIPT_EXTENSIONS.contains(&e))
+                })
+                .map(str::to_string),
+        );
+        entries.extend(
+            named
+                .iter()
+                .filter(|path| !path.contains('*') && !path.starts_with('/'))
+                .map(|path| dir.join(path)),
+        );
+    }
+    entries
+        .iter()
+        .map(|entry| crate::dependency_graph::normalize(entry))
+        .collect()
+}
+
+/// Extensions of the files a `package.json` script can run directly.
+const SCRIPT_EXTENSIONS: &[&str] = &["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx", "py"];
+
+/// Every string inside a JSON value: `"bin": {"a": "./cli.js"}` and nested
+/// conditional `exports`.
+fn collect_strings(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(s) => out.push(s.clone()),
+        serde_json::Value::Array(items) => items.iter().for_each(|v| collect_strings(v, out)),
+        serde_json::Value::Object(map) => map.values().for_each(|v| collect_strings(v, out)),
+        _ => {}
+    }
+}
+
 /// File stems that Next.js loads by convention from `app/`, or from the
 /// project root.
 const NEXT_CONVENTION_STEMS: &[&str] = &[
@@ -163,6 +257,7 @@ const NEXT_CONVENTION_STEMS: &[&str] = &[
     "global-error",
     "middleware",
     "instrumentation",
+    "instrumentation-client",
     // Metadata routes and the Next 16 `proxy.ts`.
     "robots",
     "sitemap",
@@ -182,6 +277,18 @@ const NEXT_CONVENTION_STEMS: &[&str] = &[
     "hooks.client",
 ];
 
+/// Files that task runners and generators (Plop, Gulp, Grunt, Jake) load
+/// from the working directory.
+const TASK_RUNNER_STEMS: &[&str] = &[
+    "plopfile",
+    "gulpfile",
+    "Gulpfile",
+    "gruntfile",
+    "Gruntfile",
+    "jakefile",
+    "Jakefile",
+];
+
 /// Whether a test runner, compiler or framework loads the file, so nothing
 /// imports it: tests, declaration files, Cargo targets, tool configs and
 /// file-based routes.
@@ -194,6 +301,8 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         || name.contains(".stories.")
         || name.contains(".config.")
         || name.ends_with(".d.ts")
+        // Type tests that `tsd` and `vitest --typecheck` run.
+        || name.contains(".test-d.")
         || name == "conftest.py"
         || (name.starts_with("test_") && name.ends_with(".py"))
         || name.ends_with("_test.py")
@@ -209,6 +318,12 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         .map(|p| p.iter().filter_map(|c| c.to_str()).collect())
         .unwrap_or_default();
 
+    // Migration and seed runners (Alembic, Django, Knex, TypeORM, Sequelize)
+    // load every file in these directories.
+    if dirs.iter().any(|d| matches!(*d, "migrations" | "seeders")) {
+        return true;
+    }
+
     if ext == "rs" {
         // Cargo compiles every file in these directories as its own crate.
         let target_dir = dirs.last().copied().unwrap_or("");
@@ -220,6 +335,12 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         return in_target_dir || in_bin;
     }
 
+    // Components are used from templates, routers and auto-imports, which
+    // the import graph does not follow.
+    if matches!(ext, "vue" | "svelte" | "astro") {
+        return true;
+    }
+
     if matches!(ext, "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs") {
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
         let file_routes =
@@ -228,9 +349,12 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         // (`.eslintrc.js`), Stimulus controllers, Storybook setup and
         // Docusaurus theme overrides.
         let by_name = name.starts_with('+')
+            || TASK_RUNNER_STEMS.contains(&stem)
             || name.starts_with('.')
             || stem.ends_with("_controller")
             || dirs.contains(&".storybook")
+            // Manual mocks that Jest and Vitest swap in by path.
+            || dirs.contains(&"__mocks__")
             || dirs.windows(2).any(|w| w == ["src", "theme"]);
         return NEXT_CONVENTION_STEMS.contains(&stem) || file_routes || by_name;
     }
@@ -1529,6 +1653,19 @@ mod tests {
         assert!(is_loaded_by_tooling(&p("app/routes/_index.tsx")));
         assert!(is_loaded_by_tooling(&p("postcss.config.mjs")));
         assert!(is_loaded_by_tooling(&p("src/Button.stories.tsx")));
+        assert!(is_loaded_by_tooling(&p("src/form.test-d.ts")));
+        assert!(is_loaded_by_tooling(&p("src/__mocks__/axios.ts")));
+        assert!(is_loaded_by_tooling(&p("instrumentation-client.ts")));
+        assert!(is_loaded_by_tooling(&p("src/components/Button.vue")));
+        assert!(is_loaded_by_tooling(&p("src/lib/Modal.svelte")));
+        assert!(is_loaded_by_tooling(&p("plopfile.js")));
+        assert!(is_loaded_by_tooling(&p(
+            "api/src/database/migrations/20240716A-dates.ts"
+        )));
+        assert!(is_loaded_by_tooling(&p(
+            "backend/migrations/versions/d4c1a8e37b62_add.py"
+        )));
+        assert!(!is_loaded_by_tooling(&p("src/form.ts")));
         assert!(!is_loaded_by_tooling(&p("src/components/Button.tsx")));
         assert!(!is_loaded_by_tooling(&p("src/page.py")));
     }
@@ -1745,5 +1882,85 @@ mod tests {
         expected.sort_unstable();
 
         assert_eq!(dead, expected, "output should be sorted");
+    }
+
+    #[test]
+    fn package_json_names_entry_points() {
+        let (root, files) = temp_repo(
+            "codedna_manifest",
+            &[(
+                "apps/worker/package.json",
+                r#"{"main": "dist/index.js", "bin": {"w": "./cli.mjs"},
+                    "scripts": {"start": "ts-node worker.ts", "seed": "node ./seed.js", "lint": "eslint src"},
+                    "prisma": {"seed": "tsx prisma/seed.ts"}}"#,
+            )],
+        );
+        let dir = root.join("apps/worker");
+        let entries = manifest_entries(&files);
+        for name in [
+            "dist/index.js",
+            "cli.mjs",
+            "worker.ts",
+            "seed.js",
+            "prisma/seed.ts",
+        ] {
+            assert!(entries.contains(&dir.join(name)), "{name}");
+        }
+        assert!(!entries.contains(&dir.join("src")));
+
+        let worker = dir.join("worker.ts");
+        let job = dir.join("workers/indexing.ts");
+        let unused = dir.join("src/unused.ts");
+        let graph: HashMap<PathBuf, Vec<PathBuf>> = [
+            (worker.clone(), vec![job.clone()]),
+            (job, vec![]),
+            (unused.clone(), vec![]),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(detect_dead_code_from(&graph, &entries), vec![unused]);
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn expo_router_directories_are_entry_points() {
+        let (root, _) = temp_repo(
+            "codedna_expo",
+            &[
+                (
+                    "apps/mobile/package.json",
+                    r#"{"main": "expo-router/entry", "dependencies": {"expo-router": "~4.0.0"}}"#,
+                ),
+                (
+                    "apps/web/package.json",
+                    r#"{"dependencies": {"next": "15"}}"#,
+                ),
+            ],
+        );
+        let files = vec![
+            root.join("apps/mobile/package.json"),
+            root.join("apps/web/package.json"),
+        ];
+        let dirs = manifest_entries(&files);
+        assert!(dirs.contains(&root.join("apps/mobile/app")));
+        assert!(dirs.contains(&root.join("apps/mobile/src/app")));
+        assert!(!dirs.iter().any(|d| d.starts_with(root.join("apps/web"))));
+
+        let layout = root.join("apps/mobile/app/(tabs)/_layout.tsx");
+        let sheet = root.join("apps/mobile/components/Sheet.tsx");
+        let unused = root.join("apps/mobile/components/Unused.tsx");
+        let web = root.join("apps/web/app/settings.tsx");
+        let graph: HashMap<PathBuf, Vec<PathBuf>> = [
+            (layout.clone(), vec![sheet.clone()]),
+            (sheet.clone(), vec![]),
+            (unused.clone(), vec![]),
+            (web.clone(), vec![]),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(detect_dead_code_from(&graph, &dirs), vec![unused, web]);
+
+        fs::remove_dir_all(root).ok();
     }
 }

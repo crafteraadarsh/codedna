@@ -712,7 +712,10 @@ fn drop_trailing_commas(json: &str) -> String {
 // ---------------------------------------------------------------------------
 
 /// Extensions whose imports CodeDna can follow.
-const SOURCE_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "py", "rs"];
+/// Vue, Svelte and Astro components count for the scripts they hold.
+const SOURCE_EXTENSIONS: &[&str] = &[
+    "ts", "tsx", "js", "jsx", "mjs", "vue", "svelte", "astro", "py", "rs",
+];
 
 /// Whether `file` is a source file the dependency graph understands.
 fn is_source_file(file: &Path) -> bool {
@@ -755,7 +758,7 @@ fn parse_dependencies_with(
     tally.readable = true;
 
     match ext.as_str() {
-        "ts" | "tsx" | "js" | "jsx" | "mjs" => {
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "vue" | "svelte" | "astro" => {
             parse_js_ts_imports(file, parent, &content, aliases, tally)
         }
         "py" => parse_python_imports(parent, &content, python_packages, tally),
@@ -839,9 +842,48 @@ fn parse_js_ts_imports(
                 }
             }
         }
+
+        // A file named with its extension anywhere else on the line is
+        // loaded at runtime: `new Worker(new URL("./w.ts", import.meta.url))`
+        // or `spawn("tsx", ["worker.ts"])`. It only counts when it exists.
+        for literal in quoted_source_files(trimmed) {
+            if let Some(resolved) = resolve_js_ts_path(parent, literal) {
+                if !deps.contains(&resolved) {
+                    deps.push(resolved);
+                }
+            }
+        }
     }
 
     deps
+}
+
+/// Quoted strings on a line that name a JS/TS source file by its
+/// extension: `"./worker.ts"` or `'jobs/sync.mjs'`, but not URLs.
+fn quoted_source_files(line: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    let mut rest = line;
+    while let Some(start) = rest.find(['"', '\'']) {
+        let quote = rest[start..].chars().next().unwrap_or('"');
+        let inner = &rest[start + 1..];
+        let Some(end) = inner.find(quote) else {
+            break;
+        };
+        let literal = &inner[..end];
+        let is_source = Path::new(literal)
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| ["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx"].contains(&e));
+        if is_source
+            && !literal.contains("://")
+            && !literal.contains(char::is_whitespace)
+            && !literal.starts_with('/')
+        {
+            found.push(literal);
+        }
+        rest = &inner[end + 1..];
+    }
+    found
 }
 
 /// Extract all single- or double-quoted string values from a line that are
@@ -961,7 +1003,7 @@ fn parse_python_imports(
 ) -> Vec<PathBuf> {
     let mut deps = Vec::new();
 
-    for (number, line) in content.lines().enumerate() {
+    for (number, line) in python_logical_lines(content) {
         let trimmed = line.trim();
 
         // Skip comments
@@ -996,6 +1038,43 @@ fn parse_python_imports(
     }
 
     deps
+}
+
+/// Lines of Python source, numbered from 0, with a parenthesised
+/// `from x import (` list or a backslash continuation joined onto the line
+/// that starts the import.
+fn python_logical_lines(content: &str) -> Vec<(usize, String)> {
+    let mut out: Vec<(usize, String)> = Vec::new();
+    // The import being joined, and whether it waits for a `)` rather than
+    // for a line without a trailing backslash.
+    let mut open: Option<(usize, String, bool)> = None;
+    for (number, line) in content.lines().enumerate() {
+        let code = line.split('#').next().unwrap_or("").trim();
+        if let Some((start, mut joined, paren)) = open.take() {
+            joined.push(' ');
+            joined.push_str(code.trim_end_matches('\\'));
+            let done = if paren {
+                code.contains(')')
+            } else {
+                !code.ends_with('\\')
+            };
+            if done {
+                out.push((start, joined));
+            } else {
+                open = Some((start, joined, paren));
+            }
+            continue;
+        }
+        let is_import = code.starts_with("from ") || code.starts_with("import ");
+        let paren = code.contains('(') && !code.contains(')');
+        if is_import && (paren || code.ends_with('\\')) {
+            open = Some((number, code.trim_end_matches('\\').to_string(), paren));
+        } else {
+            out.push((number, line.to_string()));
+        }
+    }
+    out.extend(open.map(|(start, joined, _)| (start, joined)));
+    out
 }
 
 /// The modules one `from ... import ...` or `import ...` line imports, each
@@ -1403,6 +1482,64 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    fn follows_imports_in_vue_svelte_and_astro_components() {
+        let dir = unique_temp_dir("codedna_dg_components");
+        let toolbar = dir.join("toolbar.js");
+        write_file(&toolbar, "export default [];");
+        let history = dir.join("history.ts");
+        write_file(&history, "export const h = 1;");
+        let layout = dir.join("Layout.astro");
+        write_file(&layout, "<slot />");
+
+        let vue = dir.join("Editor.vue");
+        write_file(
+            &vue,
+            "<template><div /></template>\n<script>\nimport toolbar from './toolbar'\n</script>",
+        );
+        let svelte = dir.join("Modal.svelte");
+        write_file(
+            &svelte,
+            "<script lang=\"ts\">\n  import { h } from './history';\n</script>",
+        );
+        let page = dir.join("index.astro");
+        write_file(
+            &page,
+            "---\nimport Layout from './Layout.astro';\n---\n<Layout />",
+        );
+
+        assert!(parse_dependencies(&vue).contains(&normalize(&toolbar)));
+        assert!(parse_dependencies(&svelte).contains(&normalize(&history)));
+        assert!(parse_dependencies(&page).contains(&normalize(&layout)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn follows_files_loaded_at_runtime_by_name() {
+        let dir = unique_temp_dir("codedna_dg_runtime");
+        let worker = dir.join("worker.ts");
+        write_file(&worker, "export {};");
+        let thread = dir.join("thread.js");
+        write_file(&thread, "export {};");
+
+        let index = dir.join("index.ts");
+        write_file(
+            &index,
+            "spawn(process.execPath, [require.resolve(\"tsx/cli\"), \"worker.ts\"]);\n\
+             new Worker(new URL('./thread.js', import.meta.url));\n\
+             fetch(\"https://cdn.example.com/missing.js\");\n\
+             load(\"./missing.ts\");",
+        );
+
+        let deps = parse_dependencies(&index);
+        assert!(deps.contains(&normalize(&worker)));
+        assert!(deps.contains(&normalize(&thread)));
+        assert_eq!(deps.len(), 2, "{deps:?}");
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
     fn resolves_ts_relative_import_with_extension() {
         let dir = unique_temp_dir("codedna_dg_ts_ext");
         let routes = dir.join("routes.ts");
@@ -1656,6 +1793,31 @@ mod tests {
 
         let deps = parse_dependencies(&main);
         assert!(deps.contains(&normalize(&utils)));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn resolves_python_imports_split_across_lines() {
+        let dir = unique_temp_dir("codedna_dg_py_multiline");
+        let routes = dir.join("api").join("routes");
+        let groups = routes.join("groups.py");
+        write_file(&groups, "router = 1");
+        let users = routes.join("users.py");
+        write_file(&users, "router = 1");
+        let items = routes.join("items.py");
+        write_file(&items, "router = 1");
+
+        let main = dir.join("api").join("main.py");
+        write_file(
+            &main,
+            "from api.routes import (\n    groups,  # admin\n    users,\n)\nfrom api.routes import \\\n    items\nx = (1,\n 2)",
+        );
+
+        let deps = parse_dependencies(&main);
+        assert!(deps.contains(&normalize(&groups)));
+        assert!(deps.contains(&normalize(&users)));
+        assert!(deps.contains(&normalize(&items)));
 
         fs::remove_dir_all(dir).ok();
     }
