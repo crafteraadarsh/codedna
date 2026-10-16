@@ -212,6 +212,25 @@ pub enum Commands {
         markdown: bool,
     },
 
+    /// Show what a change affects: files that import it, layers, API routes and tests
+    Impact {
+        /// Folder inside a Git repository
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Compare with this commit or branch; for a branch, from where your work left it
+        #[arg(long, default_value = crate::impact::DEFAULT_BASE)]
+        base: String,
+
+        /// Output JSON instead of a summary
+        #[arg(long, default_value_t = false, conflicts_with = "markdown")]
+        json: bool,
+
+        /// Output Markdown, for a pull request comment or CI job summary
+        #[arg(long, default_value_t = false)]
+        markdown: bool,
+    },
+
     /// Run an MCP server on stdio so AI agents can call CodeDna as tools
     Mcp {
         /// Folder the server may read (repeatable; default: current folder)
@@ -569,6 +588,25 @@ pub fn run() {
             }
         }
 
+        // ── impact ────────────────────────────────────────────────────────────
+        Commands::Impact {
+            path,
+            base,
+            json,
+            markdown,
+        } => match crate::impact::analyze(&path, &base) {
+            Ok(impact) if json => match serde_json::to_string_pretty(&impact) {
+                Ok(text) => println!("{text}"),
+                Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+            },
+            Ok(impact) if markdown => print!("{}", crate::impact::render_markdown(&impact)),
+            Ok(impact) => print!("{}", crate::impact::render_text(&impact)),
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        },
+
         // ── mcp ───────────────────────────────────────────────────────────────
         Commands::Mcp { roots } => {
             if let Err(e) = crate::mcp::serve(&roots) {
@@ -677,6 +715,44 @@ mod tests {
             _ => panic!("expected audit command"),
         }
         assert!(Cli::try_parse_from(["codedna", "audit", "--fail-on", "severe"]).is_err());
+    }
+
+    #[test]
+    fn parses_impact() {
+        let cli = Cli::try_parse_from(["codedna", "impact"]).unwrap();
+        match cli.command {
+            Commands::Impact {
+                path,
+                base,
+                json,
+                markdown,
+            } => {
+                assert_eq!(path, PathBuf::from("."));
+                assert_eq!(base, "HEAD");
+                assert!(!json && !markdown);
+            }
+            _ => panic!("expected impact"),
+        }
+        let cli = Cli::try_parse_from([
+            "codedna",
+            "impact",
+            "app",
+            "--base",
+            "origin/main",
+            "--json",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Impact {
+                path, base, json, ..
+            } => {
+                assert_eq!(path, PathBuf::from("app"));
+                assert_eq!(base, "origin/main");
+                assert!(json);
+            }
+            _ => panic!("expected impact"),
+        }
+        assert!(Cli::try_parse_from(["codedna", "impact", "--json", "--markdown"]).is_err());
     }
 
     #[test]

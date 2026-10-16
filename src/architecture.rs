@@ -230,6 +230,9 @@ impl ArchitectureInsight {
     }
 }
 
+/// Layer names, top-down.
+pub const LAYER_NAMES: [&str; 5] = ["UI", "Routes", "Middleware", "Services", "Data"];
+
 /// Layers in top-down order, with the folder and file names that mark them.
 const LAYERS: &[(&str, &[&str])] = &[
     (
@@ -319,16 +322,21 @@ const MAX_EVIDENCE: usize = 8;
 /// Most example files kept per layer, and imports per flow.
 const MAX_EXAMPLES: usize = 3;
 
-/// Infer layers from file locations, file contents and the import graph.
-///
-/// Paths in `graph` may be absolute; `root` is stripped for display.
-pub fn infer(
+/// Every placed file with its layer, what placed it and what matched, plus
+/// each file's code sign and the names its code overruled.
+struct Placed<'a> {
+    by_code: HashMap<&'a PathBuf, (usize, CodeSign)>,
+    layer_of: HashMap<&'a PathBuf, (usize, Source, String)>,
+    name_said: HashMap<&'a PathBuf, String>,
+}
+
+/// Place each source file in a layer: settings, then code, then names, then
+/// imports.
+fn place<'a>(
     root: &Path,
-    files: &[PathBuf],
-    graph: &HashMap<PathBuf, Vec<PathBuf>>,
-    frameworks: &[String],
-    databases: &[String],
-) -> ArchitectureInsight {
+    files: &'a [PathBuf],
+    graph: &'a HashMap<PathBuf, Vec<PathBuf>>,
+) -> Placed<'a> {
     let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).to_path_buf();
     let overrides = Overrides::load(root);
 
@@ -426,6 +434,44 @@ pub fn infer(
     for (file, matched) in between {
         layer_of.insert(file, (3, Source::Imports, matched));
     }
+
+    Placed {
+        by_code,
+        layer_of,
+        name_said,
+    }
+}
+
+/// The layer name of every file placed in one, keyed by the paths in
+/// `graph` and `files`.
+pub fn layer_by_file(
+    root: &Path,
+    files: &[PathBuf],
+    graph: &HashMap<PathBuf, Vec<PathBuf>>,
+) -> HashMap<PathBuf, &'static str> {
+    place(root, files, graph)
+        .layer_of
+        .into_iter()
+        .map(|(file, (index, _, _))| (file.clone(), LAYERS[index].0))
+        .collect()
+}
+
+/// Infer layers from file locations, file contents and the import graph.
+///
+/// Paths in `graph` may be absolute; `root` is stripped for display.
+pub fn infer(
+    root: &Path,
+    files: &[PathBuf],
+    graph: &HashMap<PathBuf, Vec<PathBuf>>,
+    frameworks: &[String],
+    databases: &[String],
+) -> ArchitectureInsight {
+    let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).to_path_buf();
+    let Placed {
+        by_code,
+        layer_of,
+        name_said,
+    } = place(root, files, graph);
 
     let mut dir_counts: Vec<BTreeMap<String, usize>> = vec![BTreeMap::new(); LAYERS.len()];
     let mut confirmed = vec![0usize; LAYERS.len()];

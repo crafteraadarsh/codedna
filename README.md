@@ -137,6 +137,7 @@ codedna audit . --deps                         # plus known vulnerabilities in d
 codedna hotspots .                             # large files that change often
 codedna runbook .                              # scripts, env var names, API routes
 codedna packages .                             # monorepo packages: size, stack, who uses whom
+codedna impact . --base origin/main            # what your branch affects: importers, layers, routes, tests
 
 codedna report . --format html -o report.html  # shareable report (print to PDF)
 codedna json . > before.json                   # save a snapshot...
@@ -152,7 +153,7 @@ CodeDna works with any agent that can run a shell command, and connects natively
 **2. MCP server.** `codedna mcp` serves read-only tools over stdio:
 
 <p>
-<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code> · <code>list_packages</code>
+<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code> · <code>list_packages</code> · <code>get_impact</code>
 </p>
 
 | Agent | Setup |
@@ -226,6 +227,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna hotspots [path\|url]` | Files ranked by commits × lines of code, plus files that change together (`--days N`, `--limit N`, `--json`) |
 | `codedna runbook [path\|url]` | Scripts and targets, env var names (values are never read), API routes (`--json`) |
 | `codedna packages [path\|url]` | Monorepo packages with size, languages, stack, dead files and the packages each one uses and is used by (`--json`) |
+| `codedna impact [path]` | What a change affects: changed files, the files that import them, layers, API routes and tests to run. Compares uncommitted work with `HEAD`, or a branch with `--base origin/main` from where it left it (`--json`, `--markdown`) |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report (`--format html` for a self-contained page) |
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
@@ -704,6 +706,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 - **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`.
 - **Monorepos**: workspaces declared at the repository root are listed with their packages (`workspaces` in JSON): npm, Yarn and Bun workspaces, pnpm (`pnpm-workspace.yaml`), Lerna, Cargo, Go (`go.work`) and uv. Each package gets its own size, languages, stack, dead files and links to the other packages (`codedna packages`).
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.
+- **Change impact** follows the same imports as the dependency graph, backwards from the changed files, so a file reached another way (configuration, reflection, a language whose imports are not followed) is not listed. Untracked files count as added. Tests are files that look like tests (`*.test.ts`, `test_*.py`, `tests/`, …) and import changed code, directly or through other files.
 
 </details>
 
@@ -777,6 +780,7 @@ src/
 ├── vulns.rs                lockfile versions checked against OSV
 ├── runbook.rs              commands, env var names, API routes
 ├── diff.rs                 compare two snapshots or versions
+├── impact.rs               what a change affects: importers, layers, routes, tests
 ├── report.rs               Markdown / HTML reports
 ├── reporter.rs             terminal report and JSON output
 ├── rules.rs                loads rules.toml

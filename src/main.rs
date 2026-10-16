@@ -12,6 +12,7 @@ mod diff;
 mod framework_detector;
 mod git_handler;
 mod hotspots;
+mod impact;
 mod language_detector;
 mod loc_counter;
 mod mcp;
