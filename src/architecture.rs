@@ -131,6 +131,10 @@ pub struct Placement {
     /// The code that shows the layer, when it agrees.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code: Option<CodeSign>,
+    /// The folder or file name the code overruled and the layer it
+    /// suggested (`services/ (Services)`), when they disagreed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_said: Option<String>,
 }
 
 impl Placement {
@@ -144,7 +148,10 @@ impl Placement {
                     self.file.clone()
                 };
                 if self.placed_by == "code" {
-                    format!("{at}  {}", code.sign)
+                    match &self.name_said {
+                        Some(name) => format!("{at}  {}; not {name}", code.sign),
+                        None => format!("{at}  {}", code.sign),
+                    }
                 } else {
                     format!("{at}  {}; {}", self.matched, code.sign)
                 }
@@ -350,23 +357,33 @@ pub fn infer(
         })
         .collect();
 
-    // Settings first, then names, then code.
+    // Settings first, then code, then names: a folder or file name is a
+    // convention, the code is what the file does.
     // Each placed file: (layer, what placed it, what matched).
     let mut layer_of: HashMap<&PathBuf, (usize, Source, String)> = HashMap::new();
+    // Files whose code overruled their name, and what the name suggested.
+    let mut name_said: HashMap<&PathBuf, String> = HashMap::new();
     for &file in &nodes {
         let relative = rel(file);
-        let found = overrides
-            .layer(&relative)
-            .map(|(index, prefix)| (index, Source::Settings, prefix))
-            .or_else(|| classify(&relative).map(|(index, name)| (index, Source::Name, name)))
-            .or_else(|| {
-                by_code
-                    .get(file)
-                    .map(|(index, sign)| (*index, Source::Code, sign.sign.clone()))
-            });
-        if let Some(found) = found {
-            layer_of.insert(file, found);
+        if let Some((index, prefix)) = overrides.layer(&relative) {
+            layer_of.insert(file, (index, Source::Settings, prefix));
+            continue;
         }
+        let code = by_code.get(file);
+        let found = match (classify(&relative), code) {
+            (Some((name_index, name)), Some((code_index, sign)))
+                if code_wins(*code_index, name_index) =>
+            {
+                if *code_index != name_index {
+                    name_said.insert(file, format!("{name} ({})", LAYERS[name_index].0));
+                }
+                (*code_index, Source::Code, sign.sign.clone())
+            }
+            (Some((index, name)), _) => (index, Source::Name, name),
+            (None, Some((index, sign))) => (*index, Source::Code, sign.sign.clone()),
+            (None, None) => continue,
+        };
+        layer_of.insert(file, found);
     }
 
     // A file nothing else placed, imported by routes or middleware and
@@ -436,6 +453,7 @@ pub fn infer(
             placed_by: source.as_str().to_string(),
             matched: matched.clone(),
             code,
+            name_said: name_said.get(file).cloned(),
         });
         match source {
             Source::Imports => placed[index] += 1,
@@ -624,6 +642,15 @@ pub fn infer(
         confidence,
         evidence,
     }
+}
+
+/// Whether a file's code layer overrules the layer its name suggests.
+///
+/// Code wins, except that request handlers in a routes folder share the
+/// middleware signature (`(req, res, next)`, `NextFunction`) without being
+/// middleware.
+fn code_wins(code_index: usize, name_index: usize) -> bool {
+    !(code_index == 2 && name_index == 1)
 }
 
 /// Layer index for a relative path, from its file name first, then its
@@ -1160,6 +1187,7 @@ mod tests {
                 line,
                 sign: sign.to_string(),
             }),
+            name_said: None,
         };
         assert_eq!(
             p("code", "", Some((14, "GET /users"))).describe(),
@@ -1361,5 +1389,62 @@ mod tests {
         // Middleware came from settings, not code, so this is not code-backed
         // and one import is not enough on its own.
         assert_eq!(insight.confidence, Confidence::Medium);
+    }
+
+    #[test]
+    fn code_overrules_folder_names() {
+        let root = std::env::temp_dir().join(format!(
+            "codedna_arch_code_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let write = |rel: &str, text: &str| {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, text).unwrap();
+        };
+        // Tables kept in `services/` are data; a handler in `routes/` with
+        // the middleware signature stays a route.
+        write(
+            "src/services/user.ts",
+            "export const u = pgTable(\"u\", {})",
+        );
+        write(
+            "src/services/order.ts",
+            "export const o = pgTable(\"o\", {})",
+        );
+        write(
+            "src/routes/users.ts",
+            "export function list(req, res, next) {}\nconst k = NextFunction;",
+        );
+        write("src/routes/orders.ts", "app.get(\"/orders\", h)");
+        let p = |r: &str| root.join(r);
+        let g: HashMap<PathBuf, Vec<PathBuf>> = [
+            (p("src/services/user.ts"), vec![]),
+            (p("src/services/order.ts"), vec![]),
+            (p("src/routes/users.ts"), vec![p("src/services/user.ts")]),
+            (p("src/routes/orders.ts"), vec![p("src/services/order.ts")]),
+        ]
+        .into_iter()
+        .collect();
+        let insight = infer(&root, &[], &g, &[], &[]);
+        std::fs::remove_dir_all(&root).ok();
+        let names: Vec<&str> = insight.layers.iter().map(|l| l.name.as_str()).collect();
+        assert_eq!(names, ["Routes", "Data"]);
+        let data = &insight.layers[1];
+        assert_eq!(data.confirmed_by_code, 2);
+        let example = &data.examples[0];
+        assert_eq!(example.placed_by, "code");
+        assert_eq!(example.name_said.as_deref(), Some("services/ (Services)"));
+        assert!(
+            example
+                .describe()
+                .ends_with("pgTable(; not services/ (Services)"),
+            "{}",
+            example.describe()
+        );
+        assert_eq!(insight.layers[0].files, 2);
     }
 }

@@ -557,6 +557,13 @@
           "description": "What placed it: the folder or file name, the settings prefix, the\ncode sign, or the files it sits between.",
           "type": "string"
         },
+        "name_said": {
+          "description": "The folder or file name the code overruled and the layer it\nsuggested (`services/ (Services)`), when they disagreed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "placed_by": {
           "description": "`settings`, `name`, `code` or `imports`.",
           "type": "string"
