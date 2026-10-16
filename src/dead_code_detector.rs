@@ -2012,7 +2012,9 @@ mod tests {
         let dirs = manifest_entries(&files);
         assert!(dirs.contains(&root.join("apps/mobile/app")));
         assert!(dirs.contains(&root.join("apps/mobile/src/app")));
-        assert!(!dirs.iter().any(|d| d.starts_with(root.join("apps/web/app"))));
+        assert!(!dirs
+            .iter()
+            .any(|d| d.starts_with(root.join("apps/web/app"))));
 
         let layout = root.join("apps/mobile/app/(tabs)/_layout.tsx");
         let sheet = root.join("apps/mobile/components/Sheet.tsx");
