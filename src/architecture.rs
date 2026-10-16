@@ -228,7 +228,13 @@ pub fn infer(
                 dirs: top
                     .into_iter()
                     .take(3)
-                    .map(|(d, _)| format!("{d}/"))
+                    .map(|(d, _)| {
+                        if d == "." {
+                            "./".to_string()
+                        } else {
+                            crate::analysis::dotted(&format!("{d}/"))
+                        }
+                    })
                     .collect(),
             }
         })
@@ -461,7 +467,7 @@ mod tests {
             insight.layer_chain().as_deref(),
             Some("Routes → Services → Data")
         );
-        assert_eq!(insight.layers[0].dirs, ["src/routes/"]);
+        assert_eq!(insight.layers[0].dirs, ["./src/routes/"]);
         assert!(insight
             .flows
             .iter()

@@ -633,10 +633,7 @@ fn show(path: &Path) -> String {
 
 /// `file` as `./relative/path` under `root`.
 fn relative(root: &Path, file: &Path) -> String {
-    match file.strip_prefix(root) {
-        Ok(rel) => show(&Path::new(".").join(rel)),
-        Err(_) => show(file),
-    }
+    show(&crate::analysis::relative_path(root, file))
 }
 
 fn pretty(value: &Value) -> String {
@@ -748,7 +745,7 @@ mod tests {
         assert_eq!(r["result"]["isError"], false);
         let text = r["result"]["content"][0]["text"].as_str().unwrap();
         let v: Value = serde_json::from_str(text).unwrap();
-        assert_eq!(v["hotspots"][0]["file"], "src/main.rs");
+        assert_eq!(v["hotspots"][0]["file"], "./src/main.rs");
         assert_eq!(v["hotspots"][0]["commits"], 1);
     }
 
@@ -766,7 +763,7 @@ mod tests {
         let v: Value = serde_json::from_str(text).unwrap();
         assert_eq!(v["risk_level"], "high");
         assert_eq!(v["findings"][0]["check"], "secret");
-        assert_eq!(v["findings"][0]["file"], "config.py");
+        assert_eq!(v["findings"][0]["file"], "./config.py");
     }
 
     #[test]

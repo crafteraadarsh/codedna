@@ -12,6 +12,7 @@
 //! Routes come from matching common framework patterns, so the list can miss
 //! routes or include a few that are not.
 
+use crate::analysis::dotted;
 use crate::safe_text::sanitize;
 use rayon::prelude::*;
 use serde::Serialize;
@@ -140,10 +141,19 @@ fn finish(files_scanned: usize, found: Vec<Found>) -> Runbook {
             }
         }
     }
+    for c in &mut commands {
+        c.file = dotted(&c.file);
+    }
+    for r in &mut routes {
+        r.file = dotted(&r.file);
+    }
     commands.sort_by(|a, b| a.file.cmp(&b.file));
     routes.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
     let mut env_vars: Vec<EnvVar> = env.into_values().collect();
     for var in &mut env_vars {
+        for file in &mut var.files {
+            *file = dotted(file);
+        }
         var.files.sort();
     }
     let truncated =
