@@ -433,7 +433,7 @@ User-friendly messages for:
 | Source | Databases |
 |---|---|
 | `package.json` | PostgreSQL, MongoDB, MySQL, Redis, Prisma, SQLite, Sequelize, TypeORM, Drizzle ORM, Knex, Cassandra, Elasticsearch, DynamoDB |
-| `requirements.txt` | SQLAlchemy, PostgreSQL, MongoDB, Redis, MySQL, Tortoise ORM, Peewee |
+| `requirements.txt` / `pyproject.toml` | SQLAlchemy, SQLModel, PostgreSQL, MongoDB, Redis, MySQL, Tortoise ORM, Peewee |
 | `Cargo.toml` | SQLx, Diesel, SeaORM, PostgreSQL, MongoDB, Redis, SQLite, Sled, Elasticsearch |
 
 ### Infrastructure

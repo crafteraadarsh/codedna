@@ -152,7 +152,7 @@ codedna/
 
 1. Add `package = "Label"` to the right section of `rules.toml`:
    - `[npm.frameworks]` / `[npm.databases]` for `package.json`
-   - `[pypi.frameworks]` / `[pypi.databases]` for `requirements.txt` (lowercase names)
+   - `[pypi.frameworks]` / `[pypi.databases]` for `requirements.txt` and `pyproject.toml` (lowercase names)
    - `[cargo.frameworks]` / `[cargo.databases]` for `Cargo.toml`
    - `[go.frameworks]` / `[go.databases]` for `go.mod` (the key is a module path prefix)
 
