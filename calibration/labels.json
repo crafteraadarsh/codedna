@@ -1,0 +1,2489 @@
+[
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "ee/stripe/webhooks/checkout-session-completed.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "stripe webhook handler; no importer and no api/stripe/webhook route in repo"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/datarooms/settings/settings-tabs.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "SettingsTabs referenced nowhere else"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/trigger/backfill-video-lengths.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "task() in lib/trigger, auto-loaded via trigger.config.ts dirs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/shared/icons/copy-right.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "CopyRight icon referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/utils/use-at-bottom.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "useAtBottom referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/datarooms/add-viewer-modal.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "AddViewerModal referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/documents/annotations/annotation-sheet.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "AnnotationSheet referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/shared/icons/badge-check.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "BadgeCheck icon referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/EmailForm.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "EmailForm referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "ee/features/billing/cancellation/api/pause-route.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "pause-route handleRoute not imported by any pages/app route"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "ee/stripe/webhooks/customer-subscription-deleted.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "customerSubscriptionDeleted not imported; no stripe webhook route"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/api/domains/clear-team-redirects.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "only used by unused stripe webhook handlers"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/teams/select-team.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "SelectTeam referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/billing/upgrade-plan-modal-with-discount.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UpgradePlanModalWithDiscount referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/shared/dealflow-popup.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "DealflowPopup referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/search-command.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "only imported by profile-menu.tsx which itself is unused"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/folders/folder-color-picker.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "FolderColorPicker/FolderColorDot referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/year-in-review/calculate-percentile.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "calculateViewPercentile referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/swr/use-document-stats.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "useDocumentStats referenced nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "ee/features/billing/cancellation/api/retention-route.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "retention-route not imported by any route"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "ee/features/billing/cancellation/lib/trigger/unpause-task.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "task() in ee/**/lib/trigger, loaded by trigger.config.ts dirs; id used in unpause-route"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/links/link-sheet/permissions-sheet.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "wrapper PermissionsSheet never imported; other mention is a different ee file"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "ee/features/billing/cancellation/constants.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "only imported by unused pause-route.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/featureFlags/dataroom-freeze.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "resolveDataroomFreezeEnabled never called; mentions are folder names"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/notion/config.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "isDev from lib/notion/config used nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/shared/icons/producthunt.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "ProductHuntIcon unused; README mention is a badge link"
+ },
+ {
+  "kind": "audit",
+  "repo": "mfts_papermark",
+  "file": "public/vendor/handsontable/handsontable.full.min.js",
+  "line": 29,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "zero-width space inside vendored minified handsontable; harmless"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/emails/onboarding-1.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "only imported by send-onboarding.ts which is never called; only email dev preview"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/emails/thousand-views-congrats.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "only imported by send-thousand-views-congrats.ts which is never called"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/emails/onboarding-3.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "only imported by unused send-onboarding.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "ee/emails/pause-resume-reminder.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "duplicate; live sender imports cancellation/emails/components version"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "components/emails/upgrade-personal-welcome.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "only via send-upgrade-personal-welcome used by dead stripe webhook"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mfts_papermark",
+  "file": "lib/emails/send-upgrade-personal-welcome.ts",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "only imported by unused checkout-session-completed.ts"
+ },
+ {
+  "kind": "architecture",
+  "repo": "mfts_papermark",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI/Routes/Middleware/Services real; Data layer weak (AI model clients, misses prisma schema)"
+ },
+ {
+  "kind": "audit",
+  "repo": "go-chi_chi",
+  "file": "testdata/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test fixture key used by middleware_test.go TLS test"
+ },
+ {
+  "kind": "architecture",
+  "repo": "go-chi_chi",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Routes layer built mostly from _examples; chi is a router library"
+ },
+ {
+  "kind": "audit",
+  "repo": "laravel_laravel",
+  "file": "resources/views/welcome.blade.php",
+  "line": 16,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "inline Tailwind CSS in default welcome view; harmless"
+ },
+ {
+  "kind": "architecture",
+  "repo": "laravel_laravel",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Laravel skeleton: routes/controllers and models/migrations correctly identified"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/config/drizzle-config-mysql.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "read via config/drizzle-config-${provider}.ts in cli/src/installers/drizzle.ts:40"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/index-drizzle/with-mysql.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via `index-drizzle/with-${databaseProvider}.ts` in cli/src/installers/drizzle.ts:71"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/index-drizzle/with-planetscale.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via `index-drizzle/with-${databaseProvider}.ts` in cli/src/installers/drizzle.ts:71"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-better-auth-planetscale.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/config/drizzle-config-postgres.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "read via config/drizzle-config-${provider}.ts in cli/src/installers/drizzle.ts:40"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/base-planetscale.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/base-postgres.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-auth-planetscale.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-auth-sqlite.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/index-drizzle/with-sqlite.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via `index-drizzle/with-${databaseProvider}.ts` in cli/src/installers/drizzle.ts:71"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-better-auth-postgres.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/base-sqlite.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-better-auth-sqlite.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-auth-postgres.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-auth-mysql.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/config/drizzle-config-sqlite.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "read via config/drizzle-config-${provider}.ts in cli/src/installers/drizzle.ts:40"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/with-better-auth-mysql.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/schema-drizzle/base-mysql.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via schema-drizzle/${schemaBaseName}-${databaseProvider}.ts in cli/src/installers/drizzle.ts:51-55"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/db/index-drizzle/with-postgres.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "copied via `index-drizzle/with-${databaseProvider}.ts` in cli/src/installers/drizzle.ts:71"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/auth/config/base.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "template selected as base.ts in cli/src/installers/nextAuth.ts:31-38"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "www/src/components/docs/openSourceAppList.tsx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported by www/src/pages/en/t3-collection.mdx:9 (and other locales)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/better-auth/client.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "copied by cli/src/installers/betterAuth.ts:60-62"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "www/src/components/docs/breadCrumbs.tsx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported by www/src/components/docs/pageContent.astro:7"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "www/src/components/docs/introductionTab.tsx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported by www/src/pages/en/introduction.mdx:8"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "www/src/components/landingPage/cli.tsx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported as CliPreview by www/src/components/landingPage/about.astro:2"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/better-auth/config/with-drizzle.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "selected as with-drizzle.ts in cli/src/installers/betterAuth.ts:41-45"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/api/trpc-pages/with-better-auth.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trpc-pages/with-better-auth.ts chosen in cli/src/installers/trpc.ts:42,51"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/app/page/with-tw.tsx",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "app/page/with-tw.tsx chosen in cli/src/helpers/selectBoilerplate.ts:115,140"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/server/api/trpc-pages/with-auth.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trpc-pages/with-auth.ts chosen in cli/src/installers/trpc.ts:44,51"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/app/layout/with-trpc.tsx",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "app/layout/with-trpc.tsx chosen in cli/src/helpers/selectBoilerplate.ts:53,61"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "t3-oss_create-t3-app",
+  "file": "cli/template/extras/src/app/page/with-better-auth-tw.tsx",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "app/page/with-better-auth-tw.tsx chosen in cli/src/helpers/selectBoilerplate.ts:128"
+ },
+ {
+  "kind": "architecture",
+  "repo": "t3-oss_create-t3-app",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "all layers come from cli/template/extras scaffolding templates, not the repo's own code (CLI in cli/src, Astro docs site in www); summary describes the generated app, not this project"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "steven-tey_novel",
+  "file": "apps/web/components/tailwind/ui/icons/loading-circle.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "LoadingCircle not imported anywhere; icons/index.tsx does not export it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "steven-tey_novel",
+  "file": "apps/web/styles/fonts.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of styles/fonts anywhere; layout.tsx does not use it"
+ },
+ {
+  "kind": "architecture",
+  "repo": "steven-tey_novel",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI components in apps/web + packages/headless and 2 API routes (generate, upload) are real; summary Frontend only reasonable"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "gothinkster_rails-realworld-example-app",
+  "file": "app/assets/javascripts/application.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Sprockets manifest loaded by javascript_include_tag 'application' in app/views/layouts/application.html.erb:6"
+ },
+ {
+  "kind": "architecture",
+  "repo": "gothinkster_rails-realworld-example-app",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "app/controllers + config/routes.rb and app/models + db/migrate are the real Rails layers"
+ },
+ {
+  "kind": "architecture",
+  "repo": "launchbadge_realworld-axum-sqlx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "axum handlers in src/http/* are the real route layer; SQL is inline in handlers with migrations/*.sql, so no separate data code layer"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/connectors/connector-alipay-native/src/mock.ts",
+  "line": 15,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "test fixture key in mock.ts (appId 2021000000000000), only imported by *.test.ts"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/connectors/connector-alipay-web/src/mock.ts",
+  "line": 16,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "test fixture key in mock.ts, only imported by index.test.ts/utils.test.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/schemas/alterations/1.11.0-1699422979-add-sso-connector-id-col-to-user-sso-identities-table.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "alteration loaded dynamically by cli database alteration command (getAlterationDirectory -> alterations-js)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/schemas/alterations/1.7.0-1688627407-daily-active-users.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "alteration loaded dynamically by cli database alteration command"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/account/src/utils/social-flow.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported as @ac/utils/social-flow by pages/SocialCallback/index.tsx:20 and pages/SocialFlow/index.tsx:26"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/schemas/alterations/1.44.0-1789000000-extend-user-id-length.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "alteration loaded dynamically by cli database alteration command"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/schemas/alterations/1.43.0-1785722831-add-oidc-session-extensions-account-id-index.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "alteration loaded dynamically by cli database alteration command"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/schemas/alterations/1.31.0-1753689065-add-forgot-password-methods-to-sie-table.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "alteration loaded dynamically by cli database alteration command"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/phrases/src/locales/es/translation/admin-console/tenants.ts",
+  "line": 195,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "zero-width spaces inside a Spanish translation string literal; harmless translation artifact"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/phrases/src/locales/pl-pl/errors/role.ts",
+  "line": 11,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "BOM at end of Polish translation string literal; harmless"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/phrases/src/locales/tr-tr/translation/admin-console/inkeep-ai-bot.ts",
+  "line": 9,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "zero-width spaces inside Turkish translation string; harmless"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/phrases/src/locales/it/translation/admin-console/tenant-members.ts",
+  "line": 45,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "zero-width spaces inside Italian translation string; harmless"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/core/jest.setup.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "setupFilesAfterEnv in packages/core/jest.config.js:9"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": ".scripts/publish.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by .github/workflows/release.yml:189 (node .scripts/publish.js)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/core/src/workers/tasks/script-runner.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "worker built to build/workers/tasks/script-runner.js, loaded by libraries/script-runner/worker-thread-script-runner.ts:18"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": ".scripts/version.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by .github/workflows/changesets.yml:44"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/integration-tests/jest.setup.api.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "setupFilesAfterEnv in packages/integration-tests/jest.config.js:6"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "logto-io_logto",
+  "file": "packages/connectors/templates/sync-preset.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "root package.json pnpm:devPreinstall runs templates/sync-preset.js; documented in connectors README"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/core/src/sso/OktaSsoConnector/consts.ts",
+  "line": 2,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "long line is a base64 SVG logo data URI, not minified code"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/connectors/connector-saml/src/mock.ts",
+  "line": 42,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "long line is SAML IdP metadata XML test fixture in mock.ts"
+ },
+ {
+  "kind": "audit",
+  "repo": "logto-io_logto",
+  "file": "packages/connectors/connector-saml/src/mock.ts",
+  "line": 10,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "base64 blob is a mock SAML response test fixture"
+ },
+ {
+  "kind": "architecture",
+  "repo": "logto-io_logto",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "core/routes, middleware, libraries/queries, schemas and console/experience UI really exist; some examples misassigned (console consts as Services, React hook as Middleware, integration-tests api as Routes); summary fine"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "remix-run_indie-stack",
+  "file": "cypress/support/e2e.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "default Cypress supportFile (cypress/support/e2e.ts) loaded by cypress run"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "remix-run_indie-stack",
+  "file": "cypress/support/commands.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by cypress/support/e2e.ts:2"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "remix-run_indie-stack",
+  "file": "test/setup-test-env.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "vitest.config.ts:13 setupFiles"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "remix-run_indie-stack",
+  "file": "cypress/support/delete-user.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "executed by cypress/support/commands.ts:78 via cy.exec"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "remix-run_indie-stack",
+  "file": "cypress/support/create-user.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "executed by cypress/support/commands.ts:52 via cy.exec"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "remix-run_indie-stack",
+  "file": "prisma/seed.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "prisma seed: package.json seed 'tsx prisma/seed.ts', used by npm run setup"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "remix-run_indie-stack",
+  "file": "cypress/e2e/smoke.cy.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Cypress e2e spec run by test:e2e:run"
+ },
+ {
+  "kind": "architecture",
+  "repo": "remix-run_indie-stack",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "app/routes UI and app/models + prisma Data match the Remix indie stack; summary right"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_click",
+  "file": "examples/imagepipe/imagepipe.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "example app with its own pyproject.toml entry point; documented in examples/README"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_click",
+  "file": "tests/typing/typing_confirmation_option.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "type-checked by mypy/pyright (pyproject files = src, tests/typing; tox typing env)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_click",
+  "file": "examples/colors/colors.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "example app with pyproject.toml script entry colors = colors:cli"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_click",
+  "file": "examples/validation/validation.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "example app with its own pyproject.toml entry point"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_click",
+  "file": "tests/typing/typing_edit.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "type-checked by mypy/pyright via tests/typing in pyproject"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_click",
+  "file": "tests/typing/typing_path.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "type-checked by mypy/pyright via tests/typing in pyproject"
+ },
+ {
+  "kind": "architecture",
+  "repo": "pallets_click",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "click is a CLI library with flat src; no layers is right"
+ },
+ {
+  "kind": "architecture",
+  "repo": "spf13_viper",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "viper is a flat Go config library; no layers is right"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/status-page/src/components/ui/data-table/data-table.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "status-page ui/data-table/data-table.tsx: no import anywhere in status-page (only dashboard imports its own copy)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/web/src/lib/github.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "getGitHubStars defined in apps/web/src/lib/github.ts but never imported/called; '/github' hits are URL hrefs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/dashboard/src/components/date-picker.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "dashboard date-picker.tsx not imported; only status-page's own date-picker.test imports its separate ./date-picker"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/status-page/src/components/ui/data-table/data-table-faceted-filter.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "only imported by data-table-toolbar.tsx, which is only type-imported by the unused status-page data-table.tsx"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/web/src/components/ui/data-table/data-table.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "apps/web ui/data-table/data-table.tsx: no import of ui/data-table anywhere in apps/web"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/status-page/src/components/ui/data-table/data-table-view-options.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "only imported by data-table-toolbar.tsx, itself only type-imported by unused data-table.tsx"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/server/src/serve.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "server entry point: Dockerfile deno bundle src/serve.ts and package.json dev/start scripts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/notifications/slack/src/mock.ts",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "manual dev script (runs sends when NODE_ENV=development); not in any importmap, script, or docs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/db/src/seed/external-services.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by packages/db/src/seed.mts:28, run by 'seed' script"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "apps/web/env.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by apps/web package.json script 'env': deno run -A env.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/notifications/email/src/mock.ts",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "manual dev script; not referenced by importmap, scripts, tests or docs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/notifications/discord/src/mock.ts",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "manual dev script; not referenced by importmap, scripts, tests or docs"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/openstatus/status_report/v1/service_pb.ts",
+  "line": 17,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor, not obfuscation"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/gnostic/openapi/v3/openapiv3_pb.ts",
+  "line": 31,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/openstatus/private_location/v1/private_location_pb.ts",
+  "line": 13,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/openstatus/notification/v1/notification_pb.ts",
+  "line": 15,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/openstatus/private_location/v1/service_pb.ts",
+  "line": 17,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/openstatus/maintenance/v1/maintenance_pb.ts",
+  "line": 13,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/gnostic/openapi/v3/annotations_pb.ts",
+  "line": 30,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor"
+ },
+ {
+  "kind": "audit",
+  "repo": "openstatusHQ_openstatus",
+  "file": "packages/proto/gen/ts/openstatus/monitor/v1/service_pb.ts",
+  "line": 27,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "protoc-gen-es generated fileDesc base64 descriptor"
+ },
+ {
+  "kind": "architecture",
+  "repo": "openstatusHQ_openstatus",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "monorepo Next.js apps + Hono server routes, packages/services, packages/db schema all real; summary fine"
+ },
+ {
+  "kind": "audit",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/settings/base.py",
+  "line": 262,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "real hardcoded Google Maps key AIzaSy... in base.py:262 (comment says it's their demo key)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/settings/production.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Dockerfile:59 DJANGO_SETTINGS_MODULE=bakerydemo.settings.production"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/settings/test.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "CI ci.yml:33 and AGENTS.md use DJANGO_SETTINGS_MODULE=bakerydemo.settings.test"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/base/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in this checkout (not in git ls-files); cannot verify"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/locations/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in this checkout; cannot verify"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/recipes/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in this checkout; cannot verify"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/people/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in this checkout; cannot verify"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/base/filters.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by base/wagtail_hooks.py:7 and breads/wagtail_hooks.py:13, which Wagtail autoloads"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "wagtail_bakerydemo",
+  "file": "bakerydemo/breads/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in this checkout; cannot verify"
+ },
+ {
+  "kind": "architecture",
+  "repo": "wagtail_bakerydemo",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Services layer is empty __init__.py files, UI = wagtail_hooks while templates ignored; only Routes/Data right"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appsecco_dvna",
+  "file": "models/user.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "loaded by models/index.js via fs.readdirSync + sequelize.import"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appsecco_dvna",
+  "file": "models/product.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "loaded by models/index.js via fs.readdirSync + sequelize.import"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appsecco_dvna",
+  "file": "public/assets/showdown.min.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "served static asset: views/common/footer.ejs:1 script src /assets/showdown.min.js"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appsecco_dvna",
+  "file": "public/assets/jquery-3.2.1.min.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "served static asset: views/common/head.ejs:7 script src /assets/jquery-3.2.1.min.js"
+ },
+ {
+  "kind": "architecture",
+  "repo": "appsecco_dvna",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "routes/, core/authHandler middleware, core/appHandler handlers, models/ sequelize data all real"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "lujakob_nestjs-realworld-example-app",
+  "file": "src/shared/base.controller.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "BaseController never imported/extended in src; only in compiled dist"
+ },
+ {
+  "kind": "architecture",
+  "repo": "lujakob_nestjs-realworld-example-app",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Nest controllers, auth.middleware, services, TypeORM entities correctly identified"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/app/(app)/workspaces/[workspaceId]/settings/account/components/AccountSettingsNavbar.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "AccountSettingsNavbar not referenced anywhere; only file in its components dir, leftover"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "packages/database/zod/workflows.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of @formbricks/database/zod/workflows; ZWorkflow* used elsewhere come from @formbricks/workflows"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "packages/surveys/src/components/icons/link-icon.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of components/icons/link-icon; sibling icons imported, this one not"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/survey/editor/types/survey-trigger.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "re-export of TriggerUpdate never imported; 'survey-trigger' only in docs image name"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "packages/types/activity.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of @formbricks/types/activity or ZActivityFeedItem/TActivityFeedItem anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/ee/analysis/charts/components/charts-list-skeleton.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "ChartsListSkeleton only defined, never imported"
+ },
+ {
+  "kind": "audit",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/survey/import/lib/qsf-file.ts",
+  "line": 46,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "U+FEFF in startsWith check to strip a leading BOM; intentional, harmless"
+ },
+ {
+  "kind": "audit",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/custom-css/components/lib/upload.ts",
+  "line": 30,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "stripByteOrderMark literal BOM check; intentional, harmless"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/api/v2/management/surveys/[surveyId]/contact-links/segments/lib/openapi.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by apps/web/modules/api/v2/openapi-document.ts:18 (generate-api-specs script)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "packages/database/src/scripts/create-saml-database.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "vite.config.ts entry; run by db:create-saml-database scripts and docker next-start.sh"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/api/v2/organizations/[organizationId]/users/lib/openapi.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by openapi-document.ts:23, built/run by generate-api-specs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/ui/components/label/stories.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "storybook only loads packages/survey-ui stories; apps/web stories.tsx not loaded or imported"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/api/v2/types/openapi-response.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by many openapi.ts files, which feed openapi-document.ts (generate-api-specs)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/api/v2/organizations/[organizationId]/workspace-teams/lib/openapi.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by openapi-document.ts:24, built/run by generate-api-specs"
+ },
+ {
+  "kind": "audit",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/custom-css/components/lib/upload.test.ts",
+  "line": 45,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "BOM in test fixture string for stripByteOrderMark test; harmless"
+ },
+ {
+  "kind": "audit",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/organization/settings/teams/components/invite-member/bulk-invite-tab.test.ts",
+  "line": 35,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "BOM-prefixed CSV header in test fixture; harmless"
+ },
+ {
+  "kind": "audit",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/survey/import/lib/qsf-file.test.ts",
+  "line": 33,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "BOM-prefixed test input for readQsfFile; harmless"
+ },
+ {
+  "kind": "audit",
+  "repo": "formbricks_formbricks",
+  "file": "apps/web/modules/custom-css/components/lib/upload.test.ts",
+  "line": 46,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "BOM in test fixture string; harmless"
+ },
+ {
+  "kind": "architecture",
+  "repo": "formbricks_formbricks",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI/Routes/Middleware/Services/Data dirs exist and match (app/middleware, packages/jobs, packages/database); summary fits Next.js+Prisma app"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/javascript/source/high_unobfuscated.js",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "readable js-sha256 version not referenced or loaded anywhere (view_source loads {level}.js only)"
+ },
+ {
+  "kind": "audit",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/javascript/source/high.js",
+  "line": 1,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "high.js is genuinely obfuscated (intentional DVWA challenge, flag is true)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/javascript/source/high.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "loaded via <script> in vulnerabilities/javascript/source/high.php:2 and view_source.php"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/help.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "loaded via <script> in vulnerabilities/view_help.php:31"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/javascript/source/medium.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "loaded via <script> in vulnerabilities/javascript/source/medium.php:2"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "digininja_DVWA",
+  "file": "dvwa/js/add_event_listeners.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "loaded via <script> in dvwa/includes/dvwaPage.inc.php:443"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/authbypass/authbypass.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "loaded via <script> in vulnerabilities/authbypass/index.php:50"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/csp/source/high.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "loaded via <script src=source/high.js> in vulnerabilities/csp/source/high.php:20"
+ },
+ {
+  "kind": "audit",
+  "repo": "digininja_DVWA",
+  "file": "vulnerabilities/javascript/source/high.js",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "high.js line 1 really is a ~10k-char obfuscated/minified line"
+ },
+ {
+  "kind": "architecture",
+  "repo": "digininja_DVWA",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "only the api sub-module tagged Routes, examples (bootstrap.php, gen_openapi.php, help.php) aren't routes; main page-per-module app ignored"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_starlette",
+  "file": "benchmarks/multipart_benchmark.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by pytest in .github/workflows/benchmark.yml (CodSpeed)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_starlette",
+  "file": "benchmarks/websocket_benchmark.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by pytest in .github/workflows/benchmark.yml (CodSpeed)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_starlette",
+  "file": "tests/middleware/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "package marker for pytest-collected tests/middleware test modules"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_starlette",
+  "file": "benchmarks/urlencoded_benchmark.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by pytest in .github/workflows/benchmark.yml (CodSpeed)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_starlette",
+  "file": "benchmarks/request_benchmark.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by pytest in .github/workflows/benchmark.yml (CodSpeed)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_starlette",
+  "file": "benchmarks/routing_benchmark.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by pytest in .github/workflows/benchmark.yml (CodSpeed)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "encode_starlette",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "library framework; Data=schemas.py is OpenAPI schema gen, Routes examples odd, Middleware count inflated (13 files); layers made from names"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "trpc_examples-next-prisma-starter",
+  "file": "prisma/seed.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "package.json 'seed': 'tsx prisma/seed.ts', run via prisma db seed / dx"
+ },
+ {
+  "kind": "architecture",
+  "repo": "trpc_examples-next-prisma-starter",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "pages/components UI, server/routers + api/trpc routes, prisma data all real; Next+Prisma summary right"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/components/lenses/renderers/mixins/TextContentRendererMixin.js",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import/reference of TextContentRendererMixin anywhere; leftover Vue2 mixin"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/newstore/HoppExtension.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "hoppExtensionStore/extensionStatus$ and newstore/HoppExtension never imported"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-js-sandbox/src/bootstrap-code/pre-request.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported as raw string by hoppscotch-js-sandbox/src/cage-modules/scripting-modules.ts:13"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/functional/debug.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "trace/namedTrace and functional/debug never imported"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/mockServer/exampleCollection.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "getPetStoreExampleJSON/createExamplePetStoreCollection not referenced anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/requestParams.js",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "hasPathParams/addPathParamsToVariables/getQueryParams never imported"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-sh-admin/src/composables/stream.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by hoppscotch-sh-admin/src/components/app/Header.vue:77 via ~/composables/stream"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/composables/step-components.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by components/importExport/Base.vue:28 and others via ~/composables/step-components"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/functional/taskEither.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by pages/import.vue:30 (~/helpers/functional/taskEither)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/lenses/pdfLens.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by lenses.ts:7, which is imported by components/lenses/ResponseBodyRenderer.vue:77"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/import-export/import/insomnia/insomniaColl.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "re-exported by helpers/import-export/import/importers.ts:4, used by ImportExport.vue"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/newstore/reordering.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by components/collections/Collection.vue:352, Request.vue, index.vue"
+ },
+ {
+  "kind": "audit",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/runner/__tests__/dataset.spec.ts",
+  "line": 47,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional UTF-8 BOM in a CSV test fixture testing BOM handling"
+ },
+ {
+  "kind": "audit",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-js-sandbox/package.json",
+  "line": 40,
+  "check": "install-script",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "workspace postinstall just runs the package's own vite build; not risky"
+ },
+ {
+  "kind": "audit",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/auth/types/__tests__/jwt.spec.ts",
+  "line": 147,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "truncated placeholder PEM ('MIIEv...C4...') in jwt test"
+ },
+ {
+  "kind": "audit",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/aichat/__tests__/secret-references.spec.ts",
+  "line": 135,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "fake AWS key in redaction test fixture (secret-references.spec)"
+ },
+ {
+  "kind": "audit",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/auth/types/__tests__/jwt.spec.ts",
+  "line": 129,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "truncated placeholder PEM in jwt test"
+ },
+ {
+  "kind": "audit",
+  "repo": "hoppscotch_hoppscotch",
+  "file": "packages/hoppscotch-common/src/helpers/aichat/__tests__/secret-references.spec.ts",
+  "line": 132,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "fake github_pat with abcdef...xyz0123 filler in redaction test fixture"
+ },
+ {
+  "kind": "architecture",
+  "repo": "hoppscotch_hoppscotch",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Vue UI, NestJS controllers/resolvers, guards, services, prisma/models all real in packages/; summary fine"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "httpie_cli",
+  "file": "setup.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "setup.py is the packaging entry point (pip install / release-pypi workflow)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "httpie_cli",
+  "file": "httpie/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "httpie/apps.py does not exist in the checked-out repo at the corpus commit; cannot verify"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "httpie_cli",
+  "file": "extras/packaging/linux/scripts/httpie_cli.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "listed as build target in extras/packaging/linux/build.py:19"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "httpie_cli",
+  "file": "extras/packaging/linux/scripts/http_cli.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "listed as build target in extras/packaging/linux/build.py:18"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "httpie_cli",
+  "file": "docs/contributors/fetch.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by docs/contributors/generate.py:8; standalone maintainer script for contributors DB"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "httpie_cli",
+  "file": "httpie/output/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "httpie/output/apps.py does not exist in the checked-out repo; cannot verify"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "httpie_cli",
+  "file": "docs/installation/generate.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by Makefile:246 installation-docs target"
+ },
+ {
+  "kind": "audit",
+  "repo": "httpie_cli",
+  "file": "tests/client_certs/client.pem",
+  "line": 32,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "self-signed client cert fixture for tests/test_ssl.py; not a real credential"
+ },
+ {
+  "kind": "audit",
+  "repo": "httpie_cli",
+  "file": "tests/client_certs/client.key",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test client key fixture used by tests/test_ssl.py"
+ },
+ {
+  "kind": "architecture",
+  "repo": "httpie_cli",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "httpie is a CLI; 'UI'/'Routes' built from packaging hooks and man-page scripts, layers made up"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "file": "tests/test_schemas/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test package __init__.py imported by pytest during collection"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "file": "tests/test_api/test_errors/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test package __init__.py imported by pytest during collection"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "file": "tests/test_services/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test package __init__.py imported by pytest during collection"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "file": "tests/test_db/test_queries/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test package __init__.py imported by pytest during collection"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "file": "tests/test_api/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test package __init__.py imported by pytest during collection"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "file": "tests/test_db/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test package __init__.py imported by pytest during collection"
+ },
+ {
+  "kind": "architecture",
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "app/api/routes, app/services+models/domain, app/db/repositories+schemas match real layers"
+ },
+ {
+  "kind": "architecture",
+  "repo": "gothinkster_golang-gin-realworld-example-app",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "gin routers.go and models.go/database.go are real routes/data; only middlewares.go omitted"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "profiling/mix_big.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "profiling input data; only referenced as exclude in pyproject/pre-commit, no script or doc uses it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "profiling/mix_huge.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "profiling input data; only referenced as exclude in pyproject/pre-commit, no script or doc uses it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "profiling/dict_huge.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "profiling input data; only referenced as exclude in pyproject/pre-commit, no script or doc uses it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "profiling/list_huge.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "profiling input data; only referenced as exclude in pyproject/pre-commit, no script or doc uses it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "profiling/dict_big.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "profiling input data; only referenced as exclude in pyproject/pre-commit, no script or doc uses it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "profiling/mix_small.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "profiling input data; only referenced as exclude in pyproject/pre-commit, no script or doc uses it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "profiling/list_big.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "profiling input data; only referenced as exclude in pyproject/pre-commit, no script or doc uses it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "src/blib2to3/pgen2/literals.py",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "vendored lib2to3 module; nothing imports blib2to3.pgen2.literals or evalString"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "src/black/schema.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "entry point black.schema:get_schema in pyproject.toml validate_pyproject.tool_schema"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "src/black/resources/__init__.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "package loaded via importlib.resources.files('black.resources') in src/black/schema.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "src/blib2to3/pgen2/conv.py",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of pgen2.conv anywhere; only mentioned in a grammar.py comment"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "tests/data/cases/torture.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "collected via all_data_cases('cases') parametrize in tests/test_format.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "tests/data/cases/line_ranges_basic.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "collected via all_data_cases('cases') parametrize in tests/test_format.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "tests/data/cases/string_prefixes.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "collected via all_data_cases('cases') parametrize in tests/test_format.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "tests/data/invalid_nested_gitignore_tests/a.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "used by test_invalid_nested_gitignore in tests/test_black.py:3531"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "tests/data/cases/fstring_quotations.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "collected via all_data_cases('cases') parametrize in tests/test_format.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "psf_black",
+  "file": "tests/data/cases/slices.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "collected via all_data_cases('cases') parametrize in tests/test_format.py"
+ },
+ {
+  "kind": "architecture",
+  "repo": "psf_black",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "black is a CLI formatter; 'Data' layer is made up from schema.py/generate_schema.py, only blackd/middlewares.py is plausible; summary 'Monolithic' ok"
+ },
+ {
+  "kind": "audit",
+  "repo": "tokio-rs_axum",
+  "file": "examples/low-level-native-tls/self_signed_certs/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "self-signed example TLS key for axum examples, intentionally committed, not a real secret"
+ },
+ {
+  "kind": "audit",
+  "repo": "tokio-rs_axum",
+  "file": "examples/websockets-http2/self_signed_certs/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "self-signed example TLS key for axum examples, intentionally committed, not a real secret"
+ },
+ {
+  "kind": "audit",
+  "repo": "tokio-rs_axum",
+  "file": "examples/tls-graceful-shutdown/self_signed_certs/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "self-signed example TLS key for axum examples, intentionally committed, not a real secret"
+ },
+ {
+  "kind": "audit",
+  "repo": "tokio-rs_axum",
+  "file": "examples/tls-rustls/self_signed_certs/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "self-signed example TLS key for axum examples, intentionally committed, not a real secret"
+ },
+ {
+  "kind": "audit",
+  "repo": "tokio-rs_axum",
+  "file": "examples/low-level-rustls/self_signed_certs/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "self-signed example TLS key for axum examples, intentionally committed, not a real secret"
+ },
+ {
+  "kind": "audit",
+  "repo": "tokio-rs_axum",
+  "file": "examples/low-level-openssl/self_signed_certs/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "self-signed example TLS key for axum examples, intentionally committed, not a real secret"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tokio-rs_axum",
+  "file": "axum-macros/tests/from_request/pass/named_via_parts.rs",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trybuild glob tests/{dir}/pass|fail/*.rs in axum-macros/src/lib.rs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tokio-rs_axum",
+  "file": "axum-macros/tests/from_request/pass/unit.rs",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trybuild glob tests/{dir}/pass|fail/*.rs in axum-macros/src/lib.rs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tokio-rs_axum",
+  "file": "axum-macros/tests/debug_handler/fail/not_a_function.rs",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trybuild glob tests/{dir}/pass|fail/*.rs in axum-macros/src/lib.rs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tokio-rs_axum",
+  "file": "axum-macros/tests/from_request/pass/state_enum_via.rs",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trybuild glob tests/{dir}/pass|fail/*.rs in axum-macros/src/lib.rs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tokio-rs_axum",
+  "file": "axum-macros/tests/debug_handler/fail/output_tuple_too_many.rs",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trybuild glob tests/{dir}/pass|fail/*.rs in axum-macros/src/lib.rs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tokio-rs_axum",
+  "file": "axum-macros/tests/debug_handler/fail/generics.rs",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "trybuild glob tests/{dir}/pass|fail/*.rs in axum-macros/src/lib.rs"
+ },
+ {
+  "kind": "architecture",
+  "repo": "tokio-rs_axum",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "axum is a framework library; 'Routes' layer is really extractor modules (extract/), not app routes; summary 'API only' misleading"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "Blazity_next-enterprise",
+  "file": "report-bundle-size.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by .github/workflows/nextjs_bundle_analysis.yml:61 (node report-bundle-size.js)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "Blazity_next-enterprise",
+  "file": "vitest.setup.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "setupFiles in vitest.config.ts:9"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "Blazity_next-enterprise",
+  "file": "components/Tooltip/Tooltip.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "Tooltip not imported anywhere; only appears in graph.svg dependency image"
+ },
+ {
+  "kind": "architecture",
+  "repo": "Blazity_next-enterprise",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI in app/ and components/, Routes app/api/health/route.ts match the Next.js app; summary fine"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "hagopj13_node-express-boilerplate",
+  "file": "bin/createNodejsApp.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "package.json bin entry: bin/createNodejsApp.js"
+ },
+ {
+  "kind": "architecture",
+  "repo": "hagopj13_node-express-boilerplate",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "routes/controllers, middlewares, services, models layers really exist; summary API -> Database fits"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": ".ssh/wrongsecrets.keys",
+  "line": 1,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "real OpenSSH private key used by Challenge55 (intentional training secret)"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-c-arm",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine Mach-O binary (cf fa ed fe) committed as challenge executable"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-c-linux-arm",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine ELF binary committed as challenge executable"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-rust-linux-musl-arm",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine ELF binary committed as challenge executable"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-swift-linux",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine ELF binary committed as challenge executable"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-advanced-c-linux",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine ELF binary committed as challenge executable"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-swift-linux-arm-ctf",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine ELF binary committed as challenge executable"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-rust",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine Mach-O binary committed as challenge executable"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/main/resources/executables/wrongsecrets-rust-linux",
+  "check": "binary",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "genuine ELF binary committed as challenge executable"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/test/K8s-tests/cypress/e2e/Challenge47Test.cy.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "matched by K8s-tests/cypress.config.js specPattern cypress/e2e/*.cy.js"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/test/K8s-tests/cypress/e2e/Challenge5Test.cy.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "matched by K8s-tests/cypress.config.js specPattern cypress/e2e/*.cy.js"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "OWASP_wrongsecrets",
+  "file": ".github/scripts/update_pr_index.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by .github/workflows/github-pages-preview.yml:210"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/test/e2e/cypress/integration/themeSwitch.cy.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "matched by e2e/cypress.config.js specPattern cypress/integration/*.cy.js"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/test/e2e/cypress/support/e2e.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Cypress default supportFile cypress/support/e2e.js for e2e config"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "OWASP_wrongsecrets",
+  "file": ".github/scripts/remove_pr_from_index.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by .github/workflows/github-pages-preview.yml:316"
+ },
+ {
+  "kind": "audit",
+  "repo": "OWASP_wrongsecrets",
+  "file": "src/test/resources/RSAprivatekey.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "real RSA private key read by Challenge29.java (intentional training secret)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "OWASP_wrongsecrets",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "20 Spring @Controller files and 3 @Service classes match listed layers; summary line vague but not wrong"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sindresorhus_got",
+  "file": "test/types/exports.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "type test compiled by tsc --noEmit (tsconfig includes test) in npm test"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sindresorhus_got",
+  "file": "test/timeout.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by npm test: node --test 'test/*.ts'"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sindresorhus_got",
+  "file": "documentation/examples/pagination.js",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "not linked from any doc/readme or config; only xo ignore glob covers it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sindresorhus_got",
+  "file": "test/arguments.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by npm test: node --test 'test/*.ts'"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sindresorhus_got",
+  "file": "test/zstd.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by npm test: node --test 'test/*.ts'"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sindresorhus_got",
+  "file": "documentation/examples/uppercase-headers.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "documented example linked from documentation/tips.md:405"
+ },
+ {
+  "kind": "audit",
+  "repo": "sindresorhus_got",
+  "file": "test/response-parse.ts",
+  "line": 1121,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional UTF-8 BOM in test payload for BOM-parsing test"
+ },
+ {
+  "kind": "audit",
+  "repo": "sindresorhus_got",
+  "file": "test/pagination-options.ts",
+  "line": 206,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional BOM in pagination test fixture"
+ },
+ {
+  "kind": "audit",
+  "repo": "sindresorhus_got",
+  "file": "test/pagination-options.ts",
+  "line": 196,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional BOMs in pagination test fixture"
+ },
+ {
+  "kind": "audit",
+  "repo": "sindresorhus_got",
+  "file": "test/pagination-options.ts",
+  "line": 209,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional BOM in pagination test fixture"
+ },
+ {
+  "kind": "audit",
+  "repo": "sindresorhus_got",
+  "file": "test/pagination-options.ts",
+  "line": 184,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional leadingBom test case"
+ },
+ {
+  "kind": "audit",
+  "repo": "sindresorhus_got",
+  "file": "test/pagination-options.ts",
+  "line": 107,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional BOM in pagination test fixture"
+ },
+ {
+  "kind": "architecture",
+  "repo": "sindresorhus_got",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "HTTP client library with no app layers; summary 'API only/Express' is wrong (Express only in tests)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "gothinkster_django-realworld-example-app",
+  "file": "conduit/apps/profiles/exceptions.py",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "ProfileDoesNotExist never imported or referenced anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "gothinkster_django-realworld-example-app",
+  "file": "conduit/apps/profiles/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in the repo (clean HEAD); AppConfig lives in __init__.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "gothinkster_django-realworld-example-app",
+  "file": "conduit/apps/authentication/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in the repo (clean HEAD); AppConfig lives in __init__.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "gothinkster_django-realworld-example-app",
+  "file": "conduit/apps/articles/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in the repo (clean HEAD); AppConfig lives in __init__.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "gothinkster_django-realworld-example-app",
+  "file": "conduit/apps/core/apps.py",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "file does not exist in the repo (clean HEAD)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "gothinkster_django-realworld-example-app",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Routes/Data ok, but Services layer is made from AppConfig __init__.py files; serializers not recognised"
+ },
+ {
+  "kind": "architecture",
+  "repo": "koajs_koa",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "koa is a small framework library with no layered app structure"
+ }
+]

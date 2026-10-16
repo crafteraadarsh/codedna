@@ -3,6 +3,7 @@ mod architecture;
 mod audit;
 mod baseline;
 mod cache;
+mod calibration;
 mod cli;
 mod code_text;
 mod context;

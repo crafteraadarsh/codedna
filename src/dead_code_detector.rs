@@ -377,13 +377,18 @@ const MAX_MENTIONS: usize = 3;
 /// the first mention of each name, plus its dynamic loaders.
 type FileFindings = (PathBuf, Vec<(usize, bool, usize)>, Vec<Loader>);
 
-/// A line that loads modules by a computed name.
+/// A line that loads modules by a computed name, or builds a file path
+/// from a template string.
 struct Loader {
     file: PathBuf,
     line: usize,
     text: String,
     /// `text` lower-cased once, for matching against every candidate.
     lower: String,
+    /// For a built path such as `` `with-${db}.ts` ``: the lines around it,
+    /// lower-cased. It points at matching files only, so it never lowers
+    /// confidence across the whole repository.
+    built: Option<String>,
 }
 
 /// Rate each unreachable file:
@@ -531,17 +536,18 @@ pub fn assess_with(
                 }
                 let loaders = find_loaders(file, text)
                     .into_iter()
-                    .map(|l| (l.line, l.text))
+                    .map(|l| (l.line, l.text, l.built))
                     .collect();
                 Some((mentions, loaders))
             })?;
             let loaders = loaders
                 .into_iter()
-                .map(|(line, text)| Loader {
+                .map(|(line, text, built)| Loader {
                     file: file.clone(),
                     line,
                     lower: text.to_ascii_lowercase(),
                     text,
+                    built,
                 })
                 .collect();
             Some((file.clone(), mentions, loaders))
@@ -814,6 +820,22 @@ fn rate(
 
     let parent = dirs.last().map(String::as_str).unwrap_or(".");
     let generic_stem = stem.len() < 3 || GENERIC_STEMS.contains(&stem);
+    if let Some(l) = loaders
+        .iter()
+        .find(|l| l.built.as_deref().is_some_and(|w| builds(w, file, stem)))
+    {
+        return (
+            Confidence::Low,
+            format!(
+                "May be read by a path built at runtime: \"{}\" ({}:{})",
+                l.text,
+                file_name(&l.file),
+                l.line
+            ),
+            vec![(l.file.clone(), l.line)],
+        );
+    }
+    let loaders: Vec<&Loader> = loaders.iter().filter(|l| l.built.is_none()).collect();
     let related = loaders.iter().find(|l| {
         (!GENERIC_DIRS.contains(&parent) && l.lower.contains(parent))
             || (!generic_stem && l.lower.contains(stem))
@@ -1047,8 +1069,9 @@ fn find_loaders(file: &Path, text: &str) -> Vec<Loader> {
         return Vec::new();
     }
 
+    let lines: Vec<&str> = text.lines().collect();
     let mut found = Vec::new();
-    for (i, line) in text.lines().enumerate() {
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.starts_with("//") || trimmed.starts_with('#') || trimmed.starts_with('*') {
             continue;
@@ -1061,7 +1084,22 @@ fn find_loaders(file: &Path, text: &str) -> Vec<Loader> {
         } else {
             trimmed.contains("import_module(") || trimmed.contains("__import__(")
         };
-        if dynamic {
+        // A template string ending in a source extension builds a path to
+        // a file that is copied or read rather than imported.
+        let built = (js && !dynamic && trimmed.contains("${"))
+            .then(|| {
+                let ahead = lines[i..lines.len().min(i + 4)].join("\n");
+                let builds_source = BUILT_EXTENSIONS
+                    .iter()
+                    .any(|ext| ahead.contains(&format!(".{ext}`")));
+                builds_source.then(|| {
+                    lines[i.saturating_sub(3)..lines.len().min(i + 4)]
+                        .join("\n")
+                        .to_ascii_lowercase()
+                })
+            })
+            .flatten();
+        if dynamic || built.is_some() {
             let mut text: String = sanitize(trimmed).chars().take(MAX_LOADER_TEXT).collect();
             if trimmed.chars().count() > MAX_LOADER_TEXT {
                 text.push('…');
@@ -1072,10 +1110,75 @@ fn find_loaders(file: &Path, text: &str) -> Vec<Loader> {
                 line: i + 1,
                 lower: text.to_ascii_lowercase(),
                 text,
+                built,
             });
         }
     }
     found
+}
+
+/// Extensions a built path must end in to count: `` `./x/${name}.ts` ``.
+const BUILT_EXTENSIONS: &[&str] = &[
+    "ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts", "vue", "svelte", "py",
+];
+
+/// Whether a path built from a template string in `window` can name
+/// `file`: a literal folder and name prefix just before `${`
+/// (`` `index-drizzle/with-${db}.ts` ``), or its folder quoted beside it
+/// (`` join(root, "db/schema-drizzle", `${a}-${b}.ts`) ``).
+fn builds(window: &str, file: &Path, stem: &str) -> bool {
+    let ext = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext.is_empty() || !window.contains(&format!(".{ext}`")) {
+        return false;
+    }
+    let dirs: Vec<String> = file
+        .parent()
+        .map(|p| {
+            p.iter()
+                .filter_map(|c| c.to_str())
+                .filter(|c| *c != ".")
+                .map(str::to_ascii_lowercase)
+                .collect()
+        })
+        .unwrap_or_default();
+    let stem = stem.to_ascii_lowercase();
+    for (at, _) in window.match_indices("${") {
+        let start = window[..at]
+            .rfind(|c: char| matches!(c, '`' | '"' | '\'' | '}') || c.is_whitespace())
+            .map_or(0, |i| i + 1);
+        let fragment = &window[start..at];
+        let (folder, name) = fragment.rsplit_once('/').unwrap_or(("", fragment));
+        if !stem.starts_with(name) {
+            continue;
+        }
+        let folders: Vec<&str> = folder
+            .split('/')
+            .filter(|s| !s.is_empty() && *s != ".")
+            .collect();
+        if folders.is_empty() {
+            if name.len() >= 4 {
+                return true;
+            }
+            continue;
+        }
+        let tail = dirs.len().checked_sub(folders.len()).map(|s| &dirs[s..]);
+        if tail.is_some_and(|t| t.iter().zip(&folders).all(|(a, b)| a == b))
+            && (name.len() >= 3 || folders.iter().any(|d| !GENERIC_DIRS.contains(d)))
+        {
+            return true;
+        }
+    }
+    dirs.last().is_some_and(|parent| {
+        !GENERIC_DIRS.contains(&parent.as_str())
+            && ['"', '\''].iter().any(|q| {
+                window.contains(&format!("/{parent}{q}"))
+                    || window.contains(&format!("{q}{parent}{q}"))
+            })
+    })
 }
 
 /// Whether `call` appears with an argument that is not a plain string
@@ -1230,6 +1333,38 @@ mod tests {
         let stray = rated(&c, &root, "src/other/stray.js");
         assert_eq!(stray.confidence, Confidence::Medium, "{}", stray.reason);
         assert!(stray.reason.contains("dynamically"));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn files_named_by_a_built_path_are_low() {
+        let (root, files) = temp_repo(
+            "codedna_dead_built_path",
+            &[
+                (
+                    "cli/install.ts",
+                    "const a = join(dir, `db/index-drizzle/with-${provider}.ts`);\n\
+                     const b = join(\n  dir,\n  \"db/schema-drizzle\",\n  `${base}-${provider}.ts`\n);\n",
+                ),
+                ("template/db/index-drizzle/with-mysql.ts", "export const db = 1;\n"),
+                ("template/db/schema-drizzle/base-postgres.ts", "export const t = 1;\n"),
+                ("src/unrelated/stray-widget.ts", "export const s = 1;\n"),
+            ],
+        );
+        let dead = vec![files[1].clone(), files[2].clone(), files[3].clone()];
+        let c = assess(&root, &dead, &files);
+
+        for path in [
+            "template/db/index-drizzle/with-mysql.ts",
+            "template/db/schema-drizzle/base-postgres.ts",
+        ] {
+            let built = rated(&c, &root, path);
+            assert_eq!(built.confidence, Confidence::Low, "{}", built.reason);
+            assert!(built.reason.contains("install.ts"), "{}", built.reason);
+        }
+        // A built path says nothing about other files.
+        let stray = rated(&c, &root, "src/unrelated/stray-widget.ts");
+        assert_eq!(stray.confidence, Confidence::High, "{}", stray.reason);
         fs::remove_dir_all(root).ok();
     }
 

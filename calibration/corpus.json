@@ -1,0 +1,157 @@
+[
+ {
+  "repo": "Blazity_next-enterprise",
+  "url": "https://github.com/Blazity/next-enterprise",
+  "commit": "97c4f3ed6be0a5b255d0e71606c7b355138281a9"
+ },
+ {
+  "repo": "OWASP_wrongsecrets",
+  "url": "https://github.com/OWASP/wrongsecrets",
+  "commit": "a8ddd0b9c386c6414709e286e1ff2b75913ffdca"
+ },
+ {
+  "repo": "appsecco_dvna",
+  "url": "https://github.com/appsecco/dvna",
+  "commit": "9ba473add536f66ac9007966acb2a775dd31277a"
+ },
+ {
+  "repo": "digininja_DVWA",
+  "url": "https://github.com/digininja/DVWA",
+  "commit": "068d974487a297c155c48722f9fcf7180a83adc4"
+ },
+ {
+  "repo": "encode_starlette",
+  "url": "https://github.com/encode/starlette",
+  "commit": "7b2948fe7b7fff28bb018607d54cd4dfa518910e"
+ },
+ {
+  "repo": "formbricks_formbricks",
+  "url": "https://github.com/formbricks/formbricks",
+  "commit": "4ad7df1b12b82685db7f072934477a1cba152232"
+ },
+ {
+  "repo": "go-chi_chi",
+  "url": "https://github.com/go-chi/chi",
+  "commit": "3a33ba578e0dd93444e0ff386cc26e665d92e31e"
+ },
+ {
+  "repo": "gothinkster_django-realworld-example-app",
+  "url": "https://github.com/gothinkster/django-realworld-example-app",
+  "commit": "29c9d42831fa0cfc5a4aa7561f674396eacf20a2"
+ },
+ {
+  "repo": "gothinkster_golang-gin-realworld-example-app",
+  "url": "https://github.com/gothinkster/golang-gin-realworld-example-app",
+  "commit": "626c372d259472148d93303f74aa9b9a1cdcef24"
+ },
+ {
+  "repo": "gothinkster_rails-realworld-example-app",
+  "url": "https://github.com/gothinkster/rails-realworld-example-app",
+  "commit": "a2ae4fff78b3337683cea988c023281dcb5551b9"
+ },
+ {
+  "repo": "hagopj13_node-express-boilerplate",
+  "url": "https://github.com/hagopj13/node-express-boilerplate",
+  "commit": "179ae84efec61b14206d0305d941daed6c6d07f9"
+ },
+ {
+  "repo": "hoppscotch_hoppscotch",
+  "url": "https://github.com/hoppscotch/hoppscotch",
+  "commit": "63273f8e599e73f0fb38c0739314e8d46b6bc83d"
+ },
+ {
+  "repo": "httpie_cli",
+  "url": "https://github.com/httpie/cli",
+  "commit": "5b604c37c6c67e18e7c3e9aee6c88a8c22b98345"
+ },
+ {
+  "repo": "koajs_koa",
+  "url": "https://github.com/koajs/koa",
+  "commit": "2fecd029c6ce6b79d65158d28a76538f7f6b0378"
+ },
+ {
+  "repo": "laravel_laravel",
+  "url": "https://github.com/laravel/laravel",
+  "commit": "9ffef3bc4241e3cc333ef267258a404d0d95f194"
+ },
+ {
+  "repo": "launchbadge_realworld-axum-sqlx",
+  "url": "https://github.com/launchbadge/realworld-axum-sqlx",
+  "commit": "f1b25654773228297e35c292f357d33b7121a101"
+ },
+ {
+  "repo": "logto-io_logto",
+  "url": "https://github.com/logto-io/logto",
+  "commit": "e459fb6de84fe31921a3a92173f43493263fa68d"
+ },
+ {
+  "repo": "lujakob_nestjs-realworld-example-app",
+  "url": "https://github.com/lujakob/nestjs-realworld-example-app",
+  "commit": "c1c2cc4e448b279ff083272df1ac50d20c3304fa"
+ },
+ {
+  "repo": "mfts_papermark",
+  "url": "https://github.com/mfts/papermark",
+  "commit": "ed19717ec02a1ac79aecf5569159aa9d2d869312"
+ },
+ {
+  "repo": "nsidnev_fastapi-realworld-example-app",
+  "url": "https://github.com/nsidnev/fastapi-realworld-example-app",
+  "commit": "029eb7781c60d5f563ee8990a0cbfb79b244538c"
+ },
+ {
+  "repo": "openstatusHQ_openstatus",
+  "url": "https://github.com/openstatusHQ/openstatus",
+  "commit": "b1492e4251ad25a5ca59b05206e8c0a7d4eb233a"
+ },
+ {
+  "repo": "pallets_click",
+  "url": "https://github.com/pallets/click",
+  "commit": "2247b35ea1c47c727d7a06e51fa280e12a863ff6"
+ },
+ {
+  "repo": "psf_black",
+  "url": "https://github.com/psf/black",
+  "commit": "11cff1312bf96e02bce9a467d0b5a2dd65300642"
+ },
+ {
+  "repo": "remix-run_indie-stack",
+  "url": "https://github.com/remix-run/indie-stack",
+  "commit": "56abb93bf81f635b574d9ca23eed05602699458a"
+ },
+ {
+  "repo": "sindresorhus_got",
+  "url": "https://github.com/sindresorhus/got",
+  "commit": "05b4476913da39a47dd8e20d29e250f28b0a6dca"
+ },
+ {
+  "repo": "spf13_viper",
+  "url": "https://github.com/spf13/viper",
+  "commit": "528f7416c4b56a4948673984b190bf8713f0c3c4"
+ },
+ {
+  "repo": "steven-tey_novel",
+  "url": "https://github.com/steven-tey/novel",
+  "commit": "fa95098e66476c466faebb8211baa5869c101a9c"
+ },
+ {
+  "repo": "t3-oss_create-t3-app",
+  "url": "https://github.com/t3-oss/create-t3-app",
+  "commit": "4709861f7e67a15564c0460c13e7b4b6cfcae40d"
+ },
+ {
+  "repo": "tokio-rs_axum",
+  "url": "https://github.com/tokio-rs/axum",
+  "commit": "fc78d5bcdb276bd6fb53cf2db55e91757eabb469"
+ },
+ {
+  "repo": "trpc_examples-next-prisma-starter",
+  "url": "https://github.com/trpc/examples-next-prisma-starter",
+  "commit": "5b0459e30902413bf58e60df89d9cc932f1903a7"
+ },
+ {
+  "repo": "wagtail_bakerydemo",
+  "url": "https://github.com/wagtail/bakerydemo",
+  "commit": "c9b38d7a7170dba8bb84254beb7e5dc5a955e024"
+ }
+]

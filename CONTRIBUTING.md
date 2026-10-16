@@ -254,7 +254,9 @@ cargo test -p codedna detects_react_from_package_json
 cargo test -- --nocapture
 ```
 
-The test suite currently has **140+ tests** across all modules. All tests must pass before a PR is merged.
+The test suite currently has **370+ tests** across all modules. All tests must pass before a PR is merged.
+
+If you change how dead code, audit findings or architecture are rated, check the measured confidence too. Clone the repositories in `calibration/corpus.json` at their pinned commits into one folder, then run `codedna calibration --corpus DIR` with your build. It scores the hand-checked labels in `calibration/labels.json` against what your build reports now. A rule written after reading those labels makes them less independent, so say so in the PR.
 
 ---
 

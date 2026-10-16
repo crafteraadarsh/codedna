@@ -73,7 +73,10 @@ struct Imports {
 
 /// Dead-code names a file mentions, `(candidate, file is unused, line)`,
 /// and its dynamic loaders, `(line, text)`.
-pub type Mentions = (Vec<(usize, bool, usize)>, Vec<(usize, String)>);
+pub type Mentions = (
+    Vec<(usize, bool, usize)>,
+    Vec<(usize, String, Option<String>)>,
+);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct Entry {

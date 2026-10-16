@@ -235,6 +235,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
 | `codedna schema` | JSON Schema of the `json` report |
+| `codedna calibration` | How often each confidence level was right on hand-checked repositories (`--json`, `--corpus DIR` to re-measure this build) |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Lines of code per file |
 | `codedna framework <name> [path\|url]` | Files that import a given framework |
@@ -724,7 +725,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
   data = ["src/store/", "src/tables.rs"]
   ```
 - **Lines of code** count only lines that contain code. Comment-only and blank lines are reported separately (`comment_lines`, `blank_lines`), and comment markers inside strings are not treated as comments. Lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock` and similar) are left out so they don't swamp the totals.
-- **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), or by a dynamic `import()`/`require()`/`importlib` call that names it. Python dotted strings in settings (`"app.views"`) count as imports. When the reason rests on lines elsewhere, such as files that mention the name or the dynamic loader, `evidence` gives up to 3 of them with file, line and text. Check before deleting anything, even at high confidence.
+- **Dead code is a heuristic, with a confidence for each file.** A file is listed when nothing reaches it through imports from an entry point. Each one is then rated with a reason. *High*: its name appears nowhere else in the repository. *Medium*: nothing imports it, but its name is mentioned elsewhere or the repository loads modules dynamically. *Low*: it is probably loaded another way, for example from a convention folder (`migrations/`, `alembic/`, `management/`, `scripts/`, …), as a test, as a Django app module (`models.py`, `admin.py`, `signals.py`, …), by a dynamic `import()`/`require()`/`importlib` call that names it, or by a path built from a template string (`` `index-drizzle/with-${db}.ts` ``) that matches its folder and name. Python dotted strings in settings (`"app.views"`) count as imports. When the reason rests on lines elsewhere, such as files that mention the name or the dynamic loader, `evidence` gives up to 3 of them with file, line and text. Check before deleting anything, even at high confidence.
 - **Code signs count only in code.** Words such as `@RestController`, `pgTable(` or `@app.get(` inside a string, a comment or a test fixture are not taken as evidence for a layer or a route.
 - **Workspace packages resolve through their `package.json`.** An import of a local package (`@acme/shared`, `@acme/ui/button`) follows its `exports` (plain, conditional and `*` patterns), then `source`, `module`, `main` or `types`, then `src/index`. Targets in a build folder (`dist/`, `build/`, `lib/`, …) map back to the matching file under `src/`.
 - **Coverage** says how much of the code the dependency graph covers, so an empty dead-code or cycle list can be told apart from code that was never looked at. It counts the source files whose imports were followed, imports of the repository's own code that matched no file (relative paths, path aliases, workspace packages, the project's own Python packages and `mod` declarations), with file and line for the first 20, and languages whose imports are not followed. The terminal report, `context`, reports and MCP tools show it; `deadcode` and `cycles` say "not checked" when no file could be analyzed.
@@ -735,6 +736,22 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 - **Change impact** follows the same imports as the dependency graph, backwards from the changed files, so a file reached another way (configuration, reflection, a language whose imports are not followed) is not listed. Untracked files count as added. Tests are files that look like tests (`*.test.ts`, `test_*.py`, `tests/`, …) and import changed code, directly or through other files.
 
 </details>
+
+## 📏 Measured confidence
+
+Confidence levels are measured, not guessed. CodeDna was run on 31 repositories that were never used to tune it (web apps, libraries, CLIs, starters and deliberately vulnerable apps, each pinned to a commit), and 301 of its results were checked by hand: up to 20 dead-code files, 8 audit findings per level and the architecture of each repository. Precision is how many results at that level were right, with a 95% interval:
+
+| Result | High | Medium | Low |
+|---|---|---|---|
+| Dead code | 59% (29/49) | 54% (26/48) | 12% (12/103) |
+| Audit | 50% (2/4) | 41% (9/22) | 6% (2/33) |
+| Architecture | 94% (16/17) | 20% (2/10) | 100% (4/4) |
+
+- **Dead code, high**: 19 of the 20 wrong ones were template files that create-t3-app's installer copies by a path built at runtime. This release recognises such paths; on the same labels high-confidence dead code is now 97% (29/30). That figure is no longer held out, since the fix came after seeing the labels.
+- **Audit, high** rests on 4 findings, so its interval is wide (15–85%). Treat medium and low audit findings as leads to check.
+- **Architecture, low** means CodeDna did not claim layers; those 4 were right not to.
+
+`codedna calibration` prints these numbers with their intervals. The repositories and labels are in [`calibration/`](calibration/); clone them and run `codedna calibration --corpus DIR` to score your own build on the same labels.
 
 ## ⚡ Performance
 
