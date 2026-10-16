@@ -11,10 +11,11 @@
 //! code can trip a check and a careful attacker can avoid all of them.
 //! Each finding carries a severity (how bad it would be) and a confidence
 //! (how likely it is a real problem rather than a false alarm). Findings in
-//! tests, docs, examples and fixtures are lowered one step on both, since
-//! that code is not what users of the project run. Keys there are usually
-//! dummies, so they drop to low confidence, and long or encoded data in
-//! tests and fixtures is not reported at all.
+//! tests, docs, examples, fixtures, vendored libraries and translations are
+//! lowered one step on both, since that is not code the project's users run
+//! or its authors wrote. Keys there are usually dummies, so they drop to low
+//! confidence, and long or encoded data in tests, fixtures, vendored
+//! libraries and translations is not reported at all.
 //!
 //! Files are only read, never executed, and nothing is sent over the network
 //! unless dependency checking is asked for (see [`crate::vulns`]): then the
@@ -105,7 +106,7 @@ pub struct Finding {
 }
 
 /// What the audit does and does not tell you.
-pub const NOTE: &str = "Red flags to review, not a safety verdict. The scan matches known patterns: clean code can trip a check, and code that passes is not proven safe. Findings in tests, docs, examples and fixtures are lowered one step. Secret values are never included; files are read, never run.";
+pub const NOTE: &str = "Red flags to review, not a safety verdict. The scan matches known patterns: clean code can trip a check, and code that passes is not proven safe. Findings in tests, docs, examples, fixtures, vendored libraries and translations are lowered one step. Secret values are never included; files are read, never run.";
 
 /// All findings plus a summary score.
 #[derive(Debug, Clone, Serialize)]
@@ -189,16 +190,21 @@ pub fn scan(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Sca
             let relative = sanitize(&relative.to_string_lossy().replace('\\', "/"));
             let mut found = audit_file(&relative, &bytes);
             let context = context_of(&relative);
-            if matches!(context, Some("test" | "fixture")) {
+            // Expected there: long lines in bundles and expected output,
+            // encoded sample data, direction marks in Arabic or Hebrew text.
+            if matches!(
+                context,
+                Some("test" | "fixture" | "vendored" | "translation")
+            ) {
                 found.retain(|f| !is_fixture_data(f));
             }
             found.truncate(PER_FILE_LIMIT);
             if let Some(context) = context {
                 for f in &mut found {
                     lower(f, context);
-                    // Keys in tests and fixtures are almost always made up
-                    // for the test.
-                    if f.check == SECRET && matches!(context, "test" | "fixture") {
+                    // Keys outside the project's own code are almost always
+                    // made up: for a test, or to show the format in docs.
+                    if f.check == SECRET {
                         f.confidence = Confidence::Low;
                     }
                 }
@@ -302,7 +308,8 @@ fn base_confidence(check: &str, severity: Severity) -> Confidence {
     }
 }
 
-/// Folders whose code users of the project do not run.
+/// Folders whose code users of the project do not run, or did not write:
+/// copies of third-party code and translated text.
 const LOWERED_DIRS: &[(&str, &str)] = &[
     ("test", "test"),
     ("tests", "test"),
@@ -321,9 +328,25 @@ const LOWERED_DIRS: &[(&str, &str)] = &[
     ("sample", "example"),
     ("demo", "example"),
     ("demos", "example"),
+    ("mock", "fixture"),
+    ("mocks", "fixture"),
+    ("mock-api", "fixture"),
+    ("mock-data", "fixture"),
+    ("__fixtures__", "fixture"),
+    ("vendor", "vendored"),
+    ("vendors", "vendored"),
+    ("third_party", "vendored"),
+    ("third-party", "vendored"),
+    (".yarn", "vendored"),
+    ("locales", "translation"),
+    ("locale", "translation"),
+    ("i18n", "translation"),
+    ("l10n", "translation"),
+    ("translations", "translation"),
 ];
 
-/// `Some(kind)` when `file` is a test, doc, example or fixture.
+/// `Some(kind)` when `file` is a test, doc, example, fixture, vendored
+/// library or translation.
 fn context_of(file: &str) -> Option<&'static str> {
     let lower = file.to_ascii_lowercase();
     let mut parts: Vec<&str> = lower.split('/').collect();
@@ -338,13 +361,22 @@ fn context_of(file: &str) -> Option<&'static str> {
         return Some("test");
     }
     let ext = name.rsplit_once('.').map_or("", |(_, e)| e);
-    if matches!(ext, "md" | "markdown" | "rst" | "adoc" | "txt")
-        && !name.starts_with("requirements")
+    if matches!(
+        ext,
+        "md" | "mdx" | "markdown" | "markdoc" | "rst" | "adoc" | "txt"
+    ) && !name.starts_with("requirements")
     {
         return Some("docs");
     }
     if name.contains(".example") || name.contains(".sample") {
         return Some("example");
+    }
+    // Prebuilt copies of libraries: `jquery.min.js`, `swagger-ui-bundle.js`.
+    if [".min.", "-min.", ".bundle.", "-bundle."]
+        .iter()
+        .any(|marker| name.contains(marker))
+    {
+        return Some("vendored");
     }
     None
 }
@@ -991,7 +1023,7 @@ const PYPI_POPULAR: &[&str] = &[
 #[rustfmt::skip]
 const KNOWN_NEIGHBOURS: &[&str] = &[
     "preact", "dotenvx", "torchx", "scapy", "jinja", "attr", "psycopg", "boto", "colord",
-    "graphiql",
+    "graphiql", "gaxios",
 ];
 
 /// The popular package `name` is one edit away from, if it is not that
@@ -1131,7 +1163,7 @@ pub fn render_text(report: &AuditReport) -> String {
     }
     if report.lowered > 0 {
         out.push_str(&format!(
-            "\n  {} finding{} in tests, docs, examples or fixtures {} lowered one step.\n",
+            "\n  {} finding{} in tests, docs, examples, fixtures, vendored libraries or translations {} lowered one step.\n",
             report.lowered,
             if report.lowered == 1 { "" } else { "s" },
             if report.lowered == 1 { "was" } else { "were" },
@@ -1163,6 +1195,25 @@ mod tests {
         assert_eq!(context_of("requirements.txt"), None);
         assert_eq!(context_of("src/latest/config.py"), None);
         assert_eq!(context_of("src/config.py"), None);
+        assert_eq!(context_of("site/guide/keys.mdx"), Some("docs"));
+        assert_eq!(context_of("content/github.markdoc"), Some("docs"));
+        assert_eq!(context_of("scripts/mock-api/data.json"), Some("fixture"));
+        assert_eq!(
+            context_of(".yarn/releases/yarn-4.1.0.cjs"),
+            Some("vendored")
+        );
+        assert_eq!(context_of("vendor/javascript/d3.js"), Some("vendored"));
+        assert_eq!(context_of("static/libs/backbone-min.js"), Some("vendored"));
+        assert_eq!(context_of("static/swagger-ui-bundle.js"), Some("vendored"));
+        assert_eq!(
+            context_of("src/locales/generated/fi.ts"),
+            Some("translation")
+        );
+        assert_eq!(
+            context_of("app/lang/translations/ar.yaml"),
+            Some("translation")
+        );
+        assert_eq!(context_of("src/minimal.js"), None);
 
         let key = format!("{}{}", "AK", "IAZ7Q4K2M9P1R8T3V6");
         let mut found = audit_file("tests/conftest.py", format!("k = \"{key}\"").as_bytes());
@@ -1199,6 +1250,48 @@ mod tests {
             .unwrap()
             .contains("not a safety verdict"));
         assert_eq!(json["findings"][0]["confidence"], "high");
+    }
+
+    #[test]
+    fn audit_quiets_vendored_code_translations_and_docs() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let key = format!("{}{}", "AK", "IAZ7Q4K2M9P1R8T3V6");
+        let rlo = '\u{202E}';
+        for folder in [".yarn/releases", "locales", "docs", "src"] {
+            fs::create_dir_all(root.join(folder)).unwrap();
+        }
+        let bundle = format!("var a=1;{}\n", "x+=1;".repeat(LONG_LINE));
+        fs::write(root.join(".yarn/releases/yarn.cjs"), &bundle).unwrap();
+        fs::write(
+            root.join("locales/ar.ts"),
+            format!("export default {{ a: \"{rlo}x\" }};\n"),
+        )
+        .unwrap();
+        fs::write(root.join("docs/setup.mdx"), format!("AWS_KEY={key}\n")).unwrap();
+        fs::write(root.join("src/app.js"), format!("if (a {rlo}) run();\n")).unwrap();
+        let report = audit(root, None);
+        let files: Vec<(&str, Option<&str>, Confidence)> = report
+            .findings
+            .iter()
+            .map(|f| (f.file.as_str(), f.context, f.confidence))
+            .collect();
+        // The bundle's long line is expected, and the docs key is a sample.
+        assert!(
+            !files.iter().any(|(f, ..)| f.contains(".yarn")),
+            "{files:?}"
+        );
+        assert!(files.contains(&("./docs/setup.mdx", Some("docs"), Confidence::Low)));
+        // Direction marks in a translation are lowered, never in app code.
+        assert!(files
+            .iter()
+            .all(|(f, c, _)| !f.contains("locales") || *c == Some("translation")));
+        let app = report
+            .findings
+            .iter()
+            .find(|f| f.file == "./src/app.js")
+            .unwrap();
+        assert_eq!((app.check, app.context), (HIDDEN_UNICODE, None));
     }
 
     #[test]
@@ -1422,7 +1515,7 @@ mod tests {
 
     #[test]
     fn flags_typosquats() {
-        let pkg = r#"{"dependencies": {"react": "^18", "reakt": "1", "preact": "10", "@types/react": "18", "lodahs": "1"}}"#;
+        let pkg = r#"{"dependencies": {"react": "^18", "reakt": "1", "preact": "10", "gaxios": "6", "@types/react": "18", "lodahs": "1"}}"#;
         let found = audit_file("package.json", pkg.as_bytes());
         let names: Vec<&str> = found.iter().map(|f| f.message.as_str()).collect();
         assert_eq!(found.len(), 2, "{names:?}");
