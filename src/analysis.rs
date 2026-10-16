@@ -216,6 +216,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     let architecture = infer_architecture(&fw_result.frameworks, &fw_result.databases);
     let architecture_details = architecture::infer(
         root,
+        &files,
         &dep_graph,
         &fw_result.frameworks,
         &fw_result.databases,

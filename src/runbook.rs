@@ -191,7 +191,7 @@ enum Kind {
 
 /// Extensions read for environment variables and routes.
 #[rustfmt::skip]
-const CODE_EXTENSIONS: &[&str] = &[
+pub(crate) const CODE_EXTENSIONS: &[&str] = &[
     "js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx", "py", "rb", "php", "go", "rs", "java",
     "kt", "cs", "vue", "svelte",
 ];
@@ -727,7 +727,7 @@ const NEST: &[(&str, &str)] = &[
     ("@Delete", "DELETE"), ("@Head", "HEAD"), ("@Options", "OPTIONS"), ("@All", "ANY"),
 ];
 
-fn routes(file: &str, text: &str) -> Vec<Route> {
+pub(crate) fn routes(file: &str, text: &str) -> Vec<Route> {
     let name = file_name(file);
     let ext = extension(name);
     let lines: Vec<&str> = text.lines().collect();
