@@ -1,12 +1,16 @@
 //! Measured confidence: how often each confidence level was right.
 //!
-//! `calibration/labels.json` holds hand-checked findings from the pinned
-//! repositories in `calibration/corpus.json`, none of which were used to tune
-//! the detectors. Each label says whether a dead-code candidate, audit finding
-//! or architecture result was correct. Precision per level comes with a 95%
-//! Wilson interval, so a level checked on few findings shows a wide range.
+//! Each set under `calibration/` pairs pinned repositories (`corpus.json`)
+//! with hand-checked findings from them (`labels.json`). Each label says
+//! whether a dead-code candidate, audit finding or architecture result was
+//! correct. Precision per level comes with a 95% Wilson interval, so a level
+//! checked on few findings shows a wide range.
 //!
-//! `codedna calibration` prints the numbers measured for this release.
+//! A set stays independent only until a detector is changed after reading its
+//! labels. The `fresh` set was labelled after the last such change; the
+//! `original` set was used to fix detectors in 0.2.7.
+//!
+//! `codedna calibration` prints the numbers recorded for each set.
 //! `--corpus DIR` re-runs this build on the repositories cloned in `DIR` and
 //! scores the labels against what it reports now.
 
@@ -15,8 +19,30 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-const CORPUS: &str = include_str!("../calibration/corpus.json");
-const LABELS: &str = include_str!("../calibration/labels.json");
+/// One labelled set of repositories.
+pub struct Set {
+    pub name: &'static str,
+    /// What the set is and whether it is still held out.
+    pub about: &'static str,
+    corpus: &'static str,
+    labels: &'static str,
+}
+
+/// Every set, the one still held out first.
+pub const SETS: [Set; 2] = [
+    Set {
+        name: "fresh",
+        about: "labelled with 0.2.8; no detector tuned on it (0.2.9 only stops listing missing Django apps.py files)",
+        corpus: include_str!("../calibration/fresh/corpus.json"),
+        labels: include_str!("../calibration/fresh/labels.json"),
+    },
+    Set {
+        name: "original",
+        about: "labelled with 0.2.6; 0.2.7 fixed detectors after reading these labels",
+        corpus: include_str!("../calibration/corpus.json"),
+        labels: include_str!("../calibration/labels.json"),
+    },
+];
 
 /// Kinds of result that carry a confidence, in display order.
 const KINDS: [&str; 3] = ["dead_code", "audit", "architecture"];
@@ -77,6 +103,10 @@ pub struct KindStat {
 /// The whole measurement.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Calibration {
+    /// Which labelled set: `fresh` or `original`.
+    pub set: String,
+    /// What the set is and whether it is still held out.
+    pub about: String,
     /// `published` (the labels as recorded) or `measured` (this build, re-run).
     pub source: String,
     pub repositories: usize,
@@ -87,29 +117,45 @@ pub struct Calibration {
     pub missing: Vec<String>,
 }
 
-/// The pinned repositories.
-pub fn corpus() -> Vec<Repo> {
-    serde_json::from_str(CORPUS).expect("calibration/corpus.json is valid")
+impl Set {
+    /// The pinned repositories.
+    pub fn corpus(&self) -> Vec<Repo> {
+        serde_json::from_str(self.corpus).expect("calibration corpus is valid")
+    }
+
+    /// The labels shipped with this build.
+    pub fn labels(&self) -> Vec<Label> {
+        serde_json::from_str(self.labels).expect("calibration labels are valid")
+    }
 }
 
-/// The labels shipped with this build.
-pub fn labels() -> Vec<Label> {
-    serde_json::from_str(LABELS).expect("calibration/labels.json is valid")
+/// The sets named `name`, or every set.
+pub fn sets(name: Option<&str>) -> Vec<&'static Set> {
+    SETS.iter()
+        .filter(|s| name.is_none_or(|n| n == s.name))
+        .collect()
 }
 
 /// Precision per level, using the level each label was recorded at.
-pub fn published() -> Calibration {
-    let labels = labels();
+pub fn published(set: &Set) -> Calibration {
+    let labels = set.labels();
     let levels: Vec<String> = labels.iter().map(|l| l.confidence.clone()).collect();
-    score("published", corpus().len(), &labels, &levels, Vec::new())
+    score(
+        set,
+        "published",
+        set.corpus().len(),
+        &labels,
+        &levels,
+        Vec::new(),
+    )
 }
 
 /// Re-run this build on the repositories cloned under `dir` (one folder per
 /// repository, named as in the corpus) and score the labels against the
 /// levels it reports now.
-pub fn measure(dir: &Path) -> Calibration {
-    let labels = labels();
-    let repos = corpus();
+pub fn measure(set: &Set, dir: &Path) -> Calibration {
+    let labels = set.labels();
+    let repos = set.corpus();
     let mut missing = Vec::new();
     let mut now: HashMap<&str, Current> = HashMap::new();
     for repo in &repos {
@@ -134,6 +180,7 @@ pub fn measure(dir: &Path) -> Calibration {
         .filter(|(_, level)| !level.is_empty())
         .unzip();
     score(
+        set,
         "measured",
         repos.len() - missing.len(),
         &labels,
@@ -194,6 +241,7 @@ fn normal(path: &str) -> String {
 
 /// Count verdicts per kind and level.
 fn score(
+    set: &Set,
     source: &str,
     repositories: usize,
     labels: &[Label],
@@ -242,6 +290,8 @@ fn score(
         })
         .collect();
     Calibration {
+        set: set.name.to_string(),
+        about: set.about.to_string(),
         source: source.to_string(),
         repositories,
         labels: labels.len(),
@@ -270,14 +320,16 @@ pub fn wilson(correct: usize, checked: usize) -> (f64, f64) {
 /// Plain-text table.
 pub fn render(c: &Calibration) -> String {
     let mut out = format!(
-        "Measured confidence ({} labels from {} repositories{})\n\n",
+        "Measured confidence, {} set ({} labels from {} repositories{})\n  {}\n\n",
+        c.set,
         c.labels,
         c.repositories,
         if c.source == "measured" {
             ", re-run with this build"
         } else {
-            " kept out of tuning"
-        }
+            ""
+        },
+        c.about
     );
     for kind in &c.kinds {
         let name = match kind.kind.as_str() {
@@ -316,7 +368,11 @@ pub fn render(c: &Calibration) -> String {
     }
     if !c.missing.is_empty() {
         out.push_str("\nNot found in the corpus folder; clone each at its pinned commit:\n");
-        for repo in corpus().iter().filter(|r| c.missing.contains(&r.repo)) {
+        let corpus = sets(Some(&c.set))
+            .iter()
+            .flat_map(|s| s.corpus())
+            .collect::<Vec<_>>();
+        for repo in corpus.iter().filter(|r| c.missing.contains(&r.repo)) {
             out.push_str(&format!(
                 "  git clone {} {} && git -C {} checkout {}\n",
                 repo.url, repo.repo, repo.repo, repo.commit
@@ -342,14 +398,23 @@ mod tests {
 
     #[test]
     fn shipped_labels_parse_and_point_at_the_corpus() {
-        let repos: Vec<String> = corpus().into_iter().map(|r| r.repo).collect();
-        let labels = labels();
-        assert!(!labels.is_empty());
-        for label in &labels {
-            assert!(repos.contains(&label.repo), "{}", label.repo);
-            assert!(KINDS.contains(&label.kind.as_str()));
-            assert!(["correct", "incorrect", "unsure"].contains(&label.verdict.as_str()));
+        let mut all_repos = std::collections::HashSet::new();
+        for set in &SETS {
+            let repos: Vec<String> = set.corpus().into_iter().map(|r| r.repo).collect();
+            let labels = set.labels();
+            assert!(!labels.is_empty());
+            for label in &labels {
+                assert!(repos.contains(&label.repo), "{}", label.repo);
+                assert!(KINDS.contains(&label.kind.as_str()));
+                assert!(["correct", "incorrect", "unsure"].contains(&label.verdict.as_str()));
+            }
+            // A held-out set shares no repository with another set.
+            for repo in repos {
+                assert!(all_repos.insert(repo.clone()), "{repo} is in two sets");
+            }
         }
+        assert_eq!(sets(Some("fresh")).len(), 1);
+        assert_eq!(sets(None).len(), SETS.len());
     }
 
     #[test]
@@ -373,7 +438,7 @@ mod tests {
             .iter()
             .map(|s| s.to_string())
             .collect();
-        let c = score("published", 1, &labels, &levels, Vec::new());
+        let c = score(&SETS[0], "published", 1, &labels, &levels, Vec::new());
         let dead = &c.kinds[0];
         assert_eq!(dead.levels.len(), 1);
         assert_eq!((dead.levels[0].correct, dead.levels[0].checked), (1, 2));

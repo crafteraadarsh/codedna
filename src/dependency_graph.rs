@@ -190,7 +190,11 @@ fn link_django_apps(graph: &mut DependencyGraph, files: &[PathBuf]) {
     }
 
     for (app, modules) in loaded {
+        // Only files that exist: an app need not have an `apps.py`.
         for from in [app.join("__init__.py"), app.join("apps.py")] {
+            if !keys.contains(&from) {
+                continue;
+            }
             let deps = graph.entry(from.clone()).or_default();
             for module in &modules {
                 if *module != from && !deps.contains(module) {
@@ -1900,6 +1904,21 @@ mod tests {
         let graph = build_dependency_graph(&[test.clone(), init, core.clone()]);
 
         assert!(graph[&normalize(&test)].contains(&normalize(&core)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn django_app_without_apps_py_adds_no_such_file() {
+        let dir = unique_temp_dir("codedna_dg_django_no_apps");
+        let init = dir.join("blog/__init__.py");
+        let models = dir.join("blog/models.py");
+        write_file(&init, "");
+        write_file(&models, "class Post: pass\n");
+
+        let graph = build_dependency_graph(&[init.clone(), models.clone()]);
+
+        assert!(graph[&normalize(&init)].contains(&normalize(&models)));
+        assert!(!graph.contains_key(&normalize(&dir.join("blog/apps.py"))));
         fs::remove_dir_all(dir).ok();
     }
 

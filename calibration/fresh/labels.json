@@ -1,0 +1,3017 @@
+[
+ {
+  "kind": "dead_code",
+  "repo": "alan2207_bulletproof-react",
+  "file": "apps/nextjs-pages/__mocks__/zustand.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "used by vi.mock('zustand') in src/testing/setup-tests.ts (root __mocks__ convention)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "alan2207_bulletproof-react",
+  "file": "apps/react-vite/__mocks__/zustand.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "used by vi.mock('zustand') in src/testing/setup-tests.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "alan2207_bulletproof-react",
+  "file": "apps/nextjs-app/__mocks__/zustand.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "used by vi.mock('zustand') in src/testing/setup-tests.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "alan2207_bulletproof-react",
+  "file": "apps/nextjs-app/e2e/tests/auth.setup.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Playwright setup project testMatch /.*\\.setup\\.ts/"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "alan2207_bulletproof-react",
+  "file": "apps/nextjs-app/public/mockServiceWorker.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "MSW worker served from public (package.json msw.workerDirectory)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "alan2207_bulletproof-react",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Routes/Data are MSW test mock handlers; misses dominant features/ + app/ structure"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appwrite_appwrite",
+  "file": "apps/console/src/components/global/shared/AppwriteWordmark 2.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "stray ' 2' duplicate of AppwriteWordmark.tsx; nothing references it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appwrite_appwrite",
+  "file": "apps/console/src/lib/postgres-promo-banner.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "deprecated shim; no imports, only listed in types-baseline.json"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appwrite_appwrite",
+  "file": "apps/console/src/components/pages/projects/$projectId/shared/connect-snippets/python/django/config/urls.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "loaded via import.meta.glob('./connect-snippets/**/*') ?raw in connect-snippets.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appwrite_appwrite",
+  "file": "apps/console/src/server/middleware/pre-launch.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported in apps/console/src/start.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "appwrite_appwrite",
+  "file": "apps/console/src/routes/_public/organizations.$orgId.settings.billing.tsx",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "TanStack file route, imported in routeTree.gen.ts"
+ },
+ {
+  "kind": "audit",
+  "repo": "appwrite_appwrite",
+  "file": "apps/console/src/content/integrations/deployments-github.markdoc",
+  "line": 102,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "docs example env with truncated key ([...]) and dummy secrets"
+ },
+ {
+  "kind": "audit",
+  "repo": "appwrite_appwrite",
+  "file": "apps/console/src/content/docs-partials/configure-github-app.md",
+  "line": 96,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "docs example env with truncated key ([...]) and dummy secrets"
+ },
+ {
+  "kind": "audit",
+  "repo": "appwrite_appwrite",
+  "file": "packages/nats/tests/fixtures/certs/client-key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test fixture certificate key"
+ },
+ {
+  "kind": "audit",
+  "repo": "appwrite_appwrite",
+  "file": "packages/nats/tests/fixtures/certs/ca-key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test fixture certificate key"
+ },
+ {
+  "kind": "audit",
+  "repo": "appwrite_appwrite",
+  "file": "packages/smtp/tests/fixtures/certs/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test fixture certificate key"
+ },
+ {
+  "kind": "audit",
+  "repo": "appwrite_appwrite",
+  "file": "packages/nats/tests/fixtures/certs/server-key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test fixture certificate key"
+ },
+ {
+  "kind": "architecture",
+  "repo": "appwrite_appwrite",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "console UI, PHP app/controllers, workers, models exist; Routes partly mislabels console src/lib"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "bradtraversy_proshop_mern",
+  "file": "backend/seeder.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Run by package.json data:import/data:destroy scripts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "bradtraversy_proshop_mern",
+  "file": "backend/data/users.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by backend/seeder.js, which package.json scripts run"
+ },
+ {
+  "kind": "architecture",
+  "repo": "bradtraversy_proshop_mern",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "React screens/components, Express routes/controllers, auth middleware, Mongoose models match"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "brocoders_nestjs-boilerplate",
+  "file": "src/social/tokens.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Tokens class not imported/referenced anywhere in src"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "brocoders_nestjs-boilerplate",
+  "file": "test/admin/users.e2e-spec.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "E2E test matched by test/jest-e2e.json testRegex .e2e-spec.ts$"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "brocoders_nestjs-boilerplate",
+  "file": "src/database/seeds/relational/seed.module.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by src/database/seeds/relational/run-seed.ts (seed:run script)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "brocoders_nestjs-boilerplate",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "NestJS controllers (routes), services, roles guard, entities/seeds data layers exist; mostly accurate"
+ },
+ {
+  "kind": "audit",
+  "repo": "BurntSushi_ripgrep",
+  "file": "build.rs",
+  "line": 40,
+  "check": "install-script",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "build.rs runs `git rev-parse` to embed commit hash; benign, handles failure"
+ },
+ {
+  "kind": "architecture",
+  "repo": "BurntSushi_ripgrep",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "no web-style layers, but repo has clear crate modularity (cli/searcher/printer/ignore); 'no layers' at low conf debatable"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "Buuntu_fastapi-react",
+  "file": "{{cookiecutter.project_slug}}/backend/app/api/dependencies/__init__.py",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Empty package with no modules; app.api.dependencies never imported"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "Buuntu_fastapi-react",
+  "file": "{{cookiecutter.project_slug}}/backend/app/tests/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Package marker for tests dir, imported by pytest during collection"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "Buuntu_fastapi-react",
+  "file": "{{cookiecutter.project_slug}}/backend/app/alembic/env.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Alembic env.py loaded by convention (alembic.ini script_location=app/alembic)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "Buuntu_fastapi-react",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "React frontend, FastAPI routers, core, db layers match template"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "calcom_cal.com",
+  "file": "apps/web/modules/users/components/UserTable/EditSheet/EditUserSheet.tsx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by UserTable/UserListTable.tsx:54"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "calcom_cal.com",
+  "file": "packages/trpc/server/routers/_app.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Root tRPC router; tsc emits types/server/routers/_app.d.ts imported for AppRouter in many files"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "calcom_cal.com",
+  "file": "packages/platform/atoms/lib/markdownToSafeHTML.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Aliased as @calcom/lib/markdownToSafeHTML in packages/platform/atoms/vite.config.ts:88"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "calcom_cal.com",
+  "file": "apps/web/playwright/fixtures/bookings.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by apps/web/playwright/lib/fixtures.ts:10"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "calcom_cal.com",
+  "file": "packages/app-store-cli/src/components/Message.tsx",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by AppCreateUpdateForm/DeleteForm, reachable from cli.tsx -> App.tsx -> commandViews"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 141,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn release bundle (yarnPath in .yarnrc.yml), not app code"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 254,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn release bundle (yarnPath in .yarnrc.yml), not app code"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 284,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn release bundle (yarnPath in .yarnrc.yml), not app code"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 247,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn release bundle (yarnPath in .yarnrc.yml), not app code"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 218,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn release bundle (yarnPath in .yarnrc.yml), not app code"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 4,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn release bundle (yarnPath in .yarnrc.yml), not app code"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 191,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn release bundle (yarnPath in .yarnrc.yml), not app code"
+ },
+ {
+  "kind": "audit",
+  "repo": "calcom_cal.com",
+  "file": "packages/lib/redactSensitiveData.test.ts",
+  "line": 184,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Truncated dummy private key in a redaction unit test"
+ },
+ {
+  "kind": "architecture",
+  "repo": "calcom_cal.com",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI, tRPC/Nest routes, Nest middleware, services/repositories, Prisma data all exist; Data top dirs oddly point at trpc routers"
+ },
+ {
+  "kind": "architecture",
+  "repo": "charmbracelet_glow",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "ui/ is the Bubble Tea TUI layer; root holds CLI commands (minor omission)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "cookiecutter_cookiecutter-django",
+  "file": "{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/users/api/views.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by config/api_router.py, config/api.py and users/tests/api/test_views.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "cookiecutter_cookiecutter-django",
+  "file": "{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/__init__.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Package __init__ of generated project app; deleting breaks the package imports"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "cookiecutter_cookiecutter-django",
+  "file": "{{cookiecutter.project_slug}}/config/settings/test.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Settings module referenced by string: pyproject --ds=config.settings.test and Dockerfile DJANGO_SETTINGS_MODULE"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "cookiecutter_cookiecutter-django",
+  "file": "{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/users/migrations/0001_initial.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Django migration loaded by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "cookiecutter_cookiecutter-django",
+  "file": "{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/contrib/sites/migrations/0002_alter_domain_unique.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Django migration loaded by convention"
+ },
+ {
+  "kind": "architecture",
+  "repo": "cookiecutter_cookiecutter-django",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Cookiecutter hooks/ labelled UI and sites migrations labelled Services; mislabels a Django project template"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "directus_directus",
+  "file": "packages/extensions-sdk/templates/operation/typescript/source/api.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Extension scaffold template copied by extensions-sdk CLI (get-template-path.ts resolves templates/)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "directus_directus",
+  "file": "app/src/interfaces/input-block-editor/plugins.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by input-block-editor/tools.ts:15"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "directus_directus",
+  "file": "app/src/interfaces/input-block-editor/use-file-handler.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by input-block-editor.vue:9"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "directus_directus",
+  "file": "sdk/tests/merge-collection.test-d.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Type test run by vitest --typecheck (sdk/package.json test script)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "directus_directus",
+  "file": "api/src/database/migrations/20240716A-update-files-date-fields.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Migration loaded by directory scan in api/src/database/migrations/run.ts"
+ },
+ {
+  "kind": "audit",
+  "repo": "directus_directus",
+  "file": "app/src/lang/translations/ar-SA.yaml",
+  "line": 579,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Stray RLO in Arabic translation string data, not code; no Trojan Source risk"
+ },
+ {
+  "kind": "audit",
+  "repo": "directus_directus",
+  "file": "app/src/lang/translations/ar-SA.yaml",
+  "line": 872,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Stray RLO in Arabic translation string data, not code; no Trojan Source risk"
+ },
+ {
+  "kind": "architecture",
+  "repo": "directus_directus",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Vue app UI, api controllers, middleware, services, database/migrations all real main layers"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "django_djangoproject.com",
+  "file": "djangoproject/settings/docker.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "used as DJANGO_SETTINGS_MODULE=djangoproject.settings.docker in docker-compose.yml"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "django_djangoproject.com",
+  "file": "fundraising/exceptions.py",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "DonationError referenced nowhere else"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "django_djangoproject.com",
+  "file": "djangoproject/settings/prod.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "production settings module selected by DJANGO_SETTINGS_MODULE string at deploy"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "django_djangoproject.com",
+  "file": "blog/apps.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "file does not exist in repo (not in git ls-files)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "django_djangoproject.com",
+  "file": "accounts/apps.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "file does not exist in repo (not in git ls-files)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "django_djangoproject.com",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Services layer = app __init__.py/forms with bogus flows (__init__ imports migrations); misses views/templates"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "documenso_documenso",
+  "file": "packages/lib/server-only/field/get-completed-fields-for-document.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "No import of get-completed-fields-for-document or getCompletedFieldsForDocument anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "documenso_documenso",
+  "file": "packages/ui/lib/use-hydrated.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by packages/ui/components/client-only.tsx"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "documenso_documenso",
+  "file": "packages/lib/universal/upload/delete-file.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "No import of upload/delete-file anywhere; deleteFile matches are provider methods"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "documenso_documenso",
+  "file": "scripts/generate-overflow-test-pdf.mjs",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "Standalone generator for assets/field-overflow.pdf; nothing references the script"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "documenso_documenso",
+  "file": "apps/remix/app/types/empty-module.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Aliased as canvas module in apps/remix/vite.config.ts"
+ },
+ {
+  "kind": "architecture",
+  "repo": "documenso_documenso",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI, trpc routers, middleware, prisma exist; but headline Routes dirs are job definitions, remix routes folded elsewhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/ui/partners/groups/design/previews/portal-preview.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "no references anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/ui/partners/groups/design/studs-pattern.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "only used by embed-preview.tsx, whose use in branding-form.tsx is commented out"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/ui/modals/invite-referral-modal.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "InviteReferralModal/name referenced nowhere else"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "packages/email/src/templates/broadcasts/dub-wrapped.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "react-email template; loaded by convention by `email dev --dir ./src/templates` preview (package.json)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/ui/layout/settings-layout.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "SettingsLayout not referenced; not in app/ routes"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/app/(ee)/partners.dub.co/(onboarding)/onboarding/payouts/payout-provider.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "PayoutProvider not imported; sibling page.tsx uses PayoutMethodSelector; non-convention filename"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/ui/partners/rewind/partner-rewind-card.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "PartnerRewindCard referenced nowhere else"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "packages/email/src/templates/broadcasts/launch-week-day-5.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "react-email template dir loaded by convention by `email dev --dir ./src/templates`"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/lib/actions/send-invite-referral-email.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "only imported by invite-referral-modal.tsx, itself unused"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "packages/email/src/templates/referral-invite.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "only app use is via dead chain, but template dir is loaded by react-email preview (email dev --dir)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/ui/guides/guide-action-button.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "only imported by ui/guides/guide.tsx; Guide component imported nowhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "packages/stripe-app/src/utils/stripe.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported by packages/stripe-app/src/views/AppSettings.tsx via ../utils/stripe"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/lib/actions/partners/approve-program-application.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "approveProgramApplicationAction referenced nowhere; route uses lib/program-applications version"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/scripts/customers/beehiiv/update-links-stats.ts",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "one-off script; runnable by name via scripts/run.ts (`pnpm script <name>`), nothing else references it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "dubinc_dub",
+  "file": "apps/web/scripts/fix-broken-applications.ts",
+  "confidence": "low",
+  "verdict": "unsure",
+  "note": "one-off script; runnable by name via scripts/run.ts dynamic path, no other reference"
+ },
+ {
+  "kind": "architecture",
+  "repo": "dubinc_dub",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI/Routes/Middleware/Services/Data match monorepo app/lib/ui layout; some dirs mislabelled (lib/ai as Data) but main layers real"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/hooks/useTableKeyboardNavigation.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "No references to file or useTableKeyboardNavigation outside itself"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/app/(app)/[emailAccountId]/onboarding/ImagePreview.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Exports OnboardingImagePreview, referenced nowhere; not a Next.js convention filename"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/utils/ai/reply/generate-nudge.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "aiGenerateNudge and generate-nudge referenced nowhere else"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/desktop/__tests__/mail-engine/electron-hosted-renderer-entry.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "esbuild entryPoint in __tests__/mail-engine/run-hosted-electron-mail.mjs:35"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "elie222_inbox-zero",
+  "file": "packages/email-editor/scripts/prepare-package.mjs",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Run by the build script in packages/email-editor/package.json"
+ },
+ {
+  "kind": "audit",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/ee/billing/apple/local-testing.ts",
+  "line": 8,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Documented throwaway P-256 test key, only used when NODE_ENV!=production and APPLE_IAP_LOCAL_TESTING set"
+ },
+ {
+  "kind": "audit",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/package.json",
+  "line": 174,
+  "check": "typosquat",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "gaxios is Google's legitimate HTTP client package, not an axios typosquat"
+ },
+ {
+  "kind": "audit",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/app/api/user/messaging-channels/route.test.ts",
+  "line": 385,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Fake test token like xoxb-shared-token in a unit test"
+ },
+ {
+  "kind": "audit",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/app/api/slack/callback/route.test.ts",
+  "line": 148,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Fake test token like xoxb-access-token in a unit test"
+ },
+ {
+  "kind": "audit",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/app/api/user/messaging-channels/route.test.ts",
+  "line": 264,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Fake test token like xoxb-shared-token in a unit test"
+ },
+ {
+  "kind": "audit",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/app/api/slack/callback/route.test.ts",
+  "line": 108,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Fake test token like xoxb-access-token in a unit test"
+ },
+ {
+  "kind": "audit",
+  "repo": "elie222_inbox-zero",
+  "file": "apps/web/app/api/slack/callback/route.test.ts",
+  "line": 158,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Fake test token like xoxb-access-token in a unit test"
+ },
+ {
+  "kind": "architecture",
+  "repo": "elie222_inbox-zero",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Next.js components/UI, app/api routes, utils/actions services, prisma data exist; Middleware/Data layers thin and partly mocks"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_httpx",
+  "file": "tests/models/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Package marker needed: duplicate test basenames (test_cookies.py etc.) across tests/ subdirs"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "encode_httpx",
+  "file": "tests/client/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Package marker needed: duplicate test basenames (test_auth.py etc.) would break pytest collection"
+ },
+ {
+  "kind": "architecture",
+  "repo": "encode_httpx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "HTTP client library; Routes/Services/Data layers in httpx/ are invented mislabels"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "excalidraw_excalidraw",
+  "file": "packages/excalidraw/components/Paragraph.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Paragraph component not imported anywhere; runtime bundle entry is index.tsx only"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "excalidraw_excalidraw",
+  "file": "packages/excalidraw/components/ButtonIconCycle.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "ButtonIconCycle not imported anywhere; only its own definition matches"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "excalidraw_excalidraw",
+  "file": "scripts/buildPackage.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Used by packages/excalidraw/package.json build:esm script"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "excalidraw_excalidraw",
+  "file": "scripts/buildWasm.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Manual generator for harfbuzz-wasm.ts/woff2-wasm.ts, referenced in their header comments"
+ },
+ {
+  "kind": "audit",
+  "repo": "excalidraw_excalidraw",
+  "file": "packages/excalidraw/subset/harfbuzz/harfbuzz-wasm.ts",
+  "line": 57,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Base64-encoded generated wasm module, not reviewable code issue"
+ },
+ {
+  "kind": "audit",
+  "repo": "excalidraw_excalidraw",
+  "file": ".env.production",
+  "line": 17,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Public Firebase web config shipped to browsers by design"
+ },
+ {
+  "kind": "audit",
+  "repo": "excalidraw_excalidraw",
+  "file": "packages/excalidraw/subset/woff2/woff2-wasm.ts",
+  "line": 55,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Base64-encoded generated wasm module"
+ },
+ {
+  "kind": "audit",
+  "repo": "excalidraw_excalidraw",
+  "file": ".env.development",
+  "line": 17,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Public Firebase web config for dev project, by design"
+ },
+ {
+  "kind": "architecture",
+  "repo": "excalidraw_excalidraw",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Frontend library/app; UI components dominant; element/math packages not separate layers but minor"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "expressjs_express",
+  "file": "test/app.router.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Mocha test file; package.json test script runs mocha over test/"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "expressjs_express",
+  "file": "test/app.listen.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Mocha test file; package.json test script runs mocha over test/"
+ },
+ {
+  "kind": "architecture",
+  "repo": "expressjs_express",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Express is a framework library (lib/ application/request/response); labelling it a Middleware layer is mislabelled"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "file": "hooks/post_gen_project.py",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "leftover copier hook; no copier.yml or other reference in repo"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "file": "frontend/src/components/ui/alert.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "no import of ui/alert in frontend"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "file": "frontend/src/components/ui/button-group.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "no import of ui/button-group in frontend"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "file": "frontend/src/components/ui/card.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of ui/card in frontend"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "file": "frontend/src/components/ui/pagination.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of ui/pagination in frontend"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "file": "backend/app/alembic/versions/e2412789c190_initialize_models.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "alembic migration in revision chain (down_revision of 9c0a54914c78)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "file": "backend/app/alembic/versions/fe56fa70289e_add_created_at_to_user_and_item.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "alembic migration loaded by convention"
+ },
+ {
+  "kind": "architecture",
+  "repo": "fastapi_full-stack-fastapi-template",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "frontend UI, backend/app/api/routes, crud, models layers are real"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastify_fastify",
+  "file": "examples/benchmark/simple.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "run by package.json `benchmark` script"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "fastify_fastify",
+  "file": "examples/benchmark/hooks-benchmark-async-await.js",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "standalone benchmark referenced by no script/doc"
+ },
+ {
+  "kind": "architecture",
+  "repo": "fastify_fastify",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "framework lib; hooks.js labelled UI, error-handler/head-route as Routes; mislabelled layers"
+ },
+ {
+  "kind": "audit",
+  "repo": "gin-gonic_gin",
+  "file": "testdata/certificate/key.pem",
+  "line": 1,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test fixture TLS key in testdata"
+ },
+ {
+  "kind": "architecture",
+  "repo": "gin-gonic_gin",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "gin is a flat library package; no app layers at low confidence is accurate"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "gothinkster_angular-realworld-example-app",
+  "file": "src/test-setup.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "setupFiles in vitest.config.ts"
+ },
+ {
+  "kind": "architecture",
+  "repo": "gothinkster_angular-realworld-example-app",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "components, routes, interceptors, services, models match src/app layout"
+ },
+ {
+  "kind": "architecture",
+  "repo": "gothinkster_react-redux-realworld-example-app",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "src/components UI is the main layer; omits Redux reducers/store and agent.js API module"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "honojs_hono",
+  "file": "benchmarks/utils/src/get-path.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Standalone benchmark script; no package script, CI or doc references it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "honojs_hono",
+  "file": "benchmarks/utils/src/loop.js",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Standalone benchmark script; no package script, CI or doc references it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "honojs_hono",
+  "file": "perf-measures/type-check/client.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Type-checked by tsc -p tsconfig.build.json in .github/actions/perf-measures CI"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "honojs_hono",
+  "file": "benchmarks/jsx/src/benchmark.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Run by benchmarks/jsx/package.json bench:node/bench:bun scripts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "honojs_hono",
+  "file": "perf-measures/bundle-check/scripts/check-bundle-size.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Run in .github/actions/perf-measures/action.yml:48"
+ },
+ {
+  "kind": "architecture",
+  "repo": "honojs_hono",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Library modules router, middleware, jsx exist; benchmarks mixed in, adapters/helpers omitted"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "ixartz_Next-js-Boilerplate",
+  "file": "src/instrumentation-client.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Next.js convention file (client Sentry instrumentation)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "ixartz_Next-js-Boilerplate",
+  "file": "tests/e2e/Counter.e2e.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Playwright test matched by testMatch *.e2e.ts in playwright.config.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "ixartz_Next-js-Boilerplate",
+  "file": "tests/e2e/Visual.e2e.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Playwright test matched by testMatch *.e2e.ts in playwright.config.ts"
+ },
+ {
+  "kind": "architecture",
+  "repo": "ixartz_Next-js-Boilerplate",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI components/app, Routes app/api/counter, Data libs/DB + models/Schema match repo"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "docs/rfc.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Sphinx extension: 'rfc' listed in docs/conf.py extensions"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "tests/e2e/oidc_rp_initiated_logout/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Package __init__ of e2e test package; imported by pytest when collecting tests (tox -e e2e)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "tests/e2e/rfc8628_device_grant/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Package __init__ of e2e test package; imported by pytest when collecting tests (tox -e e2e)"
+ },
+ {
+  "kind": "audit",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "tests/settings.py",
+  "line": 154,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Test settings OIDC RSA key fixture"
+ },
+ {
+  "kind": "audit",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "tests/test_utils.py",
+  "line": 20,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Tiny RSA key fixture in test utils"
+ },
+ {
+  "kind": "audit",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "tests/app/idp/idp/settings.py",
+  "line": 64,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Default key in test IdP app settings (tests/app); test fixture"
+ },
+ {
+  "kind": "audit",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "tests/test_utils.py",
+  "line": 7,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Tiny RSA key fixture in test utils"
+ },
+ {
+  "kind": "audit",
+  "repo": "jazzband_django-oauth-toolkit",
+  "file": "tests/settings.py",
+  "line": 137,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Test settings OIDC RSA key fixture"
+ },
+ {
+  "kind": "architecture",
+  "repo": "jazzband_django-oauth-toolkit",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Django lib: views/ (routes), middleware.py, authorization_server services, models.py+migrations exist"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "juice-shop_juice-shop",
+  "file": "test/cypress/support/e2e.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "cypress.config.ts supportFile: test/cypress/support/e2e.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "juice-shop_juice-shop",
+  "file": "data/static/codefixes/redirectCryptoCurrencyChallenge_2.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "codefixes dir read at runtime by routes/vulnCodeFixes.ts"
+ },
+ {
+  "kind": "audit",
+  "repo": "juice-shop_juice-shop",
+  "file": "lib/insecurity.ts",
+  "line": 21,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "hardcoded RSA private key used to sign JWTs (deliberately vulnerable, but real)"
+ },
+ {
+  "kind": "audit",
+  "repo": "juice-shop_juice-shop",
+  "file": "terraform/networking.tf",
+  "line": 171,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "hardcoded RSA private key inline in aws_iam_server_certificate"
+ },
+ {
+  "kind": "audit",
+  "repo": "juice-shop_juice-shop",
+  "file": "infrastructure/terraform/networking.tf",
+  "line": 171,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "same hardcoded private key in terraform IaC"
+ },
+ {
+  "kind": "architecture",
+  "repo": "juice-shop_juice-shop",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "frontend UI, routes/, lib middleware, models/ are real; codefixes mislabelled as Routes is minor"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/app/(tabs)/_layout.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "expo-router layout file (main: expo-router/entry), loaded by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/app/(tabs)/tags/_layout.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "expo-router layout file, loaded by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/components/ActionSheets/SignUpSheet.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "imported and registered in components/ActionSheets/Sheets.tsx"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/app/(tabs)/settings/_layout.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "expo-router layout file, loaded by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/components/TabBarSafeArea.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "imported via @/components/TabBarSafeArea in (tabs)/collections/_layout.tsx and others"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/components/OfflineSyncProvider.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "imported in apps/mobile/app/_layout.tsx"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/components/ui/IconSymbol.ios.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "no import of IconSymbol (either platform variant) anywhere in apps"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/components/ActionSheets/RefreshPreservedFormatsSheet.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "imported and registered in ActionSheets/Sheets.tsx"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/web/components/RadioButton.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "RadioButton referenced only in its own file"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/app/_layout.tsx",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "expo-router root layout, loaded by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/store/reader.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported as @/store/reader in app/_layout.tsx and ReaderSettingsSheet"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/web/components/Dropdown.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of components/Dropdown found (other *Dropdown files are separate)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/mobile/components/Formats/WebpageFormat.tsx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "imported in apps/mobile/app/links/[id].tsx"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "apps/worker/workers/linkIndexing.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "imported by apps/worker/worker.ts (startIndexing)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "linkwarden_linkwarden",
+  "file": "packages/prisma/seed.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "referenced by packages/prisma/package.json script seed: node ./seed.js"
+ },
+ {
+  "kind": "architecture",
+  "repo": "linkwarden_linkwarden",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "web components UI, lib/api controllers, worker services, prisma data all real main layers"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "maybe-finance_maybe",
+  "file": "app/javascript/services/currencies_service.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by app/javascript/controllers/money_field_controller.js via importmap"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "maybe-finance_maybe",
+  "file": "app/views/pwa/service-worker.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Rendered by rails/pwa#service_worker route in config/routes.rb"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "maybe-finance_maybe",
+  "file": "vendor/javascript/d3-zoom.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Pinned in config/importmap.rb"
+ },
+ {
+  "kind": "audit",
+  "repo": "maybe-finance_maybe",
+  "file": "vendor/javascript/d3-shape.js",
+  "line": 3,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored minified d3 library"
+ },
+ {
+  "kind": "audit",
+  "repo": "maybe-finance_maybe",
+  "file": "vendor/javascript/d3-force.js",
+  "line": 3,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored minified d3 library"
+ },
+ {
+  "kind": "audit",
+  "repo": "maybe-finance_maybe",
+  "file": "vendor/javascript/d3-sankey.js",
+  "line": 3,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored minified d3 library"
+ },
+ {
+  "kind": "audit",
+  "repo": "maybe-finance_maybe",
+  "file": "vendor/javascript/@github--hotkey.js",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored minified @github/hotkey library"
+ },
+ {
+  "kind": "audit",
+  "repo": "maybe-finance_maybe",
+  "file": "vendor/javascript/d3-scale.js",
+  "line": 3,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored minified d3 library"
+ },
+ {
+  "kind": "architecture",
+  "repo": "maybe-finance_maybe",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Rails app: components, controllers, jobs/services, models+migrations exist; Stimulus controllers as Routes is a minor mislabel"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mckaywrigley_chatbot-ui",
+  "file": "components/ui/alert.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "No import of ui/alert"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mckaywrigley_chatbot-ui",
+  "file": "components/ui/skeleton.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "No import of ui/skeleton; i18n dynamic import is locale JSON only"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mckaywrigley_chatbot-ui",
+  "file": "components/ui/hover-card.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Only mention is the radix dependency; component not imported"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mckaywrigley_chatbot-ui",
+  "file": "components/utility/import.tsx",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "Only usage is commented out in sidebar-switcher.tsx:81"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mckaywrigley_chatbot-ui",
+  "file": "public/worker-development.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "next-pwa compiles worker/index.js to this and service worker loads it by convention"
+ },
+ {
+  "kind": "architecture",
+  "repo": "mckaywrigley_chatbot-ui",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI, app/api routes, middleware, db data layers real; Services->types mislabel minor"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": "next-sitemap.js",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "next-sitemap not in package.json deps/scripts; no reference anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": "src/lib/data/variants.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "retrieveVariant/data/variants referenced nowhere else"
+ },
+ {
+  "kind": "audit",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 247,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases)"
+ },
+ {
+  "kind": "audit",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 141,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases)"
+ },
+ {
+  "kind": "audit",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 298,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases)"
+ },
+ {
+  "kind": "audit",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 299,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases)"
+ },
+ {
+  "kind": "audit",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 395,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases)"
+ },
+ {
+  "kind": "audit",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 191,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases)"
+ },
+ {
+  "kind": "audit",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 4,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle"
+ },
+ {
+  "kind": "architecture",
+  "repo": "medusajs_nextjs-starter-medusa",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Only UI layer; misses app router routes and src/lib/data server-action data layer"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "miguelgrinberg_microblog",
+  "file": "migrations/versions/37f06a334dbf_new_fields_in_user_model.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "alembic migration loaded by convention, part of revision chain"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "miguelgrinberg_microblog",
+  "file": "migrations/versions/2b017edaa91f_add_language_to_posts.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "alembic migration loaded by convention, part of revision chain"
+ },
+ {
+  "kind": "architecture",
+  "repo": "miguelgrinberg_microblog",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "blueprint routes, auth/main services, models + migrations real (templates omitted)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mutoe_vue3-realworld-example-app",
+  "file": "src/composable/use-favorite-article.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by ArticleDetailMeta.vue and ArticlesListArticlePreview.vue"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "mutoe_vue3-realworld-example-app",
+  "file": "scripts/merge-coverage.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Run by package.json test script: tsx scripts/merge-coverage.ts"
+ },
+ {
+  "kind": "architecture",
+  "repo": "mutoe_vue3-realworld-example-app",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Vue pages/components, router.ts, services/ API layer match this small SPA"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "n8n-io_n8n",
+  "file": "packages/frontend/editor-ui/src/features/agents/vector-stores.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported via '../vector-stores' by AgentVectorStoresModal.vue, AgentVectorStoresPanel.vue, EmbeddingModelSelector.vue"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "n8n-io_n8n",
+  "file": "packages/cli/src/modules/promotions.ee/promotions.module.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Loaded by ModuleRegistry via path ${name}.ee/${name}.module.js; 'promotions' listed in modules.config.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "n8n-io_n8n",
+  "file": "packages/frontend/editor-ui/src/app/constants/breakpoints.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "BREAKPOINT_* exports and constants/breakpoints path referenced nowhere; not in constants/index.ts barrel"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "n8n-io_n8n",
+  "file": "packages/nodes-base/nodes/Html/Html.node.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Registered node: dist/nodes/Html/Html.node.js listed in nodes-base package.json n8n.nodes"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "n8n-io_n8n",
+  "file": "packages/@n8n/db/src/migrations/common/1691088862123-CreateWorkflowNameIndex.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Migration loaded via generated migrations index (migration-index-sync scans common/)"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json",
+  "line": 86308,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Mock API fixture (GitHub OpenAPI example responses) for benchmark; placeholder values"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json",
+  "line": 84954,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Mock API fixture with example GitHub data (client_id abcde12345...); not real"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json",
+  "line": 84698,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Mock API fixture with example GitHub data; not real"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json",
+  "line": 1195,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Mock API fixture of random-looking generated data; not a real key"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json",
+  "line": 86617,
+  "check": "secret",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Mock API fixture (client_id 0000...); example data"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/@n8n/eslint-plugin-community-nodes/docs/rules/no-hardcoded-secrets.md",
+  "line": 44,
+  "check": "secret",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Docs example of a hardcoded secret for an ESLint rule; fake token"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/nodes-base/utils/binary.ts",
+  "line": 163,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Line is a data: URI regex test for base64 parsing; no decode-and-execute"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/nodes-base/nodes/UProc/Json/Tools.ts",
+  "line": 4764,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Stray U+200B in a human-readable description string; cosmetic, not an identifier"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/nodes-base/nodes/Venafi/Datacenter/VenafiTlsProtectDatacenterTrigger.node.ts",
+  "line": 23,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "U+200B in default node name 'Venafi TLS Protect Datacenter'; invisible char in node names breaks name refs"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/@n8n/nodes-langchain/nodes/Guardrails/test/checks/secretKeys.test.ts",
+  "line": 83,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Test fixture fake OpenAI-style key for secret detection tests"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/quality/testing/playwright/tests/cli-workflows/workflows/97.json",
+  "line": 167,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Playwright test workflow fixture with test private key"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/@n8n/mcp-browser/src/redaction/__tests__/redact.test.ts",
+  "line": 12,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Redaction unit test with truncated fake PEM key"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/core/src/execution-engine/eval-mock-fixtures.ts",
+  "line": 56,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Base64 of 1x1 WebP / tiny PDF test fixtures"
+ },
+ {
+  "kind": "audit",
+  "repo": "n8n-io_n8n",
+  "file": "packages/@n8n/nodes-langchain/nodes/Guardrails/test/checks/secretKeys.test.ts",
+  "line": 40,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Fake AKIA key in secret detection test"
+ },
+ {
+  "kind": "architecture",
+  "repo": "n8n-io_n8n",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Frontend UI, cli controllers/middlewares/services, @n8n/db entities/migrations exist; nodes-base omitted, Routes includes playwright pages"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nestjs_typescript-starter",
+  "file": "test/app.e2e-spec.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "e2e test run by `test:e2e` vitest config"
+ },
+ {
+  "kind": "architecture",
+  "repo": "nestjs_typescript-starter",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "controller (Routes) -> service (Services) is the whole starter structure"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "nextauthjs_next-auth-example",
+  "file": "components/access-denied.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "AccessDenied referenced only in its own file"
+ },
+ {
+  "kind": "architecture",
+  "repo": "nextauthjs_next-auth-example",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "components/app UI and app/api, auth route handlers are the real structure"
+ },
+ {
+  "kind": "architecture",
+  "repo": "Nutlope_roomGPT",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Small Next.js app: components/ and app/ pages; one API route in app/generate is a minor omission"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "open-webui_open-webui",
+  "file": "src/lib/components/common/diffEditorHistory.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by DiffEditorModal.svelte ('./diffEditorHistory')"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "open-webui_open-webui",
+  "file": "backend/open_webui/models/prompts.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by backend/open_webui/routers/prompts.py (from open_webui.models.prompts import ...)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "open-webui_open-webui",
+  "file": "backend/open_webui/routers/groups.py",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported in main.py 'from open_webui.routers import (...groups...)' and include_router(groups.router)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "open-webui_open-webui",
+  "file": "backend/open_webui/migrations/versions/d4c1a8e37b62_add_chat_timer_at_and_chat_indexes.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Alembic migration revision d4c1a8e37b62 in versions/, loaded by Alembic convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "open-webui_open-webui",
+  "file": "src/lib/utils/marked/strikethrough-extension.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by Markdown.svelte via $lib/utils/marked/strikethrough-extension"
+ },
+ {
+  "kind": "audit",
+  "repo": "open-webui_open-webui",
+  "file": "backend/open_webui/static/swagger-ui/swagger-ui-bundle.js",
+  "line": 60958,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored minified swagger-ui bundle; ZWSP used intentionally in aria-label string"
+ },
+ {
+  "kind": "audit",
+  "repo": "open-webui_open-webui",
+  "file": "backend/open_webui/static/swagger-ui/swagger-ui-bundle.js",
+  "line": 66898,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored third-party swagger-ui bundle; minified by design"
+ },
+ {
+  "kind": "architecture",
+  "repo": "open-webui_open-webui",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Svelte UI in src/lib/components, FastAPI routers/, models/ + alembic migrations, utils/ services all exist"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "outline_outline",
+  "file": "server/queues/processors/EmailsProcessor.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Loaded by requireDirectory(__dirname) in server/queues/processors/index.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "outline_outline",
+  "file": "__mocks__/react-medium-image-zoom.js",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Stale mock: react-medium-image-zoom no longer a dependency or referenced anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "outline_outline",
+  "file": "server/utils/__mocks__/MutexLock.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vitest manual mock used by vi.mock('@server/utils/MutexLock') in server/test/setupMocks.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "outline_outline",
+  "file": "server/migrations/20220812115059-scope-user-auth-provider-id-uniqueness-to-user.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Sequelize migration run by sequelize-cli by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "outline_outline",
+  "file": "server/migrations/20241219023150-group-external-id.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Sequelize migration run by sequelize-cli by convention"
+ },
+ {
+  "kind": "audit",
+  "repo": "outline_outline",
+  "file": "shared/editor/lib/DiagramsNetClient.ts",
+  "line": 200,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Base64 of an empty diagrams.net SVG, documented constant"
+ },
+ {
+  "kind": "architecture",
+  "repo": "outline_outline",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "app/ UI, server/routes, middlewares, commands/services, models/migrations all real and main"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_flask",
+  "file": "tests/test_apps/blueprintapp/apps/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Package needed for 'from blueprintapp.apps.admin import admin' used by tests/test_blueprints.py"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pallets_flask",
+  "file": "examples/celery/src/task_app/views.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by task_app/__init__.py:23 (from . import views)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "pallets_flask",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "Flask is a framework library; no app-style layers is a fair description at low confidence"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "PanJiaChen_vue-element-admin",
+  "file": "plopfile.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Plop config run by package.json \"new\": \"plop\" script"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "PanJiaChen_vue-element-admin",
+  "file": "src/components/Tinymce/toolbar.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by src/components/Tinymce/index.vue:17"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "PanJiaChen_vue-element-admin",
+  "file": "src/components/Tinymce/plugins.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Imported by src/components/Tinymce/index.vue:16"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "PanJiaChen_vue-element-admin",
+  "file": "src/api/user.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by src/store/modules/user.js via @/api/user (store modules loaded by require.context)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "PanJiaChen_vue-element-admin",
+  "file": "src/views/dashboard/admin/components/mixins/resize.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by dashboard BarChart/LineChart/PieChart.vue"
+ },
+ {
+  "kind": "architecture",
+  "repo": "PanJiaChen_vue-element-admin",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Frontend admin: views/components UI and router/api; store layer omitted, api client lumped into Routes"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "plausible_analytics",
+  "file": "assets/js/dashboard/components/table-legacy.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "No reference to table-legacy"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "plausible_analytics",
+  "file": "assets/js/dashboard/stats/bar.js",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "No import specifier resolving to stats/bar"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "plausible_analytics",
+  "file": "assets/js/dashboard/fade-in.js",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "FadeIn/fade-in not imported anywhere (only CSS keyframe names)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "plausible_analytics",
+  "file": "assets/js/dashboard/components/placeholder.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Placeholder component not imported anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "plausible_analytics",
+  "file": "tracker/compile.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Run by tracker package.json deploy script and CI workflow"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "plausible_analytics",
+  "file": "tracker/installation_support/verifier.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Entry point in tracker/compiler/variants.json; used by verify_installation.ex"
+ },
+ {
+  "kind": "architecture",
+  "repo": "plausible_analytics",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Describes only JS dashboard assets; misses dominant Elixir/Phoenix lib/plausible, plausible_web structure"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "pmndrs_zustand",
+  "file": "tests/setup.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "setupFiles in vitest.config.mts"
+ },
+ {
+  "kind": "architecture",
+  "repo": "pmndrs_zustand",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "src/middleware is real; small library, omission of vanilla/react core is minor"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/watch.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/fieldArray.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/opaqueTypes.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/util.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/path/common.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/getErrors.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/useController.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/path/eager.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/use-form-context.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "src/__typetest__/form-state-subscribe.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "type tests run by `test:type`: tsc -p src/__typetest__/tsconfig.json (include ./**/*.test-d.ts)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "examples/V7/validationOnFieldChange.tsx",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional standalone example; examples/README.md lists V7 examples"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "react-hook-form_react-hook-form",
+  "file": "examples/V6/setValue.tsx",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "intentional standalone example; examples/README.md links /examples/V6"
+ },
+ {
+  "kind": "architecture",
+  "repo": "react-hook-form_react-hook-form",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "library repo; 'Routes' = src/types/controller.ts,resolvers.ts is invented; misses logic/utils/hooks structure"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sahat_hackathon-starter",
+  "file": "test/tools/start-with-memory-db.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Spawned by test/tools/playwright-start-and-log.js:10"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "sahat_hackathon-starter",
+  "file": "public/js/theme.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Loaded by script tag in views/layout.pug:56"
+ },
+ {
+  "kind": "audit",
+  "repo": "sahat_hackathon-starter",
+  "file": "package.json",
+  "line": 19,
+  "check": "install-script",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "prepare runs husky only outside production; standard dev hook"
+ },
+ {
+  "kind": "audit",
+  "repo": "sahat_hackathon-starter",
+  "file": "package.json",
+  "line": 18,
+  "check": "install-script",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "postinstall runs patch-package and sass build; standard, benign"
+ },
+ {
+  "kind": "architecture",
+  "repo": "sahat_hackathon-starter",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "controllers (routes), config (passport/middleware), models are the real MVC layers; views omitted"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "saleor_saleor",
+  "file": "saleor/tests/dummy_password_hasher.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "referenced by string in saleor/tests/settings.py PASSWORD_HASHERS"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "saleor_saleor",
+  "file": "saleor/graphql/product/tests/queries/products_filtrations/__init__.py",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "package marker for test package; tests import from .shared"
+ },
+ {
+  "kind": "audit",
+  "repo": "saleor_saleor",
+  "file": "saleor/tests/settings.py",
+  "line": 60,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test settings RSA key for test runs"
+ },
+ {
+  "kind": "audit",
+  "repo": "saleor_saleor",
+  "file": "saleor/plugins/openid_connect/tests/conftest.py",
+  "line": 149,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "test fixture key for signing id_token"
+ },
+ {
+  "kind": "architecture",
+  "repo": "saleor_saleor",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "graphql API, core/plugins services, Django models/migrations data layers are real at medium"
+ },
+ {
+  "kind": "architecture",
+  "repo": "shadcn-ui_next-template",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Next.js template with only app/ pages and components/; UI-only is accurate"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "shadcn-ui_taxonomy",
+  "file": "components/ui/badge.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "no import of ui/badge anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "shadcn-ui_taxonomy",
+  "file": "app/api/auth/[...nextauth]/_route.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "_route.ts not a Next convention file; auth served by pages/api/auth/[...nextauth].ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "shadcn-ui_taxonomy",
+  "file": "components/ui/sheet.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "no import of ui/sheet anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "shadcn-ui_taxonomy",
+  "file": "components/ui/calendar.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "no import of ui/calendar anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "shadcn-ui_taxonomy",
+  "file": "components/ui/tooltip.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "only mentions are package.json/lockfile radix dep"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "shadcn-ui_taxonomy",
+  "file": "components/ui/command.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "no import of ui/command anywhere"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "shadcn-ui_taxonomy",
+  "file": "components/ui/navigation-menu.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "only mentions are package.json/lockfile radix dep"
+ },
+ {
+  "kind": "architecture",
+  "repo": "shadcn-ui_taxonomy",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI components/app, Routes app/api, Services/Data in lib (auth, db) match repo"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "steven-tey_precedent",
+  "file": "lib/hooks/use-intersection-observer.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Starter-template hook advertised in README and on app/page.tsx as a provided utility; not imported but intentional"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "steven-tey_precedent",
+  "file": "lib/hooks/use-local-storage.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Starter-template hook advertised in README and on app/page.tsx as a provided utility; not imported but intentional"
+ },
+ {
+  "kind": "architecture",
+  "repo": "steven-tey_precedent",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "Next.js starter: components/ UI is the main structure; app/ and lib/ hooks minor"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "strapi_strapi",
+  "file": "packages/utils/upgrade/resources/codemods/5.0.0/s3-keys-wrapped-in-credentials.code.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Codemod repository loads version dirs via readdirSync (codemod-repository/repository.ts:141)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "strapi_strapi",
+  "file": "packages/cli/create-strapi-app/templates/example-js/src/api/about/routes/about.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Template app file; Strapi loads src/api/*/routes by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "strapi_strapi",
+  "file": "packages/cli/create-strapi-app/templates/example-js/src/api/author/controllers/author.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Template app file; Strapi loads src/api/*/controllers by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "strapi_strapi",
+  "file": "examples/complex/src/api/relation-dp/controllers/relation-dp.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Example Strapi app; controllers loaded by convention"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "strapi_strapi",
+  "file": "packages/core/review-workflows/admin/tests/setup.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "setupFilesAfterEnv in packages/core/review-workflows/jest.config.front.js"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 247,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases), standard third-party code"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 19,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases), standard third-party code"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 284,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases), standard third-party code"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 254,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases), standard third-party code"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 138,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases), standard third-party code"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": "packages/core/admin/ee/admin/src/pages/SettingsPage/pages/AuditLogs/hooks/tests/useExportAuditLogs.test.ts",
+  "line": 13,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Intentional BOM in mocked CSV response in test"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": "packages/core/admin/ee/admin/src/pages/SettingsPage/pages/AuditLogs/tests/ListPage.test.tsx",
+  "line": 225,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Intentional BOM in mocked CSV response in test"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": ".yarn/releases/yarn-4.12.0.cjs",
+  "line": 191,
+  "check": "obfuscation",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored Yarn release bundle (.yarn/releases), standard third-party code"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": "packages/core/admin/server/src/utils/debug-dump/__tests__/redact.test.ts",
+  "line": 155,
+  "check": "secret",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Fake fixture token in redact test, explicitly labelled sample shape"
+ },
+ {
+  "kind": "audit",
+  "repo": "strapi_strapi",
+  "file": "packages/core/admin/ee/admin/src/pages/SettingsPage/pages/AuditLogs/tests/ListPage.test.tsx",
+  "line": 139,
+  "check": "hidden-unicode",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Intentional BOM in mocked CSV response in test"
+ },
+ {
+  "kind": "architecture",
+  "repo": "strapi_strapi",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Admin React UI, server routes/controllers, middlewares, services, database packages all real"
+ },
+ {
+  "kind": "architecture",
+  "repo": "sveltejs_realworld",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "SvelteKit routes with +page.svelte UI and +page.server.js handlers; lib/api.js data access omitted"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "taniarascia_takenote",
+  "file": "src/client/serviceWorker.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "CRA leftover; no import of serviceWorker anywhere in src (index does not register it)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "taniarascia_takenote",
+  "file": "src/client/setupTests.ts",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Not in jest setupFilesAfterEnv (uses @testing-library/jest-dom directly); no CRA; unreferenced"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "taniarascia_takenote",
+  "file": "seed.js",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Intentionally standalone seed script documented in README (paste into browser console) and CONTRIBUTING"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "taniarascia_takenote",
+  "file": "config/webpack.prod.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Used by package.json build script: webpack --config config/webpack.prod.js"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "taniarascia_takenote",
+  "file": "tests/__mocks__/styleMock.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Referenced in config/jest.config.js moduleNameMapper for css"
+ },
+ {
+  "kind": "architecture",
+  "repo": "taniarascia_takenote",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "React client containers/components, Express server/router + handlers, server/middleware exist"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tj_commander.js",
+  "file": "typings/index.test-d.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Type test run by tsd in check:type:ts / test script"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tj_commander.js",
+  "file": "examples/options-defaults.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Example linked from Readme.md:257"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "tj_commander.js",
+  "file": "examples/arguments-extra.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Example linked from Readme.md:613"
+ },
+ {
+  "kind": "architecture",
+  "repo": "tj_commander.js",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "Single-module CLI library; no layers is accurate at low confidence"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/src/database/typeorm/core/legacy-typeorm-migrations-do-not-add/common/1768916632478-makeRemainingEntitiesUniversalIdentifierAndApplicationIdNotNullable.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "TypeORM migrations loaded by glob legacy-typeorm-migrations-do-not-add/common/* in core.datasource.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/src/database/typeorm/core/legacy-typeorm-migrations-do-not-add/common/1762351626807-viewVisibility.ts",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "TypeORM migration loaded by glob in core.datasource.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-front-component-renderer/src/__stories__/html-tag/list/dl/dl-click.front-component.tsx",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Story bundle entry: build-source-examples.ts globs *.front-component.tsx; dl-events.stories uses 'dl-click'"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/test/integration/utils/run-folder-actions.util.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Imported by folder-import-actions.integration-spec.ts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/test/integration/upgrade/suites/2-44-workspace-command-1790583246061-rename-call-recording-tabs-to-transcript.integration-spec.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Jest integration test matched by testRegex \\.integration-spec\\.ts$"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/package.json",
+  "line": 107,
+  "check": "typosquat",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "gaxios is Google's legitimate HTTP client package, not an axios typosquat"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/src/engine/core-modules/application/application-package/constants/yarn-engine/.yarn/releases/yarn-4.9.2.cjs",
+  "line": 395,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn 4.9.2 release bundle"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/src/engine/core-modules/application/application-package/constants/yarn-engine/.yarn/releases/yarn-4.9.2.cjs",
+  "line": 298,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Vendored official Yarn 4.9.2 release bundle"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/src/engine/metadata-modules/front-component/constants/seed-project/show-notification/index.mjs",
+  "line": 28,
+  "check": "obfuscation",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "Bundled build output (zod/react) of seed front-component; hex escapes from library code"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-server/src/engine/core-modules/i18n/locales/generated/af-ZA.ts",
+  "line": 1,
+  "check": "hidden-unicode",
+  "confidence": "medium",
+  "verdict": "incorrect",
+  "note": "U+200B inside an Afrikaans translation string in generated lingui catalog; harmless"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-front/src/locales/generated/af-ZA.ts",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Generated lingui locale catalog"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-website/src/locales/generated/cs.ts",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Generated lingui locale catalog"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-front/src/locales/generated/ca-ES.ts",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Generated lingui locale catalog"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-front/src/locales/generated/sr-Latn.ts",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Generated lingui locale catalog"
+ },
+ {
+  "kind": "audit",
+  "repo": "twentyhq_twenty",
+  "file": "packages/twenty-emails/src/locales/generated/fi-FI.ts",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Generated lingui locale catalog"
+ },
+ {
+  "kind": "architecture",
+  "repo": "twentyhq_twenty",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Examples are real NestJS controllers, guards, @Injectable services, @Entity; React UI; some headline dirs mislabelled"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "umami-software_umami",
+  "file": "src/app/(main)/websites/[websiteId]/WebsiteTabs.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "WebsiteTabs referenced nowhere else; not a route convention file"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "umami-software_umami",
+  "file": "src/lib/sql.ts",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "empty 0-byte file, nothing imports it"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "umami-software_umami",
+  "file": "src/app/(main)/settings/profile/ProfileHeader.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "ProfileHeader referenced nowhere else"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "umami-software_umami",
+  "file": "src/app/api/websites/[websiteId]/event-data/values/contract.generated.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "discovered by filename in src/openapi/discover.ts:143 (contract.generated.ts walk)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "umami-software_umami",
+  "file": "src/app/api/2fa/setup/cancel/contract.generated.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "discovered by filename in src/openapi/discover.ts:143 (contract.generated.ts walk)"
+ },
+ {
+  "kind": "architecture",
+  "repo": "umami-software_umami",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "UI components, Routes app/api, Services queries/sql + lib, Data queries/prisma match repo"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "components/chat/sign-out-form.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "No references to sign-out-form/SignOutForm"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "instrumentation-client.ts",
+  "confidence": "high",
+  "verdict": "incorrect",
+  "note": "Next.js convention file instrumentation-client.ts loaded by framework"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "components/chat/sidebar-toggle.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "No references to sidebar-toggle/SidebarToggle"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "lib/editor/react-renderer.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "No references to react-renderer/ReactRenderer"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "components/chat/artifact-messages.tsx",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "ArtifactMessages only referenced in its own file"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "components/ai-elements/conversation.tsx",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "No import of ai-elements/conversation; Conversation export unused"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "lib/db/migrate.ts",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Run by package.json build and db:migrate scripts"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "vercel_ai-chatbot",
+  "file": "tests/helpers.ts",
+  "confidence": "low",
+  "verdict": "correct",
+  "note": "Exports unused; not matched by playwright testMatch e2e/*.test.ts"
+ },
+ {
+  "kind": "architecture",
+  "repo": "vercel_ai-chatbot",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "components UI, app/(..)/api routes, lib/ai tools, lib/db data match repo"
+ },
+ {
+  "kind": "architecture",
+  "repo": "vercel_commerce",
+  "confidence": "medium",
+  "verdict": "correct",
+  "note": "components/ and app/ UI dominate; omits lib/shopify data layer and app/api route"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "WebGoat_WebGoat",
+  "file": "src/main/resources/webgoat/static/js/goatApp/view/HintView.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Required as 'goatApp/view/HintView' in LessonController.js (RequireJS)"
+ },
+ {
+  "kind": "dead_code",
+  "repo": "WebGoat_WebGoat",
+  "file": "src/main/resources/webgoat/static/js/libs/bootstrap.min.js",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "RequireJS path bootstrap: 'libs/bootstrap.min' in static/js/main.js"
+ },
+ {
+  "kind": "audit",
+  "repo": "WebGoat_WebGoat",
+  "file": "src/main/resources/webgoat/static/js/libs/backbone-min.js",
+  "line": 1,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored minified Backbone library"
+ },
+ {
+  "kind": "audit",
+  "repo": "WebGoat_WebGoat",
+  "file": "src/main/resources/webgoat/static/js/libs/underscore-min.js",
+  "line": 6,
+  "check": "minified",
+  "confidence": "low",
+  "verdict": "incorrect",
+  "note": "Vendored minified Underscore library"
+ },
+ {
+  "kind": "architecture",
+  "repo": "WebGoat_WebGoat",
+  "confidence": "high",
+  "verdict": "correct",
+  "note": "Spring controllers/lesson endpoints, @Service classes, JPA repositories are the real structure"
+ }
+]

@@ -288,6 +288,9 @@ pub enum Commands {
         /// Re-measure this build on the corpus repositories cloned in DIR
         #[arg(long, value_name = "DIR")]
         corpus: Option<PathBuf>,
+        /// Only this labelled set
+        #[arg(long, value_parser = ["fresh", "original"])]
+        set: Option<String>,
     },
 }
 
@@ -764,18 +767,22 @@ pub fn run() {
         }
 
         // ── calibration ───────────────────────────────────────────────────────
-        Commands::Calibration { json, corpus } => {
-            let c = match corpus {
-                Some(dir) => crate::calibration::measure(&dir),
-                None => crate::calibration::published(),
-            };
+        Commands::Calibration { json, corpus, set } => {
+            let all: Vec<_> = crate::calibration::sets(set.as_deref())
+                .into_iter()
+                .map(|s| match &corpus {
+                    Some(dir) => crate::calibration::measure(s, dir),
+                    None => crate::calibration::published(s),
+                })
+                .collect();
             if json {
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&c).expect("calibration serializes")
+                    serde_json::to_string_pretty(&all).expect("calibration serializes")
                 );
             } else {
-                print!("{}", crate::calibration::render(&c));
+                let text: Vec<String> = all.iter().map(crate::calibration::render).collect();
+                print!("{}", text.join("\n"));
             }
         }
     }
@@ -788,11 +795,20 @@ mod tests {
 
     #[test]
     fn parses_calibration() {
-        let cli =
-            Cli::try_parse_from(["codedna", "calibration", "--json", "--corpus", "/x"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "codedna",
+            "calibration",
+            "--json",
+            "--corpus",
+            "/x",
+            "--set",
+            "fresh",
+        ])
+        .unwrap();
         match cli.command {
-            Commands::Calibration { json, corpus } => {
+            Commands::Calibration { json, corpus, set } => {
                 assert!(json);
+                assert_eq!(set.as_deref(), Some("fresh"));
                 assert_eq!(corpus, Some(PathBuf::from("/x")));
             }
             _ => panic!("expected calibration"),

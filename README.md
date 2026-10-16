@@ -236,7 +236,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
 | `codedna schema` | JSON Schema of the `json` report |
-| `codedna calibration` | How often each confidence level was right on hand-checked repositories (`--json`, `--corpus DIR` to re-measure this build) |
+| `codedna calibration` | How often each confidence level was right on hand-checked repositories (`--json`, `--set fresh\|original`, `--corpus DIR` to re-measure this build) |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Lines of code per file |
 | `codedna framework <name> [path\|url]` | Files that import a given framework |
@@ -740,19 +740,24 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 ## 📏 Measured confidence
 
-Confidence levels are measured, not guessed. CodeDna was run on 31 repositories that were never used to tune it (web apps, libraries, CLIs, starters and deliberately vulnerable apps, each pinned to a commit), and 301 of its results were checked by hand: up to 20 dead-code files, 8 audit findings per level and the architecture of each repository. Precision is how many results at that level were right, with a 95% interval:
+Confidence levels are measured on hand-checked results, not guessed. Precision is how many results at a level were right, with a 95% interval.
+
+**Fresh set (the honest figure).** 57 repositories that had never been run through CodeDna before (web apps, monorepos, libraries, starters and deliberately vulnerable apps, each pinned to a commit). v0.2.8 was run on them and 361 results were checked by hand: every high-confidence dead-code file (up to 10 per repository), a sample of medium and low ones, up to 5 audit findings per level, and each architecture. No detector was tuned on these labels.
 
 | Result | High | Medium | Low |
 |---|---|---|---|
-| Dead code | 59% (29/49) | 54% (26/48) | 12% (12/103) |
-| Audit | 50% (2/4) | 41% (9/22) | 6% (2/33) |
-| Architecture | 94% (16/17) | 20% (2/10) | 100% (4/4) |
+| Dead code | 50% (25/50) | 47% (35/75) | 5% (4/85) |
+| Audit | 30% (3/10) | 3% (1/30) | 0% (0/52) |
+| Architecture | 88% (28/32) | 76% (16/21) | 100% (3/3) |
 
-- **Dead code, high**: 19 of the 20 wrong ones were template files that create-t3-app's installer copies by a path built at runtime. This release recognises such paths; on the same labels high-confidence dead code is now 97% (29/30). That figure is no longer held out, since the fix came after seeing the labels.
-- **Audit, high** rests on 4 findings, so its interval is wide (15–85%). Treat medium and low audit findings as leads to check.
-- **Architecture, low** means CodeDna did not claim layers; those 4 were right not to.
+- **Dead code is a lead at every level, including high.** Most wrong ones are files a tool or framework loads without an import: by file-name convention (Expo and Next.js special files, Alembic and TypeORM migrations, test setup and mocks, type tests), by folder scan (`import.meta.glob`, plugin and migration folders), by a script in `package.json` or CI, or by a module name in settings. A few were imported by a relative path CodeDna missed.
+- **Audit findings are mostly noise outside high.** Most wrong ones were vendored or minified code (such as Yarn's own `.yarn/releases` bundle), test fixtures and translation strings.
+- **Architecture** is the most reliable: when CodeDna names layers at high confidence it was right 28 times out of 32.
+- One bug found while labelling is fixed in this release: a Django app without an `apps.py` was reported as having a dead `apps.py`. The numbers above are for v0.2.8, before that fix.
 
-`codedna calibration` prints these numbers with their intervals. The repositories and labels are in [`calibration/`](calibration/); clone them and run `codedna calibration --corpus DIR` to score your own build on the same labels.
+**Original set.** 31 other repositories, labelled with v0.2.6 (301 results): dead code high 59% (29/49), medium 54% (26/48), low 12% (12/103); audit 2/4, 9/22, 2/33; architecture 16/17, 2/10, 4/4. v0.2.7 fixed detectors after reading these labels, which raised high-confidence dead code on that set to 97% (29/30). That figure is not independent, and the fresh set shows it does not carry over to new repositories.
+
+`codedna calibration` prints both sets with their intervals (`--set fresh` for one). The repositories and labels are in [`calibration/`](calibration/); clone a set and run `codedna calibration --set fresh --corpus DIR` to score your own build on the same labels.
 
 ## ⚡ Performance
 

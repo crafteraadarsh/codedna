@@ -1,0 +1,287 @@
+[
+ {
+  "repo": "alan2207_bulletproof-react",
+  "url": "https://github.com/alan2207/bulletproof-react",
+  "commit": "9506629ed003a561c6627735480cce4994244bb4"
+ },
+ {
+  "repo": "appwrite_appwrite",
+  "url": "https://github.com/appwrite/appwrite",
+  "commit": "d7b0be311240389b457cdfdbeeb37eaacbb1ec91"
+ },
+ {
+  "repo": "bradtraversy_proshop_mern",
+  "url": "https://github.com/bradtraversy/proshop_mern",
+  "commit": "1d20b5b09e796e2f00779306c390360e9e573276"
+ },
+ {
+  "repo": "brocoders_nestjs-boilerplate",
+  "url": "https://github.com/brocoders/nestjs-boilerplate",
+  "commit": "9620f159eefe38f47747d02ab162852367c5472c"
+ },
+ {
+  "repo": "BurntSushi_ripgrep",
+  "url": "https://github.com/BurntSushi/ripgrep",
+  "commit": "3fce3b5bb0236da2df6d99672afb8a719642eca7"
+ },
+ {
+  "repo": "Buuntu_fastapi-react",
+  "url": "https://github.com/Buuntu/fastapi-react",
+  "commit": "af17f2d422d0ebc5f173e83f2c6931045ab055b0"
+ },
+ {
+  "repo": "calcom_cal.com",
+  "url": "https://github.com/calcom/cal.com",
+  "commit": "54343aa685ae8f33159d2f485ec4a57bad5c574a"
+ },
+ {
+  "repo": "charmbracelet_glow",
+  "url": "https://github.com/charmbracelet/glow",
+  "commit": "8b0600fa445535b9c53194c0d4f7fe3cf700ef3e"
+ },
+ {
+  "repo": "cookiecutter_cookiecutter-django",
+  "url": "https://github.com/cookiecutter/cookiecutter-django",
+  "commit": "33aca01e5a46c5cf8eb9e405ce133452ba387595"
+ },
+ {
+  "repo": "directus_directus",
+  "url": "https://github.com/directus/directus",
+  "commit": "8e140f94250834cea0a0fb6eb822cac39ed9faec"
+ },
+ {
+  "repo": "django_djangoproject.com",
+  "url": "https://github.com/django/djangoproject.com",
+  "commit": "042e66fdde9ee9eefeb4c790224595356a4d2fd6"
+ },
+ {
+  "repo": "documenso_documenso",
+  "url": "https://github.com/documenso/documenso",
+  "commit": "87245005651af8c5cd517ee0b3ea6ecde8da2df2"
+ },
+ {
+  "repo": "dubinc_dub",
+  "url": "https://github.com/dubinc/dub",
+  "commit": "1ee6e7578b41371aacd805b97d0e991927f10aed"
+ },
+ {
+  "repo": "elie222_inbox-zero",
+  "url": "https://github.com/elie222/inbox-zero",
+  "commit": "748f6bfd391ea5fcffe41cb7d9a1e91a44dd2dff"
+ },
+ {
+  "repo": "encode_httpx",
+  "url": "https://github.com/encode/httpx",
+  "commit": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+ },
+ {
+  "repo": "excalidraw_excalidraw",
+  "url": "https://github.com/excalidraw/excalidraw",
+  "commit": "4c37956ba5f04ec342a9d9d5891a38f22c5b7b4e"
+ },
+ {
+  "repo": "expressjs_express",
+  "url": "https://github.com/expressjs/express",
+  "commit": "a419aa7350389a275ab45fde2e849ed1f02449ef"
+ },
+ {
+  "repo": "fastapi_full-stack-fastapi-template",
+  "url": "https://github.com/fastapi/full-stack-fastapi-template",
+  "commit": "b1125d8839482cb7bbae603ddc6d0081bf87532e"
+ },
+ {
+  "repo": "fastify_fastify",
+  "url": "https://github.com/fastify/fastify",
+  "commit": "37df44a421817e7bb048fce834bf691abb0999d6"
+ },
+ {
+  "repo": "gin-gonic_gin",
+  "url": "https://github.com/gin-gonic/gin",
+  "commit": "0f09c3a9b4626d9fe9979cf4d0521d6ae32ab646"
+ },
+ {
+  "repo": "gothinkster_angular-realworld-example-app",
+  "url": "https://github.com/gothinkster/angular-realworld-example-app",
+  "commit": "dd99ed2cf39c805d719f943c5d7061a5683d98a8"
+ },
+ {
+  "repo": "gothinkster_react-redux-realworld-example-app",
+  "url": "https://github.com/gothinkster/react-redux-realworld-example-app",
+  "commit": "ee72eba4056392c95a27bc48d385d3f54ba38a18"
+ },
+ {
+  "repo": "honojs_hono",
+  "url": "https://github.com/honojs/hono",
+  "commit": "08807ce12aa3aa27c8c5adf63e677bbab6bceda9"
+ },
+ {
+  "repo": "ixartz_Next-js-Boilerplate",
+  "url": "https://github.com/ixartz/Next-js-Boilerplate",
+  "commit": "b83157a8018f55b926a3c25a4b7a7e14b0dfbc35"
+ },
+ {
+  "repo": "jazzband_django-oauth-toolkit",
+  "url": "https://github.com/jazzband/django-oauth-toolkit",
+  "commit": "c6e1bd28349149b7da14bea847c3cbd4577e534a"
+ },
+ {
+  "repo": "juice-shop_juice-shop",
+  "url": "https://github.com/juice-shop/juice-shop",
+  "commit": "399fba76194305a312693eee44f4df64bdf0c3ce"
+ },
+ {
+  "repo": "linkwarden_linkwarden",
+  "url": "https://github.com/linkwarden/linkwarden",
+  "commit": "952ac4540657cae3a67c3ca59433899d2fda8374"
+ },
+ {
+  "repo": "maybe-finance_maybe",
+  "url": "https://github.com/maybe-finance/maybe",
+  "commit": "77b5469832758d1cbee1a940f3012a1ae1c74cd3"
+ },
+ {
+  "repo": "mckaywrigley_chatbot-ui",
+  "url": "https://github.com/mckaywrigley/chatbot-ui",
+  "commit": "81328b61d2a4ab597a7a057be70e785cf756d9f8"
+ },
+ {
+  "repo": "medusajs_nextjs-starter-medusa",
+  "url": "https://github.com/medusajs/nextjs-starter-medusa",
+  "commit": "9818886f06e493cb2249733d114d339aa216ef00"
+ },
+ {
+  "repo": "miguelgrinberg_microblog",
+  "url": "https://github.com/miguelgrinberg/microblog",
+  "commit": "a975ef64864354867c88e0ed3a17ba7d17dca752"
+ },
+ {
+  "repo": "mutoe_vue3-realworld-example-app",
+  "url": "https://github.com/mutoe/vue3-realworld-example-app",
+  "commit": "741c215ef0f674f90fcb03c5493a1b3a3a7f1b03"
+ },
+ {
+  "repo": "n8n-io_n8n",
+  "url": "https://github.com/n8n-io/n8n",
+  "commit": "a906d2fdfcc5481799a571b4b666eea864fa07a1"
+ },
+ {
+  "repo": "nestjs_typescript-starter",
+  "url": "https://github.com/nestjs/typescript-starter",
+  "commit": "a122dea65cd0610ee205d7765ed46f9d73629141"
+ },
+ {
+  "repo": "nextauthjs_next-auth-example",
+  "url": "https://github.com/nextauthjs/next-auth-example",
+  "commit": "39ff2b7a375c240a4741866b3818d80fc8edaa5c"
+ },
+ {
+  "repo": "Nutlope_roomGPT",
+  "url": "https://github.com/Nutlope/roomGPT",
+  "commit": "611398c78da64f1794df2d99018c3d02d3ab0048"
+ },
+ {
+  "repo": "open-webui_open-webui",
+  "url": "https://github.com/open-webui/open-webui",
+  "commit": "91ea4e3421d1d8069f13d4a463fcb5986d94ea60"
+ },
+ {
+  "repo": "outline_outline",
+  "url": "https://github.com/outline/outline",
+  "commit": "0514c5ba4f0e819d4dad27dcf96f0938a507f424"
+ },
+ {
+  "repo": "pallets_flask",
+  "url": "https://github.com/pallets/flask",
+  "commit": "d086db856be187255b8ec61ef409357393020f32"
+ },
+ {
+  "repo": "PanJiaChen_vue-element-admin",
+  "url": "https://github.com/PanJiaChen/vue-element-admin",
+  "commit": "6858a9ad67483025f6a9432a926beb9327037be3"
+ },
+ {
+  "repo": "plausible_analytics",
+  "url": "https://github.com/plausible/analytics",
+  "commit": "d44e104ae3943a9240d5cb6b62e67dff0f069d3a"
+ },
+ {
+  "repo": "pmndrs_zustand",
+  "url": "https://github.com/pmndrs/zustand",
+  "commit": "d7a5583cffd80af515f7dfb69583c95cbdc9e2ce"
+ },
+ {
+  "repo": "react-hook-form_react-hook-form",
+  "url": "https://github.com/react-hook-form/react-hook-form",
+  "commit": "a17a9c9bbdfd90aac5c29553e6b81b0b163c85c4"
+ },
+ {
+  "repo": "sahat_hackathon-starter",
+  "url": "https://github.com/sahat/hackathon-starter",
+  "commit": "d7a20cce5e41f45f14eaf400af874f86817aea0d"
+ },
+ {
+  "repo": "saleor_saleor",
+  "url": "https://github.com/saleor/saleor",
+  "commit": "3dd4bf79a46132ed2f8e6225a9863f5ef8dc243b"
+ },
+ {
+  "repo": "shadcn-ui_next-template",
+  "url": "https://github.com/shadcn-ui/next-template",
+  "commit": "d117bd0fd897cfd3b0d14e8647d8fcd6341a511b"
+ },
+ {
+  "repo": "shadcn-ui_taxonomy",
+  "url": "https://github.com/shadcn-ui/taxonomy",
+  "commit": "298a8857c7128a0d121e7f699dfd729f23b3966d"
+ },
+ {
+  "repo": "steven-tey_precedent",
+  "url": "https://github.com/steven-tey/precedent",
+  "commit": "3be40205d7cdf56082cd284f07f12251b9208f79"
+ },
+ {
+  "repo": "strapi_strapi",
+  "url": "https://github.com/strapi/strapi",
+  "commit": "89c237ae761a998e485a555d3c118b3105269e5b"
+ },
+ {
+  "repo": "sveltejs_realworld",
+  "url": "https://github.com/sveltejs/realworld",
+  "commit": "df796708040f5200ec572b28ab7f88ecee5794dd"
+ },
+ {
+  "repo": "taniarascia_takenote",
+  "url": "https://github.com/taniarascia/takenote",
+  "commit": "e0eddbb9a21ae4cf4c4c7c183f29cfd666e08331"
+ },
+ {
+  "repo": "tj_commander.js",
+  "url": "https://github.com/tj/commander.js",
+  "commit": "ba6d13ddb4243e5913367734f8c159089ffe7834"
+ },
+ {
+  "repo": "twentyhq_twenty",
+  "url": "https://github.com/twentyhq/twenty",
+  "commit": "24744e2d9cd8dd412c95dd1eaa96018d10fc643d"
+ },
+ {
+  "repo": "umami-software_umami",
+  "url": "https://github.com/umami-software/umami",
+  "commit": "ec0ff50388c264ed8ce46f00967e92f7e71476ae"
+ },
+ {
+  "repo": "vercel_ai-chatbot",
+  "url": "https://github.com/vercel/ai-chatbot",
+  "commit": "c2f8235e1f3ea903ad8b7f61447c4f74164b5c58"
+ },
+ {
+  "repo": "vercel_commerce",
+  "url": "https://github.com/vercel/commerce",
+  "commit": "3761e52e60df9c6a316e067dbfd7032e494d3634"
+ },
+ {
+  "repo": "WebGoat_WebGoat",
+  "url": "https://github.com/WebGoat/WebGoat",
+  "commit": "e7b131360d74336c0c94ab5c8a21259503f59be8"
+ }
+]
