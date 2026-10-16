@@ -696,6 +696,9 @@ mod tests {
         );
 
         AnalysisResult {
+            schema_version: crate::analysis::SCHEMA_VERSION,
+
+            analyzer: crate::analysis::Analyzer::current(),
             coverage: Default::default(),
             project_type: "Full-stack web application".to_string(),
             total_loc: 14550,

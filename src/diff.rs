@@ -608,6 +608,8 @@ mod tests {
             *languages.entry("Rust".to_string()).or_insert(0) += loc;
         }
         AnalysisResult {
+            schema_version: crate::analysis::SCHEMA_VERSION,
+            analyzer: crate::analysis::Analyzer::current(),
             coverage: Default::default(),
             project_type: "CLI tool".to_string(),
             total_loc: files.iter().map(|f| f.1).sum(),

@@ -218,6 +218,9 @@ pub enum Commands {
         #[arg(long = "root", value_name = "DIR")]
         roots: Vec<PathBuf>,
     },
+
+    /// Print the JSON Schema of the `codedna json` report
+    Schema,
 }
 
 /// How many hotspots a report lists.
@@ -572,6 +575,11 @@ pub fn run() {
                 eprintln!("error: {}", crate::safe_text::sanitize(&e.to_string()));
                 std::process::exit(1);
             }
+        }
+
+        // ── schema ────────────────────────────────────────────────────────────
+        Commands::Schema => {
+            println!("{}", crate::analysis::json_schema());
         }
     }
 }

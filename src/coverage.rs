@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 const MAX_UNRESOLVED: usize = 20;
 
 /// How much of the repository the dependency analysis covered.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Coverage {
     /// Files in a language that imports other files.
     pub source_files: usize,
@@ -45,7 +45,7 @@ pub struct Coverage {
 }
 
 /// A language CodeDna does not follow imports for.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct LanguageGap {
     pub language: String,
     pub files: usize,
@@ -53,7 +53,7 @@ pub struct LanguageGap {
 
 /// Import counts across the analyzed files. Each distinct import in a file
 /// counts once.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ImportCounts {
     /// Imports of the repository's own files: `resolved + unresolved`.
     pub internal: usize,
@@ -64,7 +64,7 @@ pub struct ImportCounts {
 }
 
 /// One import of the repository's own code that matched no file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct UnresolvedImport {
     /// Path relative to the repository root.
     pub file: String,

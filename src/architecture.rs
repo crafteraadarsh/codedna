@@ -18,7 +18,19 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 /// How strongly the evidence supports a conclusion.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Confidence {
     #[default]
@@ -38,7 +50,7 @@ impl Confidence {
 }
 
 /// A line in the repository that backs a finding.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Location {
     /// Path relative to the repository root.
     pub file: String,
@@ -97,7 +109,7 @@ fn short_line(text: &str) -> String {
 }
 
 /// What a file's code shows about its layer, and where.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CodeSign {
     /// 1-based line of the match; 0 when the whole file is the sign
     /// (`.vue`, `.svelte`).
@@ -107,7 +119,7 @@ pub struct CodeSign {
 }
 
 /// Why one file is in its layer.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Placement {
     /// Path relative to the repository root.
     pub file: String,
@@ -146,14 +158,14 @@ impl Placement {
 }
 
 /// One import from a file in one layer to a file in another.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ImportEdge {
     pub from: String,
     pub to: String,
 }
 
 /// One architectural layer found in the code.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Layer {
     /// Layer name, e.g. `"Routes"`.
     pub name: String,
@@ -173,7 +185,7 @@ pub struct Layer {
 }
 
 /// Import edges from one layer to another.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct LayerFlow {
     pub from: String,
     pub to: String,
@@ -184,7 +196,7 @@ pub struct LayerFlow {
 }
 
 /// Layers, the imports between them, and how confident the result is.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ArchitectureInsight {
     /// Layers in top-down order (UI, Routes, Middleware, Services, Data).
     pub layers: Vec<Layer>,

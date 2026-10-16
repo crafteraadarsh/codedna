@@ -67,6 +67,10 @@ pub struct SizedFile {
 /// The context pack.
 #[derive(Debug, Serialize)]
 pub struct ContextPack {
+    /// Version of the report's shape; see [`crate::analysis::SCHEMA_VERSION`].
+    pub schema_version: u32,
+    /// Name and version of the tool that wrote it.
+    pub analyzer: crate::analysis::Analyzer,
     pub project_type: String,
     pub architecture: String,
     /// Layers found in the code with a confidence level, or empty.
@@ -110,6 +114,8 @@ pub struct ContextPack {
 /// replaced with `./`.
 pub fn build(result: &AnalysisResult, tree: &str, max_tokens: usize) -> ContextPack {
     let mut pack = ContextPack {
+        schema_version: result.schema_version,
+        analyzer: result.analyzer.clone(),
         project_type: result.project_type.clone(),
         architecture: result.architecture.clone(),
         code_layers: code_layers(result),
@@ -452,6 +458,9 @@ mod tests {
         graph.insert(PathBuf::from("./src/util.rs"), vec![]);
 
         AnalysisResult {
+            schema_version: crate::analysis::SCHEMA_VERSION,
+
+            analyzer: crate::analysis::Analyzer::current(),
             coverage: Default::default(),
             project_type: "Rust library / CLI tool".to_string(),
             total_loc: 1000,

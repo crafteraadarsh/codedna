@@ -229,6 +229,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report (`--format html` for a self-contained page) |
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
+| `codedna schema` | JSON Schema of the `json` report |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Lines of code per file |
 | `codedna framework <name> [path\|url]` | Files that import a given framework |
@@ -531,6 +532,8 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 
 ```json
 {
+  "schema_version": 1,
+  "analyzer": { "name": "codedna", "version": "0.2.2" },
   "project_type": "Backend API service",
   "total_loc": 2243,
   "comment_lines": 245,
@@ -582,8 +585,12 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 }
 ```
 
+The report is versioned. `schema_version` goes up only when a field is removed, renamed or changes meaning; new fields can appear without it changing, so ignore fields you do not know. The full shape is in [`schema/report.schema.json`](schema/report.schema.json) (also `codedna schema`). Reports saved before versioning have no `schema_version` and read as 0.
+
 | Field | Type | Description |
 |---|---|---|
+| `schema_version` | number | Version of the report shape (currently 1) |
+| `analyzer` | object | `name` and `version` of the CodeDna build that wrote it |
 | `project_type` | string | High-level project classification |
 | `total_loc` | number | Lines of code, excluding comments, blank lines and lockfiles |
 | `comment_lines` | number | Comment-only lines across detected source files |

@@ -27,7 +27,7 @@ const NON_CODE_LANGUAGES: &[&str] = &["JSON", "Markdown", "TOML", "YAML"];
 const MAX_GLOB_DEPTH: usize = 6;
 
 /// One workspace declaration and the packages it resolves to.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Workspace {
     /// The tool that owns the workspace, e.g. "pnpm" or "Cargo".
     pub tool: String,
@@ -38,7 +38,7 @@ pub struct Workspace {
 }
 
 /// A package inside a workspace.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct WorkspacePackage {
     /// The name from its manifest, or the directory name.
     pub name: String,

@@ -671,6 +671,8 @@ mod tests {
         let mut languages = HashMap::new();
         languages.insert("Rust".to_string(), 120);
         AnalysisResult {
+            schema_version: crate::analysis::SCHEMA_VERSION,
+            analyzer: crate::analysis::Analyzer::current(),
             coverage: Default::default(),
             project_type: "CLI tool".to_string(),
             total_loc: 120,

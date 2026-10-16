@@ -214,7 +214,7 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
 // ---------------------------------------------------------------------------
 
 /// A dead-code candidate with how sure CodeDna is and why.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct DeadCodeCandidate {
     pub file: PathBuf,
     pub confidence: Confidence,
