@@ -253,7 +253,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     let coverage = coverage::measure(root, &files, &import_tallies);
 
     // ── 6. Dead code ──────────────────────────────────────────────────────────
-    let dead_code = dead_code_detector::detect_dead_code(&dep_graph);
+    let entries = dead_code_detector::manifest_entries(&files);
+    let dead_code = dead_code_detector::detect_dead_code_from(&dep_graph, &entries);
 
     // ── 7. Inference ──────────────────────────────────────────────────────────
     let project_type = infer_project_type(

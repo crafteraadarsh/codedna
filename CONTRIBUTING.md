@@ -256,9 +256,9 @@ cargo test -- --nocapture
 
 The test suite currently has **370+ tests** across all modules. All tests must pass before a PR is merged.
 
-If you change how dead code, audit findings or architecture are rated, check the measured confidence too. There are two labelled sets: `calibration/` (original) and `calibration/fresh/`, each with a `corpus.json` of pinned repositories and a `labels.json` of hand-checked results. Clone a set's repositories at their pinned commits into one folder, then run `codedna calibration --set original --corpus DIR` with your build. It scores those labels against what your build reports now.
+If you change how dead code, audit findings or architecture are rated, check the measured confidence too. There are three labelled sets: `calibration/` (original), `calibration/fresh/` and `calibration/third/`, each with a `corpus.json` of pinned repositories and a `labels.json` of hand-checked results. Clone a set's repositories at their pinned commits into one folder, then run `codedna calibration --set original --corpus DIR` with your build. It scores those labels against what your build reports now.
 
-The fresh set is the held-out one: tune and debug against the original set only, and do not read `calibration/fresh/labels.json` while changing a detector. If a change is made after reading the fresh labels, say so in the PR and in the set's description in `src/calibration.rs`, because those numbers then stop being independent, and a new fresh set is needed for an honest figure.
+The third set is the held-out one: tune and debug against the original and fresh sets only, and do not read `calibration/third/labels.json` while changing a detector. If a change is made after reading the third labels, say so in the PR and in the set's description in `src/calibration.rs`, because those numbers then stop being independent, and a new set is needed for an honest figure.
 
 ---
 

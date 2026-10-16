@@ -289,7 +289,7 @@ pub enum Commands {
         #[arg(long, value_name = "DIR")]
         corpus: Option<PathBuf>,
         /// Only this labelled set
-        #[arg(long, value_parser = ["fresh", "original"])]
+        #[arg(long, value_parser = ["third", "fresh", "original"])]
         set: Option<String>,
     },
 }

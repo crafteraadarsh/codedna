@@ -1,0 +1,217 @@
+[
+ {
+  "repo": "Infisical_infisical",
+  "url": "https://github.com/Infisical/infisical",
+  "commit": "945efb6c1af7fba76ed969b9a1eb390ca4696ba0"
+ },
+ {
+  "repo": "triggerdotdev_trigger.dev",
+  "url": "https://github.com/triggerdotdev/trigger.dev",
+  "commit": "9424281ac888483d8a72eeab29ecb3e28eacebf0"
+ },
+ {
+  "repo": "unkeyed_unkey",
+  "url": "https://github.com/unkeyed/unkey",
+  "commit": "56f9843299526269b170c321c3b4430ae7451647"
+ },
+ {
+  "repo": "novuhq_novu",
+  "url": "https://github.com/novuhq/novu",
+  "commit": "b9a631012f491c6f8f9e16afe728f40b143bd4cc"
+ },
+ {
+  "repo": "lobehub_lobehub",
+  "url": "https://github.com/lobehub/lobehub",
+  "commit": "55a8c1e6bc21747ae56984bb9d4fb3e61172495b"
+ },
+ {
+  "repo": "shadcn-ui_ui",
+  "url": "https://github.com/shadcn-ui/ui",
+  "commit": "af983e842ab31ed26da30ba4d9a418772150dff0"
+ },
+ {
+  "repo": "sindresorhus_ky",
+  "url": "https://github.com/sindresorhus/ky",
+  "commit": "3541888878c4d303a8bc2ad61815f4e048f55a5d"
+ },
+ {
+  "repo": "TanStack_query",
+  "url": "https://github.com/TanStack/query",
+  "commit": "e90c0bdb8350996cff06ff2251f1e71aa9bdf0af"
+ },
+ {
+  "repo": "sveltejs_kit",
+  "url": "https://github.com/sveltejs/kit",
+  "commit": "dd2d9754840d013b882aa45c2019e68b84e6b1af"
+ },
+ {
+  "repo": "TryGhost_Ghost",
+  "url": "https://github.com/TryGhost/Ghost",
+  "commit": "aa0090d9a2594c068f4627f11b0b778a88267f70"
+ },
+ {
+  "repo": "immich-app_immich",
+  "url": "https://github.com/immich-app/immich",
+  "commit": "75700475e84c90fbf8433e7bfd7d18cc81bef4b0"
+ },
+ {
+  "repo": "tldraw_tldraw",
+  "url": "https://github.com/tldraw/tldraw",
+  "commit": "dd116535b138520d560c9881ad095ab782dc74c7"
+ },
+ {
+  "repo": "mermaid-js_mermaid",
+  "url": "https://github.com/mermaid-js/mermaid",
+  "commit": "e28fbd9ded0a07ba9569e51be4764c1ad4daa8f6"
+ },
+ {
+  "repo": "refinedev_refine",
+  "url": "https://github.com/refinedev/refine",
+  "commit": "2352eb5b6539e2f39ad9aef652279ad1dcf2c467"
+ },
+ {
+  "repo": "payloadcms_payload",
+  "url": "https://github.com/payloadcms/payload",
+  "commit": "b8c668927c21247f9f13181b7f8aea9d2fc25171"
+ },
+ {
+  "repo": "OWASP_NodeGoat",
+  "url": "https://github.com/OWASP/NodeGoat",
+  "commit": "c5cb68a7084e4ae7dcc60e6a98768720a81841e8"
+ },
+ {
+  "repo": "gothinkster_node-express-realworld-example-app",
+  "url": "https://github.com/gothinkster/node-express-realworld-example-app",
+  "commit": "30b68e1e881462b2f4164ea09ab4c4f5699c7b0b"
+ },
+ {
+  "repo": "jaredpalmer_formik",
+  "url": "https://github.com/jaredpalmer/formik",
+  "commit": "91475adbf33579561e580eceea0c031f4ec2e992"
+ },
+ {
+  "repo": "Kong_insomnia",
+  "url": "https://github.com/Kong/insomnia",
+  "commit": "d370ff0a603b1c98dfd216cd1fd7e1b02c205155"
+ },
+ {
+  "repo": "netbox-community_netbox",
+  "url": "https://github.com/netbox-community/netbox",
+  "commit": "1d270e574686d9275b552225f7d09740594ac9fc"
+ },
+ {
+  "repo": "paperless-ngx_paperless-ngx",
+  "url": "https://github.com/paperless-ngx/paperless-ngx",
+  "commit": "1f3d451a3a4643bd486f5a1701781bcfd6a95a82"
+ },
+ {
+  "repo": "mealie-recipes_mealie",
+  "url": "https://github.com/mealie-recipes/mealie",
+  "commit": "00c2b6b41651c4845bee15e1c05b71bee3c560f1"
+ },
+ {
+  "repo": "healthchecks_healthchecks",
+  "url": "https://github.com/healthchecks/healthchecks",
+  "commit": "b932fc404aa2868c6be46e90e803d9b35f460cc0"
+ },
+ {
+  "repo": "fastapi_sqlmodel",
+  "url": "https://github.com/fastapi/sqlmodel",
+  "commit": "462b59d9cd1cc3d9072735435330ef9ab6d15cbf"
+ },
+ {
+  "repo": "Textualize_rich",
+  "url": "https://github.com/Textualize/rich",
+  "commit": "9d8f9a372cc5916fd4781fec207ced7ddac2f08f"
+ },
+ {
+  "repo": "encode_django-rest-framework",
+  "url": "https://github.com/encode/django-rest-framework",
+  "commit": "14998d0a735f8ed6abd86751fd6984a9277a1d40"
+ },
+ {
+  "repo": "erev0s_VAmPI",
+  "url": "https://github.com/erev0s/VAmPI",
+  "commit": "f16052dce83f05847133ec98f01c5193a41de7d8"
+ },
+ {
+  "repo": "gohugoio_hugo",
+  "url": "https://github.com/gohugoio/hugo",
+  "commit": "85fb23f1c23a0acc9c9094dc033c19ec2c0d2a2b"
+ },
+ {
+  "repo": "traefik_traefik",
+  "url": "https://github.com/traefik/traefik",
+  "commit": "62b1f935f7612dbb730504e8210d8cffe2f4aef7"
+ },
+ {
+  "repo": "pocketbase_pocketbase",
+  "url": "https://github.com/pocketbase/pocketbase",
+  "commit": "6f370ea741f33adf889eef02e3c1b884a47aa522"
+ },
+ {
+  "repo": "spf13_cobra",
+  "url": "https://github.com/spf13/cobra",
+  "commit": "adbc8813901bba65827259daa8e22ff94ec1f30e"
+ },
+ {
+  "repo": "charmbracelet_bubbletea",
+  "url": "https://github.com/charmbracelet/bubbletea",
+  "commit": "f9df43c4f2c021d8740a2628d59cd810a862eb98"
+ },
+ {
+  "repo": "umputun_remark42",
+  "url": "https://github.com/umputun/remark42",
+  "commit": "0e893560931f7a2076b339841d5f2b9549a9eaeb"
+ },
+ {
+  "repo": "sharkdp_bat",
+  "url": "https://github.com/sharkdp/bat",
+  "commit": "62b439dae330a8c4d053ff7d8526a6e3697000b9"
+ },
+ {
+  "repo": "sharkdp_fd",
+  "url": "https://github.com/sharkdp/fd",
+  "commit": "14dcd92fb76ca0ebc2e82671a275f67c790d25fc"
+ },
+ {
+  "repo": "meilisearch_meilisearch",
+  "url": "https://github.com/meilisearch/meilisearch",
+  "commit": "541dd6e94c5d6101684610b1af1b50c5aa4e2915"
+ },
+ {
+  "repo": "spring-projects_spring-petclinic",
+  "url": "https://github.com/spring-projects/spring-petclinic",
+  "commit": "500158f732419217507c7656904b8e6aa1bcc0d6"
+ },
+ {
+  "repo": "macrozheng_mall",
+  "url": "https://github.com/macrozheng/mall",
+  "commit": "dcaa93b3150352e5044708d7211b5bed0af4509f"
+ },
+ {
+  "repo": "chatwoot_chatwoot",
+  "url": "https://github.com/chatwoot/chatwoot",
+  "commit": "4e6a4d3ad446f49fb4f10e02849fa8cc81f09c08"
+ },
+ {
+  "repo": "lobsters_lobsters",
+  "url": "https://github.com/lobsters/lobsters",
+  "commit": "ab6fe2424aad24cb9fc6899b4a3ad6e860b6a16a"
+ },
+ {
+  "repo": "koel_koel",
+  "url": "https://github.com/koel/koel",
+  "commit": "7573a232ef4bb9f9733779ae6e308b82a0aba1ee"
+ },
+ {
+  "repo": "BookStackApp_BookStack",
+  "url": "https://github.com/BookStackApp/BookStack",
+  "commit": "d3db80004b51a395a9dabdd406f5fbda3d4d76e4"
+ },
+ {
+  "repo": "monicahq_monica",
+  "url": "https://github.com/monicahq/monica",
+  "commit": "6e6ec217457e946e330ba7cd3b28107f4332c7b1"
+ }
+]

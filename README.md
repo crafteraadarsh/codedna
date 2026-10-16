@@ -236,7 +236,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
 | `codedna schema` | JSON Schema of the `json` report |
-| `codedna calibration` | How often each confidence level was right on hand-checked repositories (`--json`, `--set fresh\|original`, `--corpus DIR` to re-measure this build) |
+| `codedna calibration` | How often each confidence level was right on hand-checked repositories (`--json`, `--set third\|fresh\|original`, `--corpus DIR` to re-measure this build) |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Lines of code per file |
 | `codedna framework <name> [path\|url]` | Files that import a given framework |
@@ -730,7 +730,7 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 - **Code signs count only in code.** Words such as `@RestController`, `pgTable(` or `@app.get(` inside a string, a comment or a test fixture are not taken as evidence for a layer or a route.
 - **Workspace packages resolve through their `package.json`.** An import of a local package (`@acme/shared`, `@acme/ui/button`) follows its `exports` (plain, conditional and `*` patterns), then `source`, `module`, `main` or `types`, then `src/index`. Targets in a build folder (`dist/`, `build/`, `lib/`, …) map back to the matching file under `src/`.
 - **Coverage** says how much of the code the dependency graph covers, so an empty dead-code or cycle list can be told apart from code that was never looked at. It counts the source files whose imports were followed, imports of the repository's own code that matched no file (relative paths, path aliases, workspace packages, the project's own Python packages and `mod` declarations), with file and line for the first 20, and languages whose imports are not followed. The terminal report, `context`, reports and MCP tools show it; `deadcode` and `cycles` say "not checked" when no file could be analyzed.
-- **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples and fixtures are lowered one step and marked with their `context`; keys in tests and fixtures drop to low confidence, and long or encoded data there is not reported.
+- **Audit** matches known risky patterns. It cannot prove code is safe: a clean result only means none of its checks matched. Each finding has a severity (how bad it would be) and a confidence (how likely it is real, not a false alarm). Findings in tests, docs, examples, fixtures, vendored libraries (`vendor/`, `.yarn/`, `*.min.js`, `*-bundle.js`) and translations (`locales/`, `i18n/`) are lowered one step and marked with their `context`; keys in any of them drop to low confidence, and long lines, encoded data and direction marks in tests, fixtures, vendored libraries and translations are not reported.
 - **Monorepos**: workspaces declared at the repository root are listed with their packages (`workspaces` in JSON): npm, Yarn and Bun workspaces, pnpm (`pnpm-workspace.yaml`), Lerna, Cargo, Go (`go.work`) and uv. Each package gets its own size, languages, stack, dead files and links to the other packages (`codedna packages`).
 - **Routes** in `runbook` come from common framework patterns and may be incomplete.
 - **Topology** reads deployment files as written; nothing is rendered or deployed. Helm values are not applied, so templated names stay as `{{ … }}`, and Kustomize overlays are listed as files, not merged. A Service links to the workloads its selector matches, preferring ones in the same file, then the same folder. Code is found from Skaffold and Compose build contexts, an image named like a folder with a Dockerfile, or a function's handler. Files in test, example and docs folders are skipped and counted.
@@ -742,7 +742,19 @@ Paths matched by the repository's `.gitignore` files (root and nested) and `.ign
 
 Confidence levels are measured on hand-checked results, not guessed. Precision is how many results at a level were right, with a 95% interval.
 
-**Fresh set (the honest figure).** 57 repositories that had never been run through CodeDna before (web apps, monorepos, libraries, starters and deliberately vulnerable apps, each pinned to a commit). v0.2.8 was run on them and 361 results were checked by hand: every high-confidence dead-code file (up to 10 per repository), a sample of medium and low ones, up to 5 audit findings per level, and each architecture. No detector was tuned on these labels.
+**Third set (the honest figure).** 43 more repositories, new to CodeDna and pinned to a commit: apps, monorepos, libraries, CLIs and deliberately vulnerable apps in TypeScript, Python, Go, Rust, PHP, Ruby and Java. This release was run on them before it shipped and 319 results were checked by hand, sampled per repository: up to 5 dead-code files and 5 audit findings across the levels, and each architecture. No detector was changed after these labels were read.
+
+| Result | High | Medium | Low |
+|---|---|---|---|
+| Dead code | 67% (6/9) | 42% (39/92) | 9% (7/82) |
+| Audit | 15% (2/13) | 0% (0/24) | 2% (1/56) |
+| Architecture | 45% (9/20) | 11% (2/18) | 80% (4/5) |
+
+- **Dead code** is about where the fresh set put it: a lead at every level. The misses are again files loaded without an import: `go:embed`, esbuild and Vite entry points, Nuxt middleware, editor plugin folders, docs pages that include a file, scripts run by Docker, CI or `tox`, and type tests checked through a `tsconfig`.
+- **Audit** findings outside the clearly real ones were test keys, placeholder tokens, generated or vendored files, intentional Unicode and fixture data.
+- **Architecture is weaker than the fresh set suggested.** Libraries and CLIs were described as apps ("Frontend only", "API only"), a Rails app was reported as Python, and some layers came from `vendor/` or test mocks. Treat the summary as a starting point.
+
+**Fresh set.** 57 repositories that had never been run through CodeDna before (web apps, monorepos, libraries, starters and deliberately vulnerable apps, each pinned to a commit). v0.2.8 was run on them and 361 results were checked by hand: every high-confidence dead-code file (up to 10 per repository), a sample of medium and low ones, up to 5 audit findings per level, and each architecture. v0.2.10 then fixed detectors after reading these labels (mocks of dependencies, vendored code, translations and docs in the audit), so these figures, measured with v0.2.8, are no longer independent.
 
 | Result | High | Medium | Low |
 |---|---|---|---|
@@ -753,11 +765,11 @@ Confidence levels are measured on hand-checked results, not guessed. Precision i
 - **Dead code is a lead at every level, including high.** Most wrong ones are files a tool or framework loads without an import: by file-name convention (Expo and Next.js special files, Alembic and TypeORM migrations, test setup and mocks, type tests), by folder scan (`import.meta.glob`, plugin and migration folders), by a script in `package.json` or CI, or by a module name in settings. A few were imported by a relative path CodeDna missed.
 - **Audit findings are mostly noise outside high.** Most wrong ones were vendored or minified code (such as Yarn's own `.yarn/releases` bundle), test fixtures and translation strings.
 - **Architecture** is the most reliable: when CodeDna names layers at high confidence it was right 28 times out of 32.
-- One bug found while labelling is fixed in this release: a Django app without an `apps.py` was reported as having a dead `apps.py`. The numbers above are for v0.2.8, before that fix.
+- One bug found while labelling was fixed in v0.2.9: a Django app without an `apps.py` was reported as having a dead `apps.py`. The numbers above are for v0.2.8, before that fix.
 
 **Original set.** 31 other repositories, labelled with v0.2.6 (301 results): dead code high 59% (29/49), medium 54% (26/48), low 12% (12/103); audit 2/4, 9/22, 2/33; architecture 16/17, 2/10, 4/4. v0.2.7 fixed detectors after reading these labels, which raised high-confidence dead code on that set to 97% (29/30). That figure is not independent, and the fresh set shows it does not carry over to new repositories.
 
-`codedna calibration` prints both sets with their intervals (`--set fresh` for one). The repositories and labels are in [`calibration/`](calibration/); clone a set and run `codedna calibration --set fresh --corpus DIR` to score your own build on the same labels.
+`codedna calibration` prints all three sets with their intervals (`--set third` for one). The repositories and labels are in [`calibration/`](calibration/); clone a set and run `codedna calibration --set third --corpus DIR` to score your own build on the same labels.
 
 ## ⚡ Performance
 

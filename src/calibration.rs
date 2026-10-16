@@ -7,8 +7,9 @@
 //! checked on few findings shows a wide range.
 //!
 //! A set stays independent only until a detector is changed after reading its
-//! labels. The `fresh` set was labelled after the last such change; the
-//! `original` set was used to fix detectors in 0.2.7.
+//! labels. The `third` set was labelled after the last such change; the
+//! `fresh` set was used to fix detectors in 0.2.10 and the `original` set
+//! in 0.2.7.
 //!
 //! `codedna calibration` prints the numbers recorded for each set.
 //! `--corpus DIR` re-runs this build on the repositories cloned in `DIR` and
@@ -29,10 +30,16 @@ pub struct Set {
 }
 
 /// Every set, the one still held out first.
-pub const SETS: [Set; 2] = [
+pub const SETS: [Set; 3] = [
+    Set {
+        name: "third",
+        about: "labelled with 0.2.10 before release; no detector tuned on it",
+        corpus: include_str!("../calibration/third/corpus.json"),
+        labels: include_str!("../calibration/third/labels.json"),
+    },
     Set {
         name: "fresh",
-        about: "labelled with 0.2.8; no detector tuned on it (0.2.9 only stops listing missing Django apps.py files)",
+        about: "labelled with 0.2.8; 0.2.10 fixed detectors after reading these labels",
         corpus: include_str!("../calibration/fresh/corpus.json"),
         labels: include_str!("../calibration/fresh/labels.json"),
     },
@@ -103,7 +110,7 @@ pub struct KindStat {
 /// The whole measurement.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Calibration {
-    /// Which labelled set: `fresh` or `original`.
+    /// Which labelled set: `third`, `fresh` or `original`.
     pub set: String,
     /// What the set is and whether it is still held out.
     pub about: String,
