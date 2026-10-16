@@ -855,7 +855,7 @@ mod tests {
 
         let published = include_str!("../schema/report.schema.json");
         assert_eq!(
-            published.trim_end(),
+            published.replace("\r\n", "\n").trim_end(),
             json_schema(),
             "run: codedna schema > schema/report.schema.json"
         );
