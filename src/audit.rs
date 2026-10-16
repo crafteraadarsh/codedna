@@ -123,6 +123,9 @@ pub struct AuditReport {
     /// Set when dependencies were checked against OSV.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dependencies: Option<DependencySummary>,
+    /// Set when a baseline was applied: the findings above are the new ones.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub baseline: Option<crate::baseline::Applied>,
     pub findings: Vec<Finding>,
 }
 
@@ -149,6 +152,30 @@ impl AuditReport {
 /// `dependencies` is given, also check lockfile versions against that
 /// vulnerability database.
 pub fn audit(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> AuditReport {
+    scan(root, dependencies).report(None)
+}
+
+/// Every finding, before any baseline or cap.
+pub struct Scan {
+    pub files_scanned: usize,
+    pub findings: Vec<Finding>,
+    pub dependencies: Option<DependencySummary>,
+}
+
+impl Scan {
+    /// The report, leaving out the findings `baseline` accepts.
+    pub fn report(mut self, baseline: Option<&crate::baseline::Baseline>) -> AuditReport {
+        let applied = baseline.map(|b| b.filter_audit(&mut self.findings));
+        let mut report = finish(self.files_scanned, self.findings);
+        report.dependencies = self.dependencies;
+        report.baseline = applied;
+        report
+    }
+}
+
+/// Audit like [`audit`], keeping every finding so a baseline can be
+/// applied or written.
+pub fn scan(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Scan {
     let files = crate::scanner::scan_repository(root);
     let findings: Vec<Finding> = files
         .par_iter()
@@ -182,9 +209,11 @@ pub fn audit(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Au
             error: check.error,
         }
     });
-    let mut report = finish(files.len(), findings);
-    report.dependencies = summary;
-    report
+    Scan {
+        files_scanned: files.len(),
+        findings,
+        dependencies: summary,
+    }
 }
 
 fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
@@ -218,6 +247,7 @@ fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
         truncated,
         lowered,
         dependencies: None,
+        baseline: None,
         findings,
     }
 }
@@ -960,6 +990,14 @@ pub fn render_text(report: &AuditReport) -> String {
                     format!("{} lockfiles", deps.lockfiles.len())
                 },
             )),
+        }
+    }
+    if let Some(applied) = report.baseline {
+        out.push_str(&crate::baseline::summary(applied, "finding"));
+        out.push_str("\n\n");
+        if report.findings.is_empty() {
+            out.push_str("  No new findings.\n\n");
+            return out;
         }
     }
     if report.findings.is_empty() {

@@ -53,6 +53,14 @@ pub enum Commands {
         /// Target repository path or Git URL
         #[arg(default_value = ".")]
         path: String,
+
+        /// Hide the files this baseline accepts
+        #[arg(long, value_name = "FILE", conflicts_with = "write_baseline")]
+        baseline: Option<PathBuf>,
+
+        /// Accept every current candidate: write them to this baseline
+        #[arg(long, value_name = "FILE")]
+        write_baseline: Option<PathBuf>,
     },
 
     /// List groups of files that import each other (circular imports)
@@ -181,6 +189,15 @@ pub enum Commands {
         /// package names and versions to osv.dev)
         #[arg(long, default_value_t = false)]
         deps: bool,
+
+        /// Hide the findings this baseline accepts; --fail-on then applies
+        /// only to new ones
+        #[arg(long, value_name = "FILE", conflicts_with = "write_baseline")]
+        baseline: Option<PathBuf>,
+
+        /// Accept every current finding: write them to this baseline
+        #[arg(long, value_name = "FILE")]
+        write_baseline: Option<PathBuf>,
     },
 
     /// How to run a project: commands, environment variable names and API routes
@@ -291,6 +308,15 @@ fn shown(input: &str) -> String {
     crate::safe_text::sanitize(&crate::git_handler::redact_url(input))
 }
 
+/// The value, or exit with status 2 so a gate never mistakes a broken
+/// baseline for findings.
+fn load_or_exit<T>(result: Result<T, String>) -> T {
+    result.unwrap_or_else(|msg| {
+        eprintln!("error: {msg}");
+        std::process::exit(2);
+    })
+}
+
 /// Load a saved snapshot, or analyse a folder or repository.
 fn load_side(input: &str) -> crate::analysis::AnalysisResult {
     if crate::diff::is_snapshot(input) {
@@ -357,11 +383,56 @@ pub fn run() {
         }
 
         // ── deadcode ──────────────────────────────────────────────────────────
-        Commands::Deadcode { path } => {
+        Commands::Deadcode {
+            path,
+            baseline,
+            write_baseline,
+        } => {
             eprintln!("Analysing '{}'…", shown(&path));
             let (local_path, _guard) = resolve(&path);
-            let result = crate::analysis::analyze(&local_path);
+            let mut result = crate::analysis::analyze(&local_path);
+            if let Some(file) = write_baseline {
+                let mut accepted = load_or_exit(crate::baseline::Baseline::load_or_default(&file));
+                let files: Vec<String> = result
+                    .dead_code
+                    .iter()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect();
+                accepted.set_dead_code(files.iter().map(String::as_str));
+                load_or_exit(accepted.save(&file));
+                eprintln!(
+                    "Wrote {} dead-code candidate{} to {}",
+                    files.len(),
+                    if files.len() == 1 { "" } else { "s" },
+                    shown(&file.to_string_lossy())
+                );
+                return;
+            }
+            let mut applied = None;
+            if let Some(file) = baseline {
+                let accepted = load_or_exit(crate::baseline::Baseline::load(&file));
+                let files: Vec<String> = result
+                    .dead_code
+                    .iter()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect();
+                let stale = accepted.stale_dead(files.iter().map(String::as_str));
+                let before = result.dead_code.len();
+                result
+                    .dead_code
+                    .retain(|p| !accepted.accepts_dead(&p.to_string_lossy()));
+                result
+                    .dead_code_details
+                    .retain(|c| !accepted.accepts_dead(&c.file.to_string_lossy()));
+                applied = Some(crate::baseline::Applied {
+                    hidden: before - result.dead_code.len(),
+                    stale,
+                });
+            }
             crate::reporter::print_dead_code(&result);
+            if let Some(applied) = applied {
+                println!("{}", crate::baseline::summary(applied, "candidate"));
+            }
         }
 
         // ── cycles ────────────────────────────────────────────────────────────
@@ -519,12 +590,32 @@ pub fn run() {
             json,
             fail_on,
             deps,
+            baseline,
+            write_baseline,
         } => {
             eprintln!("Auditing {}…", shown(&path));
             let (local_path, _guard) = resolve(&path);
             let osv = deps.then(crate::vulns::OsvApi::new);
             let source = osv.as_ref().map(|s| s as &dyn crate::vulns::Source);
-            let report = crate::audit::audit(&local_path, source);
+            let scan = crate::audit::scan(&local_path, source);
+            let accepted = match (&baseline, &write_baseline) {
+                (Some(file), _) => Some(load_or_exit(crate::baseline::Baseline::load(file))),
+                (None, Some(file)) => {
+                    let mut accepted =
+                        load_or_exit(crate::baseline::Baseline::load_or_default(file));
+                    accepted.set_audit(&scan.findings);
+                    load_or_exit(accepted.save(file));
+                    eprintln!(
+                        "Wrote {} finding{} to {}",
+                        accepted.audit.len(),
+                        if accepted.audit.len() == 1 { "" } else { "s" },
+                        shown(&file.to_string_lossy())
+                    );
+                    Some(accepted)
+                }
+                (None, None) => None,
+            };
+            let report = scan.report(accepted.as_ref());
             if json {
                 match serde_json::to_string_pretty(&report) {
                     Ok(text) => println!("{text}"),
@@ -706,15 +797,49 @@ mod tests {
                 json,
                 fail_on,
                 deps,
+                baseline,
+                write_baseline,
             } => {
                 assert_eq!(path, "x");
                 assert!(json);
                 assert!(deps);
                 assert_eq!(fail_on.as_deref(), Some("high"));
+                assert_eq!(baseline, None);
+                assert_eq!(write_baseline, None);
             }
             _ => panic!("expected audit command"),
         }
         assert!(Cli::try_parse_from(["codedna", "audit", "--fail-on", "severe"]).is_err());
+    }
+
+    #[test]
+    fn parses_baselines() {
+        let cli = Cli::try_parse_from(["codedna", "audit", "--baseline", "b.json"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Audit { baseline: Some(ref b), .. } if b == &PathBuf::from("b.json")
+        ));
+        let cli =
+            Cli::try_parse_from(["codedna", "deadcode", "--write-baseline", "b.json"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Deadcode {
+                write_baseline: Some(_),
+                baseline: None,
+                ..
+            }
+        ));
+        for command in ["audit", "deadcode"] {
+            let both = [
+                "codedna",
+                command,
+                "--baseline",
+                "a.json",
+                "--write-baseline",
+                "b.json",
+            ];
+            assert!(Cli::try_parse_from(both).is_err());
+        }
     }
 
     #[test]

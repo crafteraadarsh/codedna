@@ -1,6 +1,7 @@
 mod analysis;
 mod architecture;
 mod audit;
+mod baseline;
 mod cli;
 mod code_text;
 mod context;

@@ -56,7 +56,7 @@ Read-only. It never runs scripts or installs anything from the repo, never opens
 <td valign="top">
 
 ### 🔎 Supply-chain audit
-`codedna audit` flags leaked secrets, risky install scripts, obfuscation, executables, hidden Unicode and typosquatted packages **before** you run a repo. Add `--deps` to also check lockfile versions against the [OSV](https://osv.dev) vulnerability database. Each finding has a severity and a confidence, and findings in tests, docs and examples are lowered. It's a list of red flags to check, not a safety verdict.
+`codedna audit` flags leaked secrets, risky install scripts, obfuscation, executables, hidden Unicode and typosquatted packages **before** you run a repo. Add `--deps` to also check lockfile versions against the [OSV](https://osv.dev) vulnerability database. Each finding has a severity and a confidence, and findings in tests, docs and examples are lowered. A baseline accepts the findings you already have, so CI fails only on new ones. It's a list of red flags to check, not a safety verdict.
 
 </td>
 <td valign="top">
@@ -134,6 +134,7 @@ codedna analyze https://github.com/user/repo   # works on remote repos too
 codedna context .                              # short briefing for AI agents
 codedna audit https://github.com/user/repo     # supply-chain red flags before you run it
 codedna audit . --deps                         # plus known vulnerabilities in dependencies
+codedna audit . --baseline audit.json --fail-on high   # in CI: fail only on new findings
 codedna hotspots .                             # large files that change often
 codedna runbook .                              # scripts, env var names, API routes
 codedna packages .                             # monorepo packages: size, stack, who uses whom
@@ -223,7 +224,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 |---|---|
 | `codedna analyze [path\|url]` | Full intelligence report (`--time` adds elapsed time) |
 | `codedna context [path\|url]` | Short briefing for AI agents (`--max-tokens N`, `--format json`) |
-| `codedna audit [path\|url]` | Supply-chain red flags (`--json`, `--fail-on LEVEL` for CI, `--deps` for known vulnerabilities in dependencies) |
+| `codedna audit [path\|url]` | Supply-chain red flags (`--json`, `--fail-on LEVEL` for CI, `--deps` for known vulnerabilities in dependencies, `--baseline FILE` / `--write-baseline FILE` to report only new findings) |
 | `codedna hotspots [path\|url]` | Files ranked by commits × lines of code, plus files that change together (`--days N`, `--limit N`, `--json`) |
 | `codedna runbook [path\|url]` | Scripts and targets, env var names (values are never read), API routes (`--json`) |
 | `codedna packages [path\|url]` | Monorepo packages with size, languages, stack, dead files and the packages each one uses and is used by (`--json`) |
@@ -235,7 +236,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Lines of code per file |
 | `codedna framework <name> [path\|url]` | Files that import a given framework |
-| `codedna deadcode [path\|url]` | Files nothing reaches from an entry point |
+| `codedna deadcode [path\|url]` | Files nothing reaches from an entry point (`--baseline FILE` / `--write-baseline FILE` to hide accepted ones) |
 | `codedna cycles [path\|url]` | Groups of files that import each other (`--json`) |
 | `codedna map [path\|url]` | Directory tree (`--depth N`) |
 | `codedna scan [path\|url]` | Raw scanned file list |
@@ -777,6 +778,7 @@ src/
 ├── mcp.rs                  MCP server (JSON-RPC over stdio)
 ├── hotspots.rs             churn × size ranking, co-change coupling
 ├── audit.rs                supply-chain red-flag scan
+├── baseline.rs             accepted findings, so only new ones are reported
 ├── vulns.rs                lockfile versions checked against OSV
 ├── runbook.rs              commands, env var names, API routes
 ├── diff.rs                 compare two snapshots or versions
