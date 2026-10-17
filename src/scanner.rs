@@ -1,13 +1,29 @@
 use ignore::{DirEntry, WalkBuilder};
 use std::path::{Path, PathBuf};
 
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules",
-    ".git",
-    "target",
-    "dist",
-    "build",
-    "coverage",
+/// Directories never scanned, wherever they are.
+const ALWAYS_IGNORED: &[&str] = &["node_modules", ".git"];
+
+/// Directory names that usually hold build output. They are skipped only
+/// where they really are output (see [`is_output_dir`]); elsewhere, such as
+/// `src/core/build`, they are ordinary source folders.
+const OUTPUT_NAMES: &[&str] = &["target", "dist", "build", "coverage"];
+
+/// Files that mark a project root: build output sits next to them.
+const PROJECT_MARKERS: &[&str] = &[
+    "package.json",
+    "Cargo.toml",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "composer.json",
+    "Gemfile",
+    "deno.json",
+    "deno.jsonc",
 ];
 
 /// Files larger than this are skipped.  Source files are far smaller; a huge
@@ -15,26 +31,144 @@ const IGNORED_DIRS: &[&str] = &[
 /// cost memory and time.
 pub const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
 
-fn is_ignored_dir(entry: &DirEntry) -> bool {
+fn is_ignored_dir(root: &Path, entry: &DirEntry) -> bool {
     // In a git worktree or submodule, `.git` is a small file pointing at the
     // real repository. It is git metadata, not part of the project.
     if entry.file_name() == ".git" {
         return true;
     }
-    entry.file_type().is_some_and(|t| t.is_dir())
-        && entry
-            .file_name()
-            .to_str()
-            .map(|name| IGNORED_DIRS.contains(&name))
-            .unwrap_or(false)
+    entry.file_type().is_some_and(|t| t.is_dir()) && is_skipped_dir(root, entry.path())
+}
+
+/// Whether the directory `dir` inside the scanned `root` is left out:
+/// `node_modules` and `.git` always, a `build`, `dist`, `target` or
+/// `coverage` folder only where [`is_output_dir`] says it holds output.
+pub fn is_skipped_dir(root: &Path, dir: &Path) -> bool {
+    let Some(name) = dir.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    if ALWAYS_IGNORED.contains(&name) {
+        return true;
+    }
+    OUTPUT_NAMES.contains(&name) && is_output_dir(root, dir)
+}
+
+/// Whether a folder with an output-like name holds build output:
+///
+/// - it sits at the top of the scan, or next to a project manifest
+///   (`package.json`, `Cargo.toml`, `pyproject.toml`, …), where build
+///   tools write; or
+/// - its package declares it as output: `package.json` `main`, `module`,
+///   `types`, `browser`, `bin`, `exports` or `files` point into it, or
+///   `tsconfig.json` names it as `outDir`.
+///
+/// Anywhere else, such as `packages/astro/src/core/build`, the folder is
+/// source. Folders matched by `.gitignore` are skipped by the walk anyway.
+fn is_output_dir(root: &Path, dir: &Path) -> bool {
+    let Some(parent) = dir.parent() else {
+        return true;
+    };
+    if parent == root || PROJECT_MARKERS.iter().any(|m| parent.join(m).is_file()) {
+        return true;
+    }
+    // Look for a declaration in the enclosing package, up to the scan root.
+    let mut current = parent;
+    loop {
+        let relative = dir.strip_prefix(current).unwrap_or(dir);
+        let relative = relative.to_string_lossy().replace('\\', "/");
+        if let Some(out) = tsconfig_out_dir(&current.join("tsconfig.json")) {
+            if declares(&out, &relative) {
+                return true;
+            }
+        }
+        let manifest = current.join("package.json");
+        if manifest.is_file() {
+            return package_outputs(&manifest)
+                .iter()
+                .any(|path| declares(path, &relative));
+        }
+        if current == root {
+            return false;
+        }
+        match current.parent() {
+            Some(up) if up.starts_with(root) => current = up,
+            _ => return false,
+        }
+    }
+}
+
+/// Whether the declared path `declared` (relative to its package) is the
+/// folder `relative` or lies inside it. Globs count up to their first
+/// wildcard.
+fn declares(declared: &str, relative: &str) -> bool {
+    if declared.starts_with('!') {
+        return false;
+    }
+    let cut = declared
+        .find(['*', '?', '[', '{'])
+        .unwrap_or(declared.len());
+    let path = declared[..cut].replace('\\', "/");
+    let mut path = path.as_str();
+    while let Some(rest) = path.strip_prefix("./") {
+        path = rest;
+    }
+    let path = path.trim_end_matches('/');
+    !path.is_empty()
+        && (path == relative
+            || path
+                .strip_prefix(relative)
+                .is_some_and(|rest| rest.starts_with('/')))
+}
+
+/// Paths a `package.json` names as what it publishes or runs.
+fn package_outputs(manifest: &Path) -> Vec<String> {
+    use crate::resolution::Json;
+    fn collect(value: &Json, out: &mut Vec<String>) {
+        match value {
+            Json::String(s) => out.push(s.clone()),
+            Json::Array(items) => items.iter().for_each(|v| collect(v, out)),
+            Json::Object(entries) => entries.iter().for_each(|(_, v)| collect(v, out)),
+            _ => {}
+        }
+    }
+    let Some(json) = read_small(manifest).and_then(|t| Json::parse(&t)) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for field in [
+        "main", "module", "types", "typings", "browser", "bin", "exports", "files",
+    ] {
+        if let Some(value) = json.get(field) {
+            collect(value, &mut out);
+        }
+    }
+    out
+}
+
+/// `compilerOptions.outDir` of a `tsconfig.json`, if it is a plain path.
+fn tsconfig_out_dir(path: &Path) -> Option<String> {
+    use crate::resolution::Json;
+    let json = Json::parse_jsonc(&read_small(path)?)?;
+    let out = json.get("compilerOptions")?.get("outDir")?.as_str()?;
+    (!out.contains("${")).then(|| out.to_string())
+}
+
+/// A settings file's text, unless it is missing or implausibly large.
+fn read_small(path: &Path) -> Option<String> {
+    let meta = std::fs::metadata(path).ok()?;
+    if !meta.is_file() || meta.len() > 1024 * 1024 {
+        return None;
+    }
+    std::fs::read_to_string(path).ok()
 }
 
 /// Recursively scans a repository and returns filtered file paths.
 ///
 /// Rules:
 /// - Traverses recursively from `root`
-/// - Skips directories in `IGNORED_DIRS`, and a `.git` file (worktrees,
-///   submodules)
+/// - Skips `node_modules`, `.git` (folder or worktree/submodule file),
+///   and `build`, `dist`, `target` and `coverage` folders that hold
+///   build output (see [`is_skipped_dir`])
 /// - Honours `.gitignore`, `.ignore` and `.git/info/exclude` the way git
 ///   does, including nested ignore files and `!` re-includes, whether or not
 ///   the directory is a git checkout.  The user's global git excludes are not
@@ -57,7 +191,10 @@ pub fn scan_repository(root: &Path) -> Vec<PathBuf> {
         .git_global(false)
         .require_git(false)
         .follow_links(false)
-        .filter_entry(|entry| !is_ignored_dir(entry))
+        .filter_entry({
+            let root = root.to_path_buf();
+            move |entry| !is_ignored_dir(&root, entry)
+        })
         .build()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_some_and(|t| t.is_file()))
@@ -110,7 +247,7 @@ mod tests {
         File::create(&keep_nested_file).unwrap();
 
         // Ignored directories and files
-        for ignored in IGNORED_DIRS {
+        for ignored in ALWAYS_IGNORED.iter().chain(OUTPUT_NAMES) {
             let d = root.join(ignored);
             fs::create_dir_all(&d).unwrap();
             File::create(d.join("ignored.txt")).unwrap();
@@ -124,7 +261,7 @@ mod tests {
         assert!(result.contains(&keep_file));
         assert!(result.contains(&keep_nested_file));
 
-        for ignored in IGNORED_DIRS {
+        for ignored in ALWAYS_IGNORED.iter().chain(OUTPUT_NAMES) {
             let ignored_file = root.join(ignored).join("ignored.txt");
             assert!(!result.contains(&ignored_file));
         }

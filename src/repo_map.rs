@@ -19,16 +19,6 @@ use crate::safe_text::sanitize;
 use std::fmt::Write as FmtWrite;
 use std::path::Path;
 
-/// Directories that are always excluded from the tree (mirrors `scanner.rs`).
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules",
-    ".git",
-    "target",
-    "dist",
-    "build",
-    "coverage",
-];
-
 /// Default maximum depth when none is specified.
 pub const DEFAULT_MAX_DEPTH: usize = 6;
 
@@ -53,7 +43,7 @@ pub fn render_tree(root: &Path, max_depth: usize) -> String {
 
     let _ = writeln!(out, "{root_label}/");
 
-    render_dir(root, "", max_depth, &mut out);
+    render_dir(root, root, "", max_depth, &mut out);
     out
 }
 
@@ -61,7 +51,7 @@ pub fn render_tree(root: &Path, max_depth: usize) -> String {
 // Recursive renderer
 // ---------------------------------------------------------------------------
 
-fn render_dir(dir: &Path, prefix: &str, depth_remaining: usize, out: &mut String) {
+fn render_dir(root: &Path, dir: &Path, prefix: &str, depth_remaining: usize, out: &mut String) {
     if depth_remaining == 0 {
         let _ = writeln!(out, "{prefix}    …");
         return;
@@ -72,12 +62,10 @@ fn render_dir(dir: &Path, prefix: &str, depth_remaining: usize, out: &mut String
         Ok(rd) => rd
             .filter_map(|e| e.ok())
             .filter(|e| {
-                let name = e.file_name();
-                let name_str = name.to_str().unwrap_or("");
-                // Only filter *directories* that are in the ignore list.
+                // Only filter *directories*, by the scanner's rules.
                 // Hidden files / hidden non-ignored dirs are still shown.
                 let is_ignored_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false)
-                    && IGNORED_DIRS.contains(&name_str);
+                    && crate::scanner::is_skipped_dir(root, &e.path());
                 !is_ignored_dir
             })
             .collect(),
@@ -112,7 +100,7 @@ fn render_dir(dir: &Path, prefix: &str, depth_remaining: usize, out: &mut String
         if is_dir {
             let _ = writeln!(out, "{prefix}{connector}{name_str}/");
             let new_prefix = format!("{prefix}{extension}");
-            render_dir(&entry.path(), &new_prefix, depth_remaining - 1, out);
+            render_dir(root, &entry.path(), &new_prefix, depth_remaining - 1, out);
         } else {
             let _ = writeln!(out, "{prefix}{connector}{name_str}");
         }
@@ -215,9 +203,34 @@ mod tests {
     }
 
     #[test]
+    fn shows_build_folders_that_are_source() {
+        let dir = unique_temp_dir("codedna_map_source_build");
+        touch(&dir.join("package.json"));
+        fs::create_dir_all(dir.join("src/core/build")).unwrap();
+        touch(&dir.join("src/core/build/index.ts"));
+        fs::create_dir_all(dir.join("dist")).unwrap();
+        touch(&dir.join("dist/bundle.js"));
+
+        let tree = render_tree(&dir, DEFAULT_MAX_DEPTH);
+
+        assert!(tree.contains("build/"), "{tree}");
+        assert!(tree.contains("index.ts"), "{tree}");
+        assert!(!tree.contains("bundle.js"), "{tree}");
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
     fn skips_ignored_directories() {
         let dir = unique_temp_dir("codedna_map_ignored");
-        for ignored in IGNORED_DIRS {
+        for ignored in [
+            "node_modules",
+            ".git",
+            "target",
+            "dist",
+            "build",
+            "coverage",
+        ] {
             let d = dir.join(ignored);
             fs::create_dir_all(&d).unwrap();
             touch(&d.join("should_not_appear.txt"));
@@ -226,7 +239,14 @@ mod tests {
 
         let tree = render_tree(&dir, DEFAULT_MAX_DEPTH);
 
-        for ignored in IGNORED_DIRS {
+        for ignored in [
+            "node_modules",
+            ".git",
+            "target",
+            "dist",
+            "build",
+            "coverage",
+        ] {
             assert!(
                 !tree.contains(ignored),
                 "ignored dir '{ignored}' appeared in tree:\n{tree}"
