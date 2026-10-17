@@ -109,12 +109,14 @@ impl ImportTally {
 /// Build the dependency graph and record, for every source file, how many
 /// of its imports were resolved, left unresolved or point outside the
 /// repository.
+#[cfg(test)]
 pub fn build_with_tallies(files: &[PathBuf]) -> (DependencyGraph, HashMap<PathBuf, ImportTally>) {
     build_cached(files, &Cache::off())
 }
 
 /// [`build_with_tallies`], reusing the imports `cache` holds for files
 /// that have not changed.
+#[cfg(test)]
 pub fn build_cached(
     files: &[PathBuf],
     cache: &Cache,

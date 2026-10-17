@@ -255,9 +255,14 @@ impl Server {
                     "note": "Heuristic: files not reachable from a detected entry point, most certain first. \
                              high: no other file mentions the name; medium: the name appears elsewhere or \
                              modules are loaded dynamically; low: probably loaded by convention or a dynamic \
-                             import. Verify before deleting.",
+                             import. status: unreachable within what was analyzed, possible (a possibility \
+                             may load it) or unknown (an unresolved import may name it), with conditions. \
+                             usage counts files used only for types, by tests or by tooling: those are not \
+                             dead code but not confirmed as used by the program. Never safe to delete \
+                             without checking.",
                     "total": candidates.len(),
                     "summary": crate::dead_code_detector::confidence_summary(&candidates),
+                    "usage": result.usage.summary,
                     "files": files,
                     "coverage": result.coverage.summary,
                     "coverage_partial": result.coverage.is_partial(),
@@ -272,12 +277,16 @@ impl Server {
                     .take(limit)
                     .map(|cycle| cycle.iter().map(|p| relative(&root, p)).collect())
                     .collect();
+                let kinds: Vec<Option<crate::cycles::CycleKind>> =
+                    result.cycle_kinds().into_iter().take(limit).collect();
                 Ok(pretty(&json!({
                     "note": "Each cycle is the shortest import loop in a group of files that import each \
-                             other; the last file imports the first. Type-only imports count too, so a \
-                             cycle is not always a runtime problem.",
+                             other; the last file imports the first. kinds gives, for each cycle in order, \
+                             runtime (closes through runtime imports), possible (needs an ambiguous import) \
+                             or type_only (needs a type import: no loop at runtime).",
                     "total": result.circular_imports.len(),
                     "cycles": cycles,
+                    "kinds": kinds,
                     "coverage": result.coverage.summary,
                     "coverage_partial": result.coverage.is_partial(),
                 })))
@@ -331,7 +340,7 @@ impl Server {
                 let base = str_arg(args, "base")?.unwrap_or(crate::impact::DEFAULT_BASE);
                 let impact = crate::impact::analyze(&root, base)?;
                 Ok(pretty(&json!({
-                    "note": "Files changed against the base, and the files that import them directly or through other files (depth 1 = imports a changed file itself). Only imports CodeDna follows are seen; files reached another way are not listed. tests are test files that import changed code.",
+                    "note": "Files changed against the base, and the files that import them directly or through other files (depth 1 = imports a changed file itself). Only imports CodeDna follows are seen; files reached another way are not listed. kind is runtime, possible (through an ambiguous import) or type_only (only through type imports). unresolved lists imports that did not resolve but may name a changed file: the impact may reach further. tests are test files that import changed code.",
                     "base": impact.base,
                     "changed": impact.changed,
                     "affected_total": impact.affected_total,
@@ -339,6 +348,7 @@ impl Server {
                     "layers": impact.layers,
                     "routes": impact.routes,
                     "tests": impact.tests,
+                    "unresolved": impact.unresolved,
                 })))
             }
             "get_runbook" => {
@@ -688,6 +698,8 @@ fn dead_code_json(c: &crate::dead_code_detector::DeadCodeCandidate) -> Value {
         "confidence": c.confidence.as_str(),
         "reason": sanitize(&c.reason),
         "evidence": c.evidence,
+        "status": c.status,
+        "conditions": c.conditions.iter().map(|c| sanitize(c)).collect::<Vec<_>>(),
     })
 }
 
@@ -887,6 +899,51 @@ mod tests {
         assert_eq!(r["result"]["isError"], true);
         let text = r["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("local folder"), "{text}");
+    }
+
+    #[test]
+    fn graph_tools_keep_type_only_and_uncertain_usage_apart() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = [
+            (
+                "package.json",
+                "{\"name\":\"app\",\"main\":\"src/index.ts\"}\n",
+            ),
+            (
+                "src/index.ts",
+                "import { a } from './a';\nimport { b } from './b';\na(); b();\n",
+            ),
+            (
+                "src/a.ts",
+                "import type { B } from './b';\nexport const a = (x?: B) => x;\n",
+            ),
+            (
+                "src/b.ts",
+                "import { a } from './a';\nexport type B = 1;\nexport const b = () => a();\n",
+            ),
+            ("src/shape.ts", "export type Shape = { w: number };\n"),
+            (
+                "src/c.ts",
+                "import type { Shape } from './shape';\nexport const c = (s?: Shape) => s;\n",
+            ),
+            ("src/main2.ts", "import { c } from './c';\nc();\n"),
+        ];
+        for (name, text) in files {
+            let path = dir.path().join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, text).unwrap();
+        }
+        let s = server(dir.path());
+        let path = dir.path().to_string_lossy().to_string();
+        let read = |r: Value| -> Value {
+            serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap()
+        };
+        let cycles = read(tool(&s, "find_circular_imports", json!({ "path": path })));
+        assert_eq!(cycles["kinds"][0], "type_only", "{cycles}");
+        assert_eq!(cycles["cycles"][0].as_array().unwrap().len(), 2, "{cycles}");
+        let dead = read(tool(&s, "find_dead_code", json!({ "path": path })));
+        assert_eq!(dead["usage"]["unreachable"], dead["total"], "{dead}");
+        assert!(dead["files"][0]["status"].is_string(), "{dead}");
     }
 
     #[test]

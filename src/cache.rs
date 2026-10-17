@@ -27,7 +27,7 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Bumped when the stored layout changes.
-const FORMAT: u32 = 6;
+const FORMAT: u32 = 7;
 /// Largest cache file read.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
 /// Files changed this close to the start of a run are not stored: an edit
@@ -550,7 +550,14 @@ mod tests {
         tallies.sort_by(|a, b| a.0.cmp(&b.0));
         let graph_map = graph.iter().cloned().collect();
         let dead = dead_code_detector::detect_dead_code(&graph_map);
-        let assessed = dead_code_detector::assess_with(root, &dead, &files, &graph_map, cache);
+        let assessed = dead_code_detector::assess_with(
+            root,
+            &dead,
+            &files,
+            &graph_map,
+            &Default::default(),
+            cache,
+        );
         format!("{loc:?}\n{graph:?}\n{tallies:?}\n{assessed:?}")
     }
 

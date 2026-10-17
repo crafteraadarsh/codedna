@@ -77,6 +77,14 @@
         "unresolved": []
       }
     },
+    "cycle_details": {
+      "description": "The same cycles, in the same order, each with whether it closes\nthrough runtime imports only, needs a possible edge, or needs a\ntype-only import.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Cycle"
+      }
+    },
     "databases": {
       "description": "Detected databases / data-layer technologies (e.g. `[\"PostgreSQL\", \"Redis\"]`).",
       "type": "array",
@@ -165,6 +173,21 @@
       "type": "integer",
       "format": "uint",
       "minimum": 0
+    },
+    "usage": {
+      "description": "How each file is used: confirmed from the program's entry points,\npossibly, for types only, by tests only or by tooling only, with the\npath from the entry that reaches it; unreachable files are the\ndead-code candidates.",
+      "$ref": "#/$defs/UsageReport",
+      "default": {
+        "files": [],
+        "summary": {
+          "confirmed": 0,
+          "possible": 0,
+          "test_only": 0,
+          "tooling_only": 0,
+          "type_only": 0,
+          "unreachable": 0
+        }
+      }
     },
     "workspaces": {
       "description": "Workspaces (monorepo packages) declared at the root, if any.",
@@ -366,10 +389,57 @@
         "summary"
       ]
     },
+    "Cycle": {
+      "description": "One group of files that import each other.",
+      "type": "object",
+      "properties": {
+        "files": {
+          "description": "The files in import order; the last imports the first.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kind": {
+          "$ref": "#/$defs/CycleKind"
+        }
+      },
+      "required": [
+        "files",
+        "kind"
+      ]
+    },
+    "CycleKind": {
+      "description": "What it takes to close a cycle.",
+      "oneOf": [
+        {
+          "description": "Runtime imports only: the files load each other when they run.",
+          "type": "string",
+          "const": "runtime"
+        },
+        {
+          "description": "Needs an import that may load one of several files.",
+          "type": "string",
+          "const": "possible"
+        },
+        {
+          "description": "Needs a type-only import, erased at runtime: harmless when the code\nruns, though it still ties the files together.",
+          "type": "string",
+          "const": "type_only"
+        }
+      ]
+    },
     "DeadCodeCandidate": {
       "description": "A dead-code candidate with how sure CodeDna is and why.",
       "type": "object",
       "properties": {
+        "conditions": {
+          "description": "What may still load it, for a possible or unknown candidate.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "confidence": {
           "$ref": "#/$defs/Confidence"
         },
@@ -385,12 +455,37 @@
         },
         "reason": {
           "type": "string"
+        },
+        "status": {
+          "description": "Whether it is unreachable within what was analyzed, possibly loaded,\nor unknown because an unresolved import may name it.",
+          "$ref": "#/$defs/DeadStatus",
+          "default": "unreachable"
         }
       },
       "required": [
         "file",
         "confidence",
         "reason"
+      ]
+    },
+    "DeadStatus": {
+      "description": "Whether an unreachable file is truly unreachable within what CodeDna\ncould analyze.",
+      "oneOf": [
+        {
+          "description": "Nothing the analysis saw could load it.",
+          "type": "string",
+          "const": "unreachable"
+        },
+        {
+          "description": "Something reached may load it: a shadowed `require`, a text-scan\nfallback, a computed import whose fixed part points at it, or a file\nthat is itself possibly loaded.",
+          "type": "string",
+          "const": "possible"
+        },
+        {
+          "description": "An import from a reached file could not be resolved and might name\nit, so coverage is incomplete.",
+          "type": "string",
+          "const": "unknown"
+        }
       ]
     },
     "DependencyFact": {
@@ -588,6 +683,30 @@
         "file",
         "loc",
         "language"
+      ]
+    },
+    "FileUsage": {
+      "description": "A file that is reached, but not confirmed: how, and the path from the\nentry point that reaches it.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "path": {
+          "description": "The entry point first, then each file it leads through, ending with\nthis file.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "usage": {
+          "$ref": "#/$defs/UsageKind"
+        }
+      },
+      "required": [
+        "file",
+        "usage",
+        "path"
       ]
     },
     "FrameworkAdapter": {
@@ -982,6 +1101,105 @@
         "file",
         "line",
         "import"
+      ]
+    },
+    "UsageKind": {
+      "description": "How a file is used, by the strongest evidence that reaches it.",
+      "oneOf": [
+        {
+          "description": "Reached from the program's entry points through runtime imports.",
+          "type": "string",
+          "const": "confirmed"
+        },
+        {
+          "description": "Reached from the program only through an import that may load one of\nseveral files (an ambiguous import or a lazy pattern).",
+          "type": "string",
+          "const": "possible"
+        },
+        {
+          "description": "Reached from the program only through type-only imports, or from a\ndeclaration file: used by the type checker, not at runtime.",
+          "type": "string",
+          "const": "type_only"
+        },
+        {
+          "description": "Reached only from tests.",
+          "type": "string",
+          "const": "test_only"
+        },
+        {
+          "description": "Reached only from build or development tooling: configs, stories,\ntask runners.",
+          "type": "string",
+          "const": "tooling_only"
+        },
+        {
+          "description": "Not reached from any entry point: a dead-code candidate.",
+          "type": "string",
+          "const": "unreachable"
+        }
+      ]
+    },
+    "UsageReport": {
+      "description": "How every analyzed file is used. Confirmed files are only counted;\nunreachable files are the dead-code candidates.",
+      "type": "object",
+      "properties": {
+        "files": {
+          "description": "Files reached, but not confirmed, sorted by path.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileUsage"
+          }
+        },
+        "summary": {
+          "$ref": "#/$defs/UsageSummary"
+        }
+      },
+      "required": [
+        "summary",
+        "files"
+      ]
+    },
+    "UsageSummary": {
+      "description": "How many files are used in each way.",
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "possible": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "test_only": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "tooling_only": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "type_only": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "unreachable": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "confirmed",
+        "possible",
+        "type_only",
+        "test_only",
+        "tooling_only",
+        "unreachable"
       ]
     },
     "Workspace": {

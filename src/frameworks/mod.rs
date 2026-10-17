@@ -38,6 +38,7 @@ pub struct Adapters {
 }
 
 impl Adapters {
+    #[cfg(test)]
     /// Every file an adapter names, for dead-code detection.
     pub fn entry_files(&self) -> Vec<PathBuf> {
         self.entries

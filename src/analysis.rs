@@ -6,12 +6,13 @@
 use crate::architecture::{self, ArchitectureInsight};
 use crate::cache::Cache;
 use crate::coverage::{self, Coverage};
-use crate::cycles;
-use crate::dead_code_detector::{self, DeadCodeCandidate};
+use crate::cycles::{self, Cycle};
+use crate::dead_code_detector::{self, DeadCodeCandidate, UsageReport};
 use crate::dependency_graph;
 use crate::facts::{self, DependencyFact, DependencyFacts};
 use crate::framework_detector;
 use crate::frameworks;
+use crate::graph;
 use crate::language_detector;
 use crate::loc_counter;
 use crate::scanner;
@@ -122,10 +123,23 @@ pub struct AnalysisResult {
     #[serde(default)]
     pub dead_code_details: Vec<DeadCodeCandidate>,
 
+    /// How each file is used: confirmed from the program's entry points,
+    /// possibly, for types only, by tests only or by tooling only, with the
+    /// path from the entry that reaches it; unreachable files are the
+    /// dead-code candidates.
+    #[serde(default)]
+    pub usage: UsageReport,
+
     /// Groups of files that import each other, each as its shortest cycle
     /// (the last file imports the first), shortest first.
     #[serde(default)]
     pub circular_imports: Vec<Vec<PathBuf>>,
+
+    /// The same cycles, in the same order, each with whether it closes
+    /// through runtime imports only, needs a possible edge, or needs a
+    /// type-only import.
+    #[serde(default)]
+    pub cycle_details: Vec<Cycle>,
 
     /// Workspaces (monorepo packages) declared at the root, if any.
     #[serde(default)]
@@ -159,6 +173,16 @@ impl AnalysisResult {
     /// Dead-code candidates with confidence, most certain first.
     pub fn dead_code_candidates(&self) -> Vec<DeadCodeCandidate> {
         dead_code_detector::candidates_of(&self.dead_code, &self.dead_code_details)
+    }
+
+    /// Circular imports with their kind; `None` for results saved before
+    /// kinds were recorded.
+    pub fn cycle_kinds(&self) -> Vec<Option<cycles::CycleKind>> {
+        if self.cycle_details.len() == self.circular_imports.len() {
+            self.cycle_details.iter().map(|c| Some(c.kind)).collect()
+        } else {
+            vec![None; self.circular_imports.len()]
+        }
     }
 }
 
@@ -265,11 +289,13 @@ pub fn analyze(root: &Path) -> AnalysisResult {
 
     // ── 6. Dead code ──────────────────────────────────────────────────────────
     let adapters = frameworks::detect(&files);
-    let dead_code = dead_code_detector::detect_dead_code_from(
-        &dep_graph,
-        &adapters.entry_files(),
+    let typed_graph = graph::typed_edges(dep_graph.keys().cloned(), &dependency_facts);
+    let usage = dead_code_detector::classify(
+        &typed_graph,
+        &dead_code_detector::entry_roles(&adapters.entries),
         &adapters.next_roots,
     );
+    let dead_code = usage.unreachable();
 
     // ── 7. Inference ──────────────────────────────────────────────────────────
     let project_type = infer_project_type(
@@ -293,8 +319,11 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     // whether the root was a local `.` or an absolute temp-dir path.
     let make_relative = |p: &Path| relative_path(root, p);
 
+    let uncertain =
+        dead_code_detector::uncertainty(&dependency_facts, &usage, &typed_graph, make_relative);
+    let usage = usage.report(make_relative);
     let dead_code_details =
-        dead_code_detector::assess_with(root, &dead_code, &files, &dep_graph, &cache)
+        dead_code_detector::assess_with(root, &dead_code, &files, &dep_graph, &uncertain, &cache)
             .into_iter()
             .map(|c| DeadCodeCandidate {
                 file: make_relative(&c.file),
@@ -336,7 +365,11 @@ pub fn analyze(root: &Path) -> AnalysisResult {
             .map(|a| a.map_paths(make_relative))
             .collect(),
     };
-    let circular_imports = cycles::find_cycles(&dependency_graph);
+    let cycle_details = cycles::find_typed_cycles(&graph::typed_edges(
+        dependency_graph.keys().cloned(),
+        &dependencies.facts,
+    ));
+    let circular_imports = cycle_details.iter().map(|c| c.files.clone()).collect();
 
     let file_breakdown = file_breakdown
         .into_iter()
@@ -381,7 +414,9 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         architecture_details,
         dead_code,
         dead_code_details,
+        usage,
         circular_imports,
+        cycle_details,
         workspaces,
         dependency_graph,
         dependencies,

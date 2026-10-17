@@ -5,6 +5,8 @@
 
 use crate::analysis::AnalysisResult;
 use crate::architecture::Confidence;
+use crate::cycles::CycleKind;
+use crate::dead_code_detector::DeadStatus;
 use crate::safe_text::sanitize;
 use std::borrow::Cow;
 use std::io::IsTerminal;
@@ -261,7 +263,7 @@ pub fn print_report(result: &AnalysisResult) {
     // ── Circular Imports ──────────────────────────────────────────────────────
     if !result.circular_imports.is_empty() {
         section("Circular Imports");
-        print_cycle_list(&result.circular_imports);
+        print_cycle_list(&result.circular_imports, &result.cycle_kinds());
     }
 
     println!();
@@ -452,8 +454,12 @@ pub fn print_dead_code(result: &AnalysisResult) {
     println!(
         "  \x1b[2mno other file mentions it, low means it is probably loaded another way.\x1b[0m"
     );
+    println!(
+        "  \x1b[2mPossibly loaded and unknown candidates have conditions that may still load them.\x1b[0m"
+    );
     println!();
     print_candidates(&candidates);
+    print_usage_note(&result.usage.summary);
     print_coverage_note(&result.coverage);
     println!();
 }
@@ -477,10 +483,11 @@ pub fn print_cycles(result: &AnalysisResult) {
         "  \x1b[2mEach line is the shortest import loop in a group of files that import\x1b[0m"
     );
     println!(
-        "  \x1b[2meach other. Type-only imports count too, so check before refactoring.\x1b[0m"
+        "  \x1b[2meach other. A type-only loop needs a type import to close and does not run;\x1b[0m"
     );
+    println!("  \x1b[2ma possible loop needs an import that may load another file.\x1b[0m");
     println!();
-    print_cycle_list(cycles);
+    print_cycle_list(cycles, &result.cycle_kinds());
     print_coverage_note(&result.coverage);
     println!();
 }
@@ -528,10 +535,36 @@ fn print_unresolved(coverage: &crate::coverage::Coverage, limit: usize) {
     }
 }
 
-/// One line per cycle: `a → b → a`.
-fn print_cycle_list(cycles: &[Vec<std::path::PathBuf>]) {
-    for cycle in cycles {
-        println!("  {}", sanitize(&cycle_line(cycle)));
+/// One line per cycle: `a → b → a`, marked when it is not a runtime loop.
+fn print_cycle_list(cycles: &[Vec<std::path::PathBuf>], kinds: &[Option<CycleKind>]) {
+    for (cycle, kind) in cycles.iter().zip(kinds) {
+        let mark = match kind {
+            Some(kind) if *kind != CycleKind::Runtime => {
+                format!("  \x1b[2m({})\x1b[0m", kind.label())
+            }
+            _ => String::new(),
+        };
+        println!("  {}{mark}", sanitize(&cycle_line(cycle)));
+    }
+}
+
+/// Files that are reached, but only for types, tests, tooling or possibly.
+fn print_usage_note(summary: &crate::dead_code_detector::UsageSummary) {
+    let parts: Vec<String> = [
+        (summary.type_only, "for types only"),
+        (summary.test_only, "by tests only"),
+        (summary.tooling_only, "by tooling only"),
+        (summary.possible, "possibly"),
+    ]
+    .iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, what)| format!("{n} {what}"))
+    .collect();
+    if !parts.is_empty() {
+        println!(
+            "  \x1b[2mNot counted as dead, but not confirmed by the program: used {}.\x1b[0m",
+            parts.join(", ")
+        );
     }
 }
 
@@ -553,12 +586,19 @@ fn print_candidates(candidates: &[crate::dead_code_detector::DeadCodeCandidate])
             Confidence::Medium => "33",
             Confidence::Low => "2",
         };
+        let status = match c.status {
+            DeadStatus::Unreachable => String::new(),
+            status => format!("  \x1b[2m({})\x1b[0m", status.as_str()),
+        };
         println!(
-            "  \x1b[{colour}m{:<6}\x1b[0m  {}",
+            "  \x1b[{colour}m{:<6}\x1b[0m  {}{status}",
             c.confidence.as_str(),
             sanitize(&c.file.to_string_lossy())
         );
         println!("          \x1b[2m{}\x1b[0m", sanitize(&c.reason));
+        for condition in &c.conditions {
+            println!("          \x1b[2m  if: {}\x1b[0m", sanitize(condition));
+        }
         for at in &c.evidence {
             println!(
                 "          \x1b[2m  {}:{}  {}\x1b[0m",
@@ -707,6 +747,8 @@ mod tests {
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
             circular_imports: Vec::new(),
+            cycle_details: Vec::new(),
+            usage: Default::default(),
             workspaces: Vec::new(),
             languages,
             frameworks: vec!["React".to_string(), "Express".to_string()],
