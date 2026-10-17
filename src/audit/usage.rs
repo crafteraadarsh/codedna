@@ -14,6 +14,7 @@ use super::context::context_of;
 use super::rules::CODE_EXTENSIONS;
 use super::{Finding, Strength, SECRET};
 use crate::architecture::Confidence;
+use aho_corasick::AhoCorasick;
 use rayon::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -63,6 +64,19 @@ fn quoted(text: &str, s: &str) -> bool {
     ['"', '\'', '`']
         .iter()
         .any(|q| text.contains(&format!("{q}{s}{q}")))
+}
+
+/// A word every reference to `candidate` contains: its file stem, or its
+/// folder for an `index` file, which can be imported by folder.
+fn needle(candidate: &str) -> &str {
+    let mut parts = candidate.rsplit('/');
+    let name = parts.next().unwrap_or(candidate);
+    let stem = name.split_once('.').map_or(name, |(s, _)| s);
+    match (stem, parts.next()) {
+        ("index", Some(dir)) => dir,
+        _ if stem.is_empty() => name,
+        _ => stem,
+    }
 }
 
 /// Whether `text`, the content of code file `referrer`, refers to
@@ -127,6 +141,13 @@ pub(super) fn weigh_secrets(root: &Path, files: &[PathBuf], findings: &mut [Find
         return;
     }
 
+    // Search each file once for every candidate's needle, and resolve
+    // references only for the candidates whose needle it contains.
+    let needles: Vec<&str> = candidates.iter().map(|c| needle(c)).collect();
+    let Ok(matcher) = AhoCorasick::new(&needles) else {
+        return;
+    };
+    let by_index: Vec<&String> = candidates.iter().collect();
     let hits: Vec<(String, String)> = files
         .par_iter()
         .flat_map_iter(|path| {
@@ -144,9 +165,17 @@ pub(super) fn weigh_secrets(root: &Path, files: &[PathBuf], findings: &mut [Find
                 .filter(|b| !b[..b.len().min(8_192)].contains(&0))
                 .map(|b| String::from_utf8_lossy(&b).into_owned())
                 .unwrap_or_default();
-            candidates
-                .iter()
-                .filter(|c| !text.is_empty() && **c != relative && refers(c, &relative, &text))
+            let mut seen: BTreeSet<usize> = BTreeSet::new();
+            if !text.is_empty() {
+                seen.extend(
+                    matcher
+                        .find_overlapping_iter(&text)
+                        .map(|m| m.pattern().as_usize()),
+                );
+            }
+            seen.into_iter()
+                .map(|i| by_index[i])
+                .filter(|c| **c != relative && refers(c, &relative, &text))
                 .map(|c| (c.clone(), relative.clone()))
                 .collect::<Vec<_>>()
         })
@@ -210,6 +239,14 @@ mod tests {
         assert_eq!(relative("src/a/b.ts", "src/a/mock.ts"), "mock.ts");
         assert_eq!(relative("src/a/b.ts", "src/c/mock.ts"), "../c/mock.ts");
         assert_eq!(relative("app.py", "tests/keys.py"), "tests/keys.py");
+    }
+
+    #[test]
+    fn every_resolving_reference_contains_the_needle() {
+        assert_eq!(needle("src/a/mock.ts"), "mock");
+        assert_eq!(needle("src/keys/index.ts"), "keys");
+        assert_eq!(needle("certs/key.pem"), "key");
+        assert_eq!(needle("certs/.env"), ".env");
     }
 
     #[test]

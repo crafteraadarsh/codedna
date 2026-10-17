@@ -20,8 +20,12 @@ pub(crate) fn check_line(
     before: &[&str],
 ) -> Vec<Finding> {
     let mut out = Vec::new();
+    let found = matches(line);
+    if found.is_empty() {
+        return out;
+    }
     let throwaway = throwaway_comment(line, before);
-    for Match { kind, made_up } in matches(line) {
+    for Match { kind, made_up } in found {
         if kind == "private key" && !pem_has_body(line, next) {
             continue;
         }

@@ -330,11 +330,21 @@ fn only_decoding_fed_into_a_code_runner_is_strong_obfuscation() {
 #[test]
 fn hex_escapes_in_a_generated_bundle_are_weak() {
     let escapes = "\\x41".repeat(50);
-    let bundle = format!("var a=[{}];\nconst s = \"{escapes}\";\n", "1,".repeat(3000));
+    let bundle = format!(
+        "var a=[{}];\nconst s = \"{escapes}\";\n{}",
+        "1,".repeat(3000),
+        "var b=[1];\n".repeat(6000)
+    );
+    // A small hand-obfuscated script is one long line too, but not a
+    // bundle: its escapes stay moderate evidence.
+    let packed = format!("var a=[\"{escapes}\",{}];\n", "1,".repeat(3000));
     let report = audit(&[
         ("src/notify.mjs", &bundle),
         ("src/hidden.js", &format!("const s = \"{escapes}\";\n")),
+        ("src/packed.js", &packed),
     ]);
+    let f = finding(&report, "obfuscation", "src/packed.js");
+    assert_eq!(strength(f), "moderate", "{f:#}");
     let f = finding(&report, "obfuscation", "src/notify.mjs");
     assert_eq!(confidence(f), "low", "{f:#}");
     assert_eq!(strength(f), "weak");
