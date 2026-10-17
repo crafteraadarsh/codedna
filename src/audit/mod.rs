@@ -210,7 +210,7 @@ const CHECKS: &[(&str, &str)] = &[
 ];
 
 /// What the audit does and does not tell you.
-pub const NOTE: &str = "Red flags to review, not a safety verdict. The scan matches known patterns: clean code can trip a check, and code that passes is not proven safe. Findings in tests, docs, examples, fixtures, vendored libraries and translations are lowered one step. Secret values are never included; files are read, never run.";
+pub const NOTE: &str = "Red flags to review, not a safety verdict. The scan matches known patterns: clean code can trip a check, and code that passes is not proven safe. Each finding keeps severity (how bad if real), evidence strength (what the rule saw) and confidence apart. Findings in tests, docs, examples, fixtures, vendored libraries and translations are lowered one step; where a key sits explains it but does not excuse it. Secret values are never included; files are read, never run.";
 
 /// All findings plus a summary score.
 #[derive(Debug, Clone, Serialize)]
