@@ -165,6 +165,67 @@ fn a_key_module_imported_only_by_tests_is_weak_and_one_imported_by_product_code_
 }
 
 #[test]
+fn a_file_of_the_same_name_elsewhere_or_a_config_mention_is_not_use() {
+    let key = pem();
+    let report = audit(&[
+        ("packages/smtp/tests/fixtures/certs/key.pem", &key),
+        // Product code reading a different key.pem.
+        (
+            "src/tls.ts",
+            "const path = './config/key.pem';\nexport default path;\n",
+        ),
+        // Test infrastructure mounting the fixture.
+        (
+            "packages/smtp/docker-compose.yml",
+            "volumes:\n  - ./tests/fixtures/certs/key.pem:/certs/key.pem\n",
+        ),
+    ]);
+    let f = finding(&report, "secret", "certs/key.pem");
+    assert_eq!(confidence(f), "low", "{f:#}");
+    assert_eq!(strength(f), "weak");
+}
+
+#[test]
+fn a_mock_module_counts_only_imports_that_resolve_to_it() {
+    let key = format!("export const key = \"{}\";\n", token());
+    let report = audit(&[
+        ("packages/a/src/mock.ts", &key),
+        (
+            "packages/a/src/index.test.ts",
+            "import { key } from './mock.js';\n",
+        ),
+        // Another package's product code importing its own mock.
+        (
+            "packages/b/src/index.ts",
+            "import { other } from './mock.js';\nexport default other;\n",
+        ),
+    ]);
+    let f = finding(&report, "secret", "packages/a/src/mock.ts");
+    assert_eq!(confidence(f), "low", "{f:#}");
+    assert!(signals(f).contains("index.test.ts"), "{f:#}");
+}
+
+#[test]
+fn test_code_holding_a_key_is_weak_unless_product_code_imports_it() {
+    let alone = audit(&[
+        (
+            "tests/settings.py",
+            &format!("{}\n{}", pem(), "DEBUG = True\n"),
+        ),
+        ("app/settings.py", "DEBUG = False\n"),
+    ]);
+    let f = finding(&alone, "secret", "tests/settings.py");
+    assert_eq!(confidence(f), "low", "{f:#}");
+
+    let imported = audit(&[
+        ("tests/keys.py", &pem()),
+        ("app/sign.py", "from tests.keys import KEY\n"),
+    ]);
+    let f = finding(&imported, "secret", "tests/keys.py");
+    assert_eq!(confidence(f), "high", "{f:#}");
+}
+
+#[test]
 fn published_examples_and_filler_tokens_are_weak_and_random_ones_are_not() {
     let filler = format!("{}{}", "ghp_", "1A2b3C4D5e6F7g8H9i0J0k1L2m3N4o5P6q7R");
     let documented = format!("{}{}", "ghp_", "16C7e42F292c6912E7710c838347Ae178B4a");

@@ -3,11 +3,15 @@
 //! application reads is as live as one in `src/`, while a module of fake
 //! keys that only tests import is not.
 //!
-//! Usage is found by name: other files that mention a key file's name, or
-//! (for JavaScript and TypeScript) import its module. Only files holding a
-//! candidate key are looked up, and only when there is one.
+//! Only code counts as a user, and only a reference that resolves to the
+//! key's file: its full path, its classpath name under `resources/`, its
+//! path relative to the referring file, a JavaScript import that resolves
+//! to it, or a Python module path. A file of the same name elsewhere, or a
+//! config file mounting it, does not count. Aliased imports (`@/lib/keys`)
+//! are not followed, so such a key keeps its lowered confidence.
 
 use super::context::context_of;
+use super::rules::CODE_EXTENSIONS;
 use super::{Finding, Strength, SECRET};
 use crate::architecture::Confidence;
 use rayon::prelude::*;
@@ -24,42 +28,104 @@ fn made_up_context(context: Option<&str>) -> bool {
     matches!(context, Some("test" | "fixture" | "example"))
 }
 
+fn extension(file: &str) -> &str {
+    let name = file.rsplit('/').next().unwrap_or(file);
+    name.rsplit_once('.').map_or("", |(_, e)| e)
+}
+
 fn is_js(file: &str) -> bool {
-    let ext = file.rsplit_once('.').map_or("", |(_, e)| e);
     matches!(
-        ext,
+        extension(file),
         "js" | "mjs" | "cjs" | "jsx" | "ts" | "mts" | "cts" | "tsx"
     )
 }
 
-/// Strings in another file that mean it uses `file`.
-fn needles(file: &str) -> Vec<String> {
-    let name = file.rsplit('/').next().unwrap_or(file);
-    let mut out = vec![name.to_string()];
-    if is_js(file) {
-        let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
-        for q in ['\'', '"'] {
-            out.push(format!("/{stem}{q}"));
-            out.push(format!("/{stem}.js{q}"));
-        }
-    }
-    out
+fn is_code(file: &str) -> bool {
+    CODE_EXTENSIONS.contains(&extension(file))
 }
 
-/// Re-weigh secret findings by who uses the file they are in.
+fn plain(file: &str) -> &str {
+    file.trim_start_matches("./")
+}
+
+/// The path of `to` as written from inside the folder holding `from`.
+fn relative(from: &str, to: &str) -> String {
+    let from: Vec<&str> = from.split('/').collect();
+    let from = &from[..from.len().saturating_sub(1)];
+    let to: Vec<&str> = to.split('/').collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    let mut parts: Vec<&str> = vec![".."; from.len() - common];
+    parts.extend(&to[common..]);
+    parts.join("/")
+}
+
+fn quoted(text: &str, s: &str) -> bool {
+    ['"', '\'', '`']
+        .iter()
+        .any(|q| text.contains(&format!("{q}{s}{q}")))
+}
+
+/// Whether `text`, the content of code file `referrer`, refers to
+/// `candidate`.
+fn refers(candidate: &str, referrer: &str, text: &str) -> bool {
+    if text.contains(candidate) {
+        return true;
+    }
+    if let Some(i) = candidate.rfind("/resources/") {
+        let name = &candidate[i + "/resources/".len()..];
+        if quoted(text, name) || quoted(text, &format!("/{name}")) {
+            return true;
+        }
+    }
+    let rel = relative(referrer, candidate);
+    if is_js(candidate) {
+        if !is_js(referrer) {
+            return false;
+        }
+        let stem = rel.rsplit_once('.').map_or(rel.as_str(), |(s, _)| s);
+        let stem = if stem.starts_with("../") {
+            stem.to_string()
+        } else {
+            format!("./{stem}")
+        };
+        let mut forms = vec![stem.clone()];
+        if let Some(dir) = stem.strip_suffix("/index") {
+            forms.push(dir.to_string());
+        }
+        return forms.iter().any(|f| {
+            ["", ".js", ".mjs", ".cjs", ".ts", ".jsx", ".tsx"]
+                .iter()
+                .any(|e| quoted(text, &format!("{f}{e}")))
+        });
+    }
+    if extension(candidate) == "py" {
+        let module = candidate.trim_end_matches(".py").replace('/', ".");
+        let module = module.strip_prefix("src.").unwrap_or(&module);
+        return text.contains(module);
+    }
+    if is_code(candidate) {
+        return false;
+    }
+    if rel.contains('/') {
+        text.contains(&rel)
+    } else {
+        quoted(text, &rel) || text.contains(&format!("./{rel}"))
+    }
+}
+
+/// Re-weigh secret findings by whether the project's own code uses the
+/// file they are in.
 pub(super) fn weigh_secrets(root: &Path, files: &[PathBuf], findings: &mut [Finding]) {
     // Files with a key whose evidence is not already weak (placeholders).
     let candidates: BTreeSet<String> = findings
         .iter()
         .filter(|f| f.check == SECRET && f.evidence.strength != Strength::Weak)
         .filter(|f| made_up_context(f.context) || (f.context.is_none() && is_js(&f.file)))
-        .map(|f| f.file.clone())
+        .map(|f| plain(&f.file).to_string())
         .collect();
     if candidates.is_empty() {
         return;
     }
-    let wanted: Vec<(String, Vec<String>)> =
-        candidates.iter().map(|c| (c.clone(), needles(c))).collect();
 
     let hits: Vec<(String, String)> = files
         .par_iter()
@@ -69,20 +135,19 @@ pub(super) fn weigh_secrets(root: &Path, files: &[PathBuf], findings: &mut [Find
                 .unwrap_or(path)
                 .to_string_lossy()
                 .replace('\\', "/");
-            let readable = std::fs::metadata(path).is_ok_and(|m| m.len() <= MAX_REFERRER);
+            let relative = plain(&crate::safe_text::sanitize(&relative)).to_string();
+            let readable = is_code(&relative)
+                && std::fs::metadata(path).is_ok_and(|m| m.len() <= MAX_REFERRER);
             let text = readable
                 .then(|| std::fs::read(path).ok())
                 .flatten()
                 .filter(|b| !b[..b.len().min(8_192)].contains(&0))
                 .map(|b| String::from_utf8_lossy(&b).into_owned())
                 .unwrap_or_default();
-            wanted
+            candidates
                 .iter()
-                .filter(|(file, needles)| {
-                    *file != crate::safe_text::sanitize(&relative)
-                        && needles.iter().any(|n| text.contains(n.as_str()))
-                })
-                .map(|(file, _)| (file.clone(), relative.clone()))
+                .filter(|c| !text.is_empty() && **c != relative && refers(c, &relative, &text))
+                .map(|c| (c.clone(), relative.clone()))
                 .collect::<Vec<_>>()
         })
         .collect();
@@ -92,10 +157,10 @@ pub(super) fn weigh_secrets(root: &Path, files: &[PathBuf], findings: &mut [Find
     }
 
     for f in findings.iter_mut() {
-        if f.check != SECRET || !candidates.contains(&f.file) {
+        if f.check != SECRET || !candidates.contains(plain(&f.file)) {
             continue;
         }
-        let mut by = referrers.get(f.file.as_str()).cloned().unwrap_or_default();
+        let mut by = referrers.get(plain(&f.file)).cloned().unwrap_or_default();
         by.sort_unstable();
         let (product, other): (Vec<&str>, Vec<&str>) =
             by.iter().partition(|r| context_of(r).is_none());
@@ -133,5 +198,37 @@ pub(super) fn weigh_secrets(root: &Path, files: &[PathBuf], findings: &mut [Find
                 named(&other)
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_paths_climb_out_of_the_referrers_folder() {
+        assert_eq!(relative("src/a/b.ts", "src/a/mock.ts"), "mock.ts");
+        assert_eq!(relative("src/a/b.ts", "src/c/mock.ts"), "../c/mock.ts");
+        assert_eq!(relative("app.py", "tests/keys.py"), "tests/keys.py");
+    }
+
+    #[test]
+    fn only_references_that_resolve_to_the_file_count() {
+        let mock = "packages/a/src/mock.ts";
+        assert!(refers(mock, "packages/a/src/x.test.ts", "from './mock.js'"));
+        assert!(!refers(mock, "packages/b/src/index.ts", "from './mock.js'"));
+        assert!(refers(mock, "packages/a/x.ts", "from \"./src/mock\""));
+        let pem = "src/test/resources/server.pem";
+        assert!(refers(pem, "src/main/A.java", "load(\"server.pem\")"));
+        assert!(!refers(
+            pem,
+            "src/main/A.java",
+            "load(\"other/server.pem\")"
+        ));
+        assert!(refers(
+            "tests/keys.py",
+            "app/sign.py",
+            "from tests.keys import K"
+        ));
     }
 }
