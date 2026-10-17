@@ -626,6 +626,7 @@ mod tests {
             architecture: "CLI".to_string(),
             dead_code: vec![],
             dependency_graph: HashMap::new(),
+            dependencies: Default::default(),
             file_breakdown: files
                 .iter()
                 .map(|(f, loc)| FileInfo {

@@ -715,6 +715,7 @@ mod tests {
             architecture: "Frontend → API → Database".to_string(),
             dead_code: vec![PathBuf::from("src/utils/oldHelper.ts")],
             dependency_graph: dep_graph,
+            dependencies: Default::default(),
             file_breakdown: vec![FileInfo {
                 file: PathBuf::from("src/server.ts"),
                 loc: 340,

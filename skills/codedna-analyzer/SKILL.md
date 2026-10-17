@@ -407,7 +407,8 @@ User-friendly messages for:
 | `architecture` | string | Inferred architecture pattern |
 | `dead_code` | string[] | Unreachable file paths |
 | `dead_code_details` | object[] | Per file `{ file, confidence, reason, evidence }`; confidence is `high`, `medium` or `low`; `evidence` lists up to 3 `{ file, line, text }` lines behind the reason |
-| `dependency_graph` | object | File -> imported files map |
+| `dependency_graph` | object | File -> imported files map; a projection of the resolved `dependencies` facts |
+| `dependencies` | object | `rules_version` and `facts`: each dependency with `source`, `specifier`, `targets`, `kind`, `resolution`, `certainty`, optional `condition` and `evidence` (`file`, `line`, `span`, `rule`). Keeps unresolved and external imports |
 | `coverage` | object | How much the dependency analysis covered: `source_files`, `analyzed_files` (imports followed), `unreadable_files`, `not_analyzed` (languages whose imports are not followed, `{ language, files }`), `imports` (`{ internal, resolved, unresolved, external }`), `unresolved` (up to 20 `{ file, line, import }`) and a one-line `summary`. Read it before trusting an empty `dead_code` or `circular_imports` |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` entries |
 

@@ -557,7 +557,7 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 
 <br>
 
-`codedna json .` on the same project (`dependency_graph`, `file_breakdown` and `architecture_details` shortened):
+`codedna json .` on the same project (`dependency_graph`, `dependencies`, `file_breakdown` and `architecture_details` shortened):
 
 ```json
 {
@@ -608,6 +608,20 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
   ],
   "workspaces": [],
   "dependency_graph": { "...": ["..."] },
+  "dependencies": {
+    "rules_version": 1,
+    "facts": [
+      {
+        "source": "./src/app/app.config.ts",
+        "specifier": "./app.routes",
+        "targets": ["./src/app/app.routes.ts"],
+        "kind": "runtime_import",
+        "resolution": "resolved",
+        "certainty": "direct",
+        "evidence": { "file": "./src/app/app.config.ts", "line": 4, "span": [188, 200], "rule": "js.import" }
+      }
+    ]
+  },
   "file_breakdown": [
     { "file": "./src/app/routes/article/article.service.ts", "loc": 590, "language": "TypeScript" }
   ]
@@ -634,7 +648,8 @@ The report is versioned. `schema_version` goes up only when a field is removed, 
 | `dead_code_details` | object[] | Per file `{ file, confidence, reason, evidence }`: how likely it is to be really unused, why, and the lines behind the reason (`{ file, line, text }`, up to 3) |
 | `circular_imports` | string[][] | Groups of files that import each other, directly or through other files |
 | `workspaces` | object[] | Monorepo workspaces declared at the root: `{ tool, manifest, packages: [{ name, path, files, loc, languages, frameworks, databases, dead_files, depends_on, used_by }] }` |
-| `dependency_graph` | object | File → imported files |
+| `dependency_graph` | object | File → imported files. A projection of `dependencies`: the targets of its resolved facts |
+| `dependencies` | object | Typed dependency facts: `rules_version` and `facts`, one per dependency found, sorted by source and position. Each has `source`, `specifier` (as written), `targets` (files it resolved to), `kind` (`runtime_import`, `type_only_import`, `re_export`, `worker_entry`, `process_entry`, `resource_reference`, `configured_entry`, `possible_dynamic_load`), `resolution` (`resolved`, `external`, `unresolved`, `ambiguous`, `unsupported`), `certainty` (`direct`, `declaration`, `inferred`, `possibility`), an optional `condition` (`dynamic` for `import()`) and `evidence` (`file`, `line`, byte `span` where known, `rule` id such as `js.import` or `python.from_import`). Unresolved and external imports are kept |
 | `coverage` | object | How much the dependency analysis covered: `source_files`, `analyzed_files` (imports followed), `unreadable_files`, `not_analyzed` (languages whose imports are not followed, `{ language, files }`), `imports` (`{ internal, resolved, unresolved, external }`), `unresolved` (up to 20 `{ file, line, import }`) and a one-line `summary`. Read it before trusting an empty `dead_code` or `circular_imports` |
 | `file_breakdown` | object[] | Per-file `{ file, loc, language }` |
 
@@ -843,7 +858,9 @@ src/
 ├── language_detector.rs    extension → language
 ├── loc_counter.rs          line counting with binary detection
 ├── framework_detector.rs   manifest parsing and import scanning
-├── dependency_graph.rs     import / require / mod parsing
+├── dependency_graph.rs     import / require / mod parsing into facts
+├── facts.rs                typed dependency facts
+├── graph.rs                dependency graph built from facts
 ├── dead_code_detector.rs   reachability from entry points
 ├── context.rs              token-budgeted briefing for agents
 ├── mcp.rs                  MCP server (JSON-RPC over stdio)

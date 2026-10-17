@@ -91,8 +91,16 @@
         "$ref": "#/$defs/DeadCodeCandidate"
       }
     },
+    "dependencies": {
+      "description": "Typed dependency facts: every import, re-export, worker, process,\nconfigured entry and possible dynamic load found, with its kind,\nresolution, certainty and evidence. Unresolved and external imports\nare kept too. Sorted by source file and position.",
+      "$ref": "#/$defs/DependencyFacts",
+      "default": {
+        "facts": [],
+        "rules_version": 0
+      }
+    },
     "dependency_graph": {
-      "description": "Directed import graph: `file → [files it imports]`.",
+      "description": "Directed import graph: `file → [files it imports]`. A projection of\n`dependencies`: the targets of its resolved facts, per source file.",
       "type": "object",
       "additionalProperties": {
         "type": "array",
@@ -222,6 +230,31 @@
         "evidence"
       ]
     },
+    "Certainty": {
+      "description": "How sure the analysis is that the dependency exists.",
+      "oneOf": [
+        {
+          "description": "An import statement or call written in the source.",
+          "type": "string",
+          "const": "direct"
+        },
+        {
+          "description": "A declaration that loads a file: Rust `mod name;`.",
+          "type": "string",
+          "const": "declaration"
+        },
+        {
+          "description": "Inferred from a call, a string or a framework convention.",
+          "type": "string",
+          "const": "inferred"
+        },
+        {
+          "description": "May happen; the target is not known statically.",
+          "type": "string",
+          "const": "possibility"
+        }
+      ]
+    },
     "CodeSign": {
       "description": "What a file's code shows about its layer, and where.",
       "type": "object",
@@ -336,6 +369,162 @@
         "file",
         "confidence",
         "reason"
+      ]
+    },
+    "DependencyFact": {
+      "description": "One dependency of one file.",
+      "type": "object",
+      "properties": {
+        "certainty": {
+          "$ref": "#/$defs/Certainty"
+        },
+        "condition": {
+          "description": "When the dependency applies, if not always: `dynamic` for\n`import()`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "kind": {
+          "$ref": "#/$defs/DependencyKind"
+        },
+        "resolution": {
+          "$ref": "#/$defs/Resolution"
+        },
+        "source": {
+          "description": "The file that depends on something.",
+          "type": "string"
+        },
+        "specifier": {
+          "description": "The dependency as written: an import path, a module name, a file\nname, or the target's own path for convention facts.",
+          "type": "string"
+        },
+        "targets": {
+          "description": "Files the specifier resolved to; empty unless `resolution` is\n`resolved`. A Python import can load several (its packages'\n`__init__.py` files and the module).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "source",
+        "specifier",
+        "targets",
+        "kind",
+        "resolution",
+        "certainty",
+        "evidence"
+      ]
+    },
+    "DependencyFacts": {
+      "description": "Every dependency fact in a report.",
+      "type": "object",
+      "properties": {
+        "facts": {
+          "description": "Sorted by source, line, span, specifier and kind.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DependencyFact"
+          }
+        },
+        "rules_version": {
+          "description": "See [`RULES_VERSION`]. 0 in reports from before facts.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        }
+      }
+    },
+    "DependencyKind": {
+      "description": "What kind of dependency a fact records.",
+      "oneOf": [
+        {
+          "description": "Code loaded when the source runs: `import`, `require`, `import()`,\nPython `import`, Rust `mod`.",
+          "type": "string",
+          "const": "runtime_import"
+        },
+        {
+          "description": "Types only, erased at runtime: `import type`, `export type ... from`.",
+          "type": "string",
+          "const": "type_only_import"
+        },
+        {
+          "description": "Exports of another module passed on: `export ... from`.",
+          "type": "string",
+          "const": "re_export"
+        },
+        {
+          "description": "A file started in a worker thread: `new Worker(\"./w.js\")`.",
+          "type": "string",
+          "const": "worker_entry"
+        },
+        {
+          "description": "A file started in another process: `spawn(\"tsx\", [\"job.ts\"])`.",
+          "type": "string",
+          "const": "process_entry"
+        },
+        {
+          "description": "A file referenced by URL: `new URL(\"./w.ts\", import.meta.url)`.",
+          "type": "string",
+          "const": "resource_reference"
+        },
+        {
+          "description": "A module a framework loads from configuration or by convention:\nDjango settings strings, installed apps and app modules.",
+          "type": "string",
+          "const": "configured_entry"
+        },
+        {
+          "description": "Something that may be loaded, but whose target is only known at\nruntime: ``import(`./pages/${name}`)``.",
+          "type": "string",
+          "const": "possible_dynamic_load"
+        }
+      ]
+    },
+    "Evidence": {
+      "description": "Where a fact was seen.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "The file the fact was read from.",
+          "type": "string"
+        },
+        "line": {
+          "description": "Line number, from 1. Absent for facts from a convention rather than\na line, such as Django app modules.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
+        },
+        "rule": {
+          "description": "Id of the rule that produced the fact, e.g. `js.import`,\n`python.from_import`, `rust.mod`.",
+          "type": "string"
+        },
+        "span": {
+          "description": "Byte range `[start, end)` of the specifier in the file, when cheap\nto know.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "required": [
+        "file",
+        "rule"
       ]
     },
     "FileInfo": {
@@ -573,6 +762,36 @@
         "file",
         "placed_by",
         "matched"
+      ]
+    },
+    "Resolution": {
+      "description": "How a fact's specifier resolved.",
+      "oneOf": [
+        {
+          "description": "Found among the scanned files; `targets` lists them.",
+          "type": "string",
+          "const": "resolved"
+        },
+        {
+          "description": "A package from outside the repository (npm, PyPI, the standard\nlibrary, ...).",
+          "type": "string",
+          "const": "external"
+        },
+        {
+          "description": "Points into the repository but matched no file.",
+          "type": "string",
+          "const": "unresolved"
+        },
+        {
+          "description": "Could be one of several files. Reserved: no rule produces it yet.",
+          "type": "string",
+          "const": "ambiguous"
+        },
+        {
+          "description": "The specifier cannot be resolved statically, e.g. a template literal.",
+          "type": "string",
+          "const": "unsupported"
+        }
       ]
     },
     "UnresolvedImport": {

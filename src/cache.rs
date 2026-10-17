@@ -2,7 +2,7 @@
 //! a repeat run only reads the files that changed.
 //!
 //! Per file the cache keeps line counts, the layer its code shows, its
-//! resolved imports and the dead-code names it mentions, keyed by size and
+//! dependency facts and the dead-code names it mentions, keyed by size and
 //! modification time. Imports also depend on which other files exist and on
 //! `package.json` / `tsconfig.json`, so they are reused only while the file
 //! list and every `.json` and `.toml` file are unchanged. Mentions depend on
@@ -15,6 +15,7 @@
 
 use crate::architecture::CodeSign;
 use crate::dependency_graph::{normalize, ImportTally};
+use crate::facts::DependencyFact;
 use crate::loc_counter::LineCounts;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,7 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Bumped when the stored layout changes.
-const FORMAT: u32 = 1;
+const FORMAT: u32 = 2;
 /// Largest cache file read.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
 /// Files changed this close to the start of a run are not stored: an edit
@@ -64,7 +65,7 @@ struct Known<T> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Imports {
-    deps: Vec<PathBuf>,
+    facts: Vec<DependencyFact>,
     readable: bool,
     resolved: usize,
     unresolved: Vec<(usize, String)>,
@@ -267,12 +268,12 @@ impl Cache {
         )
     }
 
-    /// The resolved imports of `file`.
+    /// The dependency facts of `file` and what happened to its imports.
     pub fn imports(
         &self,
         file: &Path,
-        compute: impl FnOnce() -> (Vec<PathBuf>, ImportTally),
-    ) -> (Vec<PathBuf>, ImportTally) {
+        compute: impl FnOnce() -> (Vec<DependencyFact>, ImportTally),
+    ) -> (Vec<DependencyFact>, ImportTally) {
         self.get(
             file,
             |inner, e| {
@@ -286,13 +287,13 @@ impl Cache {
                         unresolved: i.unresolved.clone(),
                         external: i.external,
                     };
-                    (i.deps.clone(), tally)
+                    (i.facts.clone(), tally)
                 })
             },
             compute,
-            |e, (deps, tally)| {
+            |e, (facts, tally)| {
                 e.imports = Some(Imports {
-                    deps,
+                    facts,
                     readable: tally.readable,
                     resolved: tally.resolved,
                     unresolved: tally.unresolved,
