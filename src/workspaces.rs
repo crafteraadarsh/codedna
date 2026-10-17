@@ -625,7 +625,7 @@ fn children(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// Whether `name` matches `pattern`, where `*` is any run and `?` one char.
-fn wildcard(pattern: &str, name: &str) -> bool {
+pub(crate) fn wildcard(pattern: &str, name: &str) -> bool {
     let p: Vec<char> = pattern.chars().collect();
     let n: Vec<char> = name.chars().collect();
     let (mut pi, mut ni) = (0, 0);
@@ -705,7 +705,7 @@ fn toml_strings(value: Option<&toml::Value>) -> Vec<String> {
 }
 
 /// The items of a top-level YAML list `key:` (block or `[a, b]` flow style).
-fn yaml_list(text: &str, key: &str) -> Vec<String> {
+pub(crate) fn yaml_list(text: &str, key: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut in_list = false;
     for raw in text.lines() {

@@ -57,7 +57,9 @@
       "default": {
         "analyzed_files": 0,
         "imports": {
+          "ambiguous": 0,
           "external": 0,
+          "inferred": 0,
           "internal": 0,
           "resolved": 0,
           "unresolved": 0
@@ -304,7 +306,9 @@
           "description": "What happened to the imports in the analyzed files.",
           "$ref": "#/$defs/ImportCounts",
           "default": {
+            "ambiguous": 0,
             "external": 0,
+            "inferred": 0,
             "internal": 0,
             "resolved": 0,
             "unresolved": 0
@@ -572,10 +576,24 @@
       "description": "Import counts across the analyzed files. Each distinct import in a file\ncounts once.",
       "type": "object",
       "properties": {
+        "ambiguous": {
+          "description": "Resolved imports that could load one of several files (a subset of\n`resolved`).",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
+          "minimum": 0
+        },
         "external": {
           "description": "Imports of packages outside the repository.",
           "type": "integer",
           "format": "uint",
+          "minimum": 0
+        },
+        "inferred": {
+          "description": "Resolved imports whose target CodeDna inferred rather than read from\nconfiguration, e.g. a built `dist/x.js` mapped to `src/x.ts` (a\nsubset of `resolved`).",
+          "type": "integer",
+          "format": "uint",
+          "default": 0,
           "minimum": 0
         },
         "internal": {
@@ -866,7 +884,7 @@
           "const": "unresolved"
         },
         {
-          "description": "Could be one of several files. Reserved: no rule produces it yet.",
+          "description": "Could be one of several files; `targets` lists every candidate (two\nworkspace packages with the same name, say).",
           "type": "string",
           "const": "ambiguous"
         },

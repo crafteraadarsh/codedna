@@ -25,6 +25,7 @@ mod parsers;
 mod repo_map;
 mod report;
 mod reporter;
+mod resolution;
 mod rules;
 mod runbook;
 mod safe_text;

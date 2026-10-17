@@ -16,9 +16,11 @@ use crate::facts::{Certainty, DependencyFact, DependencyKind, Resolution};
 use crate::graph;
 use crate::parsers::javascript::{self, RefKind as JsRefKind};
 use crate::parsers::ParseStatus;
+use crate::resolution::javascript::{Request, Resolver, Syntax};
+use crate::resolution::{self, Outcome, Target};
 use rayon::prelude::*;
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -54,6 +56,12 @@ pub struct ImportTally {
     pub readable: bool,
     /// Imports of the repository's own files that were found on disk.
     pub resolved: usize,
+    /// Of `resolved`: imports that could be one of several files (two
+    /// workspace packages with the same name).
+    pub ambiguous: usize,
+    /// Of `resolved`: imports whose file CodeDna guessed (built output
+    /// mapped back to its source, a framework's default alias).
+    pub inferred: usize,
     /// Imports that point into the repository but matched no file, as
     /// `(line, import)`: relative paths, configured aliases, workspace
     /// packages and local Python packages.
@@ -73,6 +81,27 @@ impl ImportTally {
             self.resolved += 1;
         } else {
             self.unresolved.push((line, import.to_string()));
+        }
+    }
+
+    /// Count one import that resolved to `outcome`.
+    fn count(&mut self, line: usize, import: &str, outcome: &Outcome) {
+        match outcome.resolution {
+            Resolution::External => self.external += 1,
+            _ if outcome.is_found() => {
+                self.resolved += 1;
+                if outcome.resolution == Resolution::Ambiguous {
+                    self.ambiguous += 1;
+                }
+                if outcome
+                    .targets
+                    .iter()
+                    .any(|t| t.certainty == Certainty::Inferred)
+                {
+                    self.inferred += 1;
+                }
+            }
+            _ => self.unresolved.push((line, import.to_string())),
         }
     }
 }
@@ -107,7 +136,7 @@ pub fn build_facts(
     Vec<DependencyFact>,
 ) {
     BUILD.fetch_add(1, Ordering::Relaxed);
-    let aliases = Aliases::from_files(files);
+    let resolver = Resolver::from_files(files);
     let python_packages = python_packages(files);
 
     // Each file is parsed independently — no shared mutable state needed.
@@ -118,7 +147,7 @@ pub fn build_facts(
             let key = normalize(file);
             let (facts, tally) = cache.imports(file, || {
                 let mut tally = ImportTally::default();
-                let facts = parse_dependencies_with(&key, &aliases, &python_packages, &mut tally);
+                let facts = parse_dependencies_with(&key, &resolver, &python_packages, &mut tally);
                 (facts, tally)
             });
             (key, facts, tally)
@@ -134,6 +163,7 @@ pub fn build_facts(
         facts.extend(file_facts);
     }
     facts.extend(django_app_facts(files));
+    facts.extend(resolution::javascript::executable_config_facts(files));
     let graph = graph::from_facts(nodes, &facts);
     (graph, tallies, facts)
 }
@@ -308,447 +338,6 @@ fn is_dir(path: &Path) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// JavaScript / TypeScript path aliases
-// ---------------------------------------------------------------------------
-
-/// Largest `tsconfig.json` / `jsconfig.json` read for path aliases.
-const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
-
-/// Aliases used without any config by Vite, Nuxt and Create React App
-/// templates: `@/x` and `~/x` mean `src/x` (or `x` at the package root).
-const DEFAULT_ALIASES: &[(&str, &[&str])] = &[
-    ("@/*", &["src/*", "*"]),
-    ("~/*", &["src/*", "*"]),
-    // SvelteKit's `$lib` and Docusaurus's `@site`, set by the framework.
-    ("$lib/*", &["src/lib/*"]),
-    ("$lib", &["src/lib"]),
-    ("@site/*", &["*"]),
-];
-
-/// Path aliases in force below one directory.
-#[derive(Debug, Default)]
-struct AliasScope {
-    /// Directory holding the config or `package.json`.
-    dir: PathBuf,
-    /// Directory alias targets are relative to (`baseUrl`, else `dir`).
-    base: PathBuf,
-    /// Whether `baseUrl` was set, so bare specifiers resolve against it.
-    base_url: bool,
-    /// `paths` entries: pattern → target paths (already joined to their
-    /// base directory), in config order.
-    paths: Vec<(String, Vec<String>)>,
-}
-
-/// Path aliases from every `tsconfig.json`, `jsconfig.json` and
-/// `package.json` in the repository, deepest directory first.
-#[derive(Debug, Default)]
-struct Aliases {
-    scopes: Vec<AliasScope>,
-    /// Every file in the repository; aliases only ever resolve to one of
-    /// these, so a config cannot point outside the project.
-    known: HashSet<PathBuf>,
-    /// Every named `package.json` in the repository, by `name`: imports
-    /// of these are the repository's own workspace packages.
-    packages: HashMap<String, LocalPackage>,
-}
-
-/// One of the repository's own packages.
-#[derive(Debug)]
-struct LocalPackage {
-    /// Directory holding its `package.json`.
-    dir: PathBuf,
-    /// The parsed `package.json`.
-    manifest: serde_json::Value,
-}
-
-/// Export conditions tried first: those naming source before those naming
-/// built output, which is often not in the repository.
-const CONDITIONS: &[&str] = &[
-    "source",
-    "development",
-    "import",
-    "module",
-    "default",
-    "require",
-    "node",
-    "browser",
-    "types",
-];
-
-/// Folders built output usually goes to, mapped back to `src` when the
-/// built file is not in the repository.
-const BUILD_DIRS: &[&str] = &["dist", "build", "lib", "out", "esm", "cjs"];
-
-impl Aliases {
-    fn from_files(files: &[PathBuf]) -> Self {
-        let mut scopes: BTreeMap<PathBuf, AliasScope> = BTreeMap::new();
-        let mut packages = HashMap::new();
-        for file in files {
-            let name = file.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if !matches!(name, "tsconfig.json" | "jsconfig.json" | "package.json") {
-                continue;
-            }
-            let path = normalize(file);
-            let dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
-            let scope = scopes.entry(dir.clone()).or_insert_with(|| AliasScope {
-                dir: dir.clone(),
-                base: dir.clone(),
-                ..AliasScope::default()
-            });
-            if name == "package.json" {
-                if let Some(manifest) = package_manifest(&path) {
-                    if let Some(name) = manifest_name(&manifest) {
-                        packages.insert(
-                            name,
-                            LocalPackage {
-                                dir: dir.clone(),
-                                manifest,
-                            },
-                        );
-                    }
-                }
-            } else {
-                read_ts_config(&path, scope);
-            }
-        }
-
-        let mut scopes: Vec<AliasScope> = scopes.into_values().collect();
-        for scope in &mut scopes {
-            for (pattern, targets) in DEFAULT_ALIASES {
-                if !scope.paths.iter().any(|(p, _)| p == pattern) {
-                    let targets = targets
-                        .iter()
-                        .map(|t| scope.dir.join(t).to_string_lossy().into_owned())
-                        .collect();
-                    scope.paths.push((pattern.to_string(), targets));
-                }
-            }
-        }
-        scopes.sort_by_key(|s| std::cmp::Reverse(s.dir.components().count()));
-
-        Self {
-            scopes,
-            known: files.iter().map(|f| normalize(f)).collect(),
-            packages,
-        }
-    }
-
-    /// Whether a non-relative specifier names the repository's own code: it
-    /// matches a path alias in force for `file` or a workspace package.
-    fn is_local(&self, file: &Path, specifier: &str) -> bool {
-        // No npm package name starts with `@/` or `~/`: these are always
-        // aliases of the project's own code, configured or not.
-        if specifier.starts_with("@/") || specifier.starts_with("~/") {
-            return true;
-        }
-        self.package_for(specifier).is_some()
-            || self
-                .scopes
-                .iter()
-                .filter(|s| file.starts_with(&s.dir))
-                .flat_map(|s| &s.paths)
-                .any(|(pattern, _)| match pattern.strip_suffix('*') {
-                    Some(prefix) => !prefix.is_empty() && specifier.starts_with(prefix),
-                    None => pattern == specifier,
-                })
-    }
-
-    /// Resolve a non-relative specifier through the aliases of the nearest
-    /// enclosing configs.
-    fn resolve(&self, file: &Path, specifier: &str) -> Option<PathBuf> {
-        for scope in self.scopes.iter().filter(|s| file.starts_with(&s.dir)) {
-            for (pattern, targets) in &scope.paths {
-                let rest = match pattern.strip_suffix('*') {
-                    Some(prefix) => match specifier.strip_prefix(prefix) {
-                        Some(rest) => rest,
-                        None => continue,
-                    },
-                    None if pattern == specifier => "",
-                    None => continue,
-                };
-                for target in targets {
-                    let target = target.replacen('*', rest, 1);
-                    if let Some(found) = self.known_file(Path::new(""), &target) {
-                        return Some(found);
-                    }
-                }
-            }
-            if scope.base_url {
-                if let Some(found) = self.known_file(&scope.base, specifier) {
-                    return Some(found);
-                }
-            }
-        }
-        self.resolve_package(specifier)
-    }
-
-    /// The workspace package `specifier` imports, with the subpath after
-    /// its name (`.` for the package itself, else `./rest`).
-    fn package_for(&self, specifier: &str) -> Option<(&LocalPackage, String)> {
-        self.packages
-            .iter()
-            .filter_map(|(name, package)| {
-                let rest = specifier.strip_prefix(name.as_str())?;
-                if rest.is_empty() {
-                    Some((name.len(), package, ".".to_string()))
-                } else {
-                    let rest = rest.strip_prefix('/')?;
-                    Some((name.len(), package, format!("./{rest}")))
-                }
-            })
-            .max_by_key(|(len, _, _)| *len)
-            .map(|(_, package, subpath)| (package, subpath))
-    }
-
-    /// Resolve an import of a workspace package to a file: its `exports`
-    /// entry, then `source` / `module` / `main` / `types`, then
-    /// `src/index` or `index`. Built paths such as `dist/index.js` fall
-    /// back to the same path under `src/` when the build is not checked in.
-    fn resolve_package(&self, specifier: &str) -> Option<PathBuf> {
-        let (package, subpath) = self.package_for(specifier)?;
-        let manifest = &package.manifest;
-        let mut targets = manifest
-            .get("exports")
-            .map(|exports| export_targets(exports, &subpath))
-            .unwrap_or_default();
-        let has_exports = manifest.get("exports").is_some();
-        if subpath == "." {
-            if !has_exports {
-                for field in ["source", "module", "main", "types", "typings"] {
-                    if let Some(target) = manifest.get(field).and_then(|v| v.as_str()) {
-                        targets.push(target.to_string());
-                    }
-                }
-            }
-            targets.extend(["./src/index".to_string(), "./index".to_string()]);
-        } else if !has_exports {
-            let rest = &subpath[2..];
-            targets.extend([format!("./{rest}"), format!("./src/{rest}")]);
-        }
-        targets.iter().find_map(|target| {
-            self.known_file(&package.dir, target).or_else(|| {
-                let source = source_for_built(target)?;
-                self.known_file(&package.dir, &source)
-            })
-        })
-    }
-
-    fn known_file(&self, base: &Path, target: &str) -> Option<PathBuf> {
-        resolve_js_ts_path(base, target).filter(|p| self.known.contains(p))
-    }
-}
-
-/// A parsed `package.json`, unless it is too large or invalid.
-fn package_manifest(path: &Path) -> Option<serde_json::Value> {
-    let small = fs::metadata(path).is_ok_and(|m| m.len() <= MAX_CONFIG_BYTES);
-    if !small {
-        return None;
-    }
-    let text = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&text).ok()
-}
-
-/// The `name` field of a `package.json`, when it has one.
-fn manifest_name(manifest: &serde_json::Value) -> Option<String> {
-    let name = manifest.get("name")?.as_str()?.trim();
-    (!name.is_empty()).then(|| name.to_string())
-}
-
-/// Files an `exports` field maps `subpath` (`.` or `./x`) to, most
-/// preferred first. Handles a plain string, condition objects, arrays,
-/// subpath maps and `*` patterns.
-fn export_targets(exports: &serde_json::Value, subpath: &str) -> Vec<String> {
-    let is_subpath_map = exports
-        .as_object()
-        .is_some_and(|map| map.keys().any(|k| k.starts_with('.')));
-    if !is_subpath_map {
-        return if subpath == "." {
-            condition_targets(exports)
-        } else {
-            Vec::new()
-        };
-    }
-    let Some(map) = exports.as_object() else {
-        return Vec::new();
-    };
-    if let Some(entry) = map.get(subpath) {
-        return condition_targets(entry);
-    }
-    // The longest matching `*` pattern wins, as in Node.
-    let best = map
-        .iter()
-        .filter_map(|(key, entry)| {
-            let (prefix, suffix) = key.split_once('*')?;
-            let middle = subpath.strip_prefix(prefix)?.strip_suffix(suffix)?;
-            Some((prefix.len(), middle, entry))
-        })
-        .max_by_key(|(len, _, _)| *len);
-    match best {
-        Some((_, middle, entry)) => condition_targets(entry)
-            .into_iter()
-            .map(|t| t.replace('*', middle))
-            .collect(),
-        None => Vec::new(),
-    }
-}
-
-/// Every path in an export entry, preferred conditions first.
-fn condition_targets(entry: &serde_json::Value) -> Vec<String> {
-    match entry {
-        serde_json::Value::String(s) => vec![s.clone()],
-        serde_json::Value::Array(items) => items.iter().flat_map(condition_targets).collect(),
-        serde_json::Value::Object(map) => {
-            let mut keys: Vec<&String> = map.keys().collect();
-            keys.sort_by_key(|k| {
-                CONDITIONS
-                    .iter()
-                    .position(|c| c == k)
-                    .unwrap_or(CONDITIONS.len())
-            });
-            keys.into_iter()
-                .flat_map(|k| condition_targets(&map[k]))
-                .collect()
-        }
-        _ => Vec::new(),
-    }
-}
-
-/// `./dist/x.js` → `./src/x`: where the source of a built file usually
-/// lives. `None` when the path is not under a build folder.
-fn source_for_built(target: &str) -> Option<String> {
-    let trimmed = target.strip_prefix("./").unwrap_or(target);
-    let (first, rest) = trimmed.split_once('/')?;
-    if !BUILD_DIRS.contains(&first) {
-        return None;
-    }
-    let rest = [".d.ts", ".d.mts", ".d.cts", ".js", ".mjs", ".cjs"]
-        .iter()
-        .find_map(|ext| rest.strip_suffix(ext))
-        .unwrap_or(rest);
-    Some(format!("./src/{rest}"))
-}
-
-/// Read `compilerOptions.baseUrl` and `compilerOptions.paths` from a
-/// TypeScript or JavaScript project config. Unreadable or invalid configs
-/// are ignored.
-fn read_ts_config(path: &Path, scope: &mut AliasScope) {
-    let small = fs::metadata(path).is_ok_and(|m| m.len() <= MAX_CONFIG_BYTES);
-    if !small {
-        return;
-    }
-    let Ok(text) = fs::read_to_string(path) else {
-        return;
-    };
-    let Ok(json) = serde_json::from_str::<serde_json::Value>(&strip_jsonc(&text)) else {
-        return;
-    };
-    let Some(options) = json.get("compilerOptions") else {
-        return;
-    };
-    if let Some(base_url) = options.get("baseUrl").and_then(|b| b.as_str()) {
-        scope.base = normalize(&scope.dir.join(base_url));
-        scope.base_url = true;
-    }
-    if let Some(paths) = options.get("paths").and_then(|p| p.as_object()) {
-        for (pattern, targets) in paths {
-            if scope.paths.iter().any(|(p, _)| p == pattern) {
-                continue;
-            }
-            let targets = match targets.as_array() {
-                Some(list) => list
-                    .iter()
-                    .filter_map(|t| t.as_str())
-                    .map(|t| scope.base.join(t).to_string_lossy().into_owned())
-                    .collect(),
-                None => Vec::new(),
-            };
-            scope.paths.push((pattern.clone(), targets));
-        }
-    }
-}
-
-/// Turn JSON with comments and trailing commas (as `tsconfig.json` allows)
-/// into plain JSON.
-fn strip_jsonc(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '"' => {
-                out.push(c);
-                while let Some(next) = chars.next() {
-                    out.push(next);
-                    if next == '\\' {
-                        if let Some(escaped) = chars.next() {
-                            out.push(escaped);
-                        }
-                    } else if next == '"' {
-                        break;
-                    }
-                }
-            }
-            '/' if chars.peek() == Some(&'/') => {
-                for next in chars.by_ref() {
-                    if next == '\n' {
-                        out.push('\n');
-                        break;
-                    }
-                }
-            }
-            '/' if chars.peek() == Some(&'*') => {
-                chars.next();
-                let mut last = ' ';
-                for next in chars.by_ref() {
-                    if last == '*' && next == '/' {
-                        break;
-                    }
-                    last = next;
-                }
-                out.push(' ');
-            }
-            _ => out.push(c),
-        }
-    }
-    drop_trailing_commas(&out)
-}
-
-/// Remove commas directly before `}` or `]`, outside strings.
-fn drop_trailing_commas(json: &str) -> String {
-    let chars: Vec<char> = json.chars().collect();
-    let mut out = String::with_capacity(json.len());
-    let mut in_string = false;
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        if in_string {
-            if c == '\\' {
-                out.push(c);
-                i += 1;
-                if let Some(&escaped) = chars.get(i) {
-                    out.push(escaped);
-                }
-            } else {
-                in_string = c != '"';
-                out.push(c);
-            }
-            i += 1;
-            continue;
-        }
-        if c == ',' {
-            let next = chars[i + 1..].iter().find(|n| !n.is_whitespace());
-            if matches!(next, Some('}') | Some(']')) {
-                i += 1;
-                continue;
-            }
-        }
-        in_string = c == '"';
-        out.push(c);
-        i += 1;
-    }
-    out
-}
-
-// ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
 
@@ -765,12 +354,12 @@ fn is_source_file(file: &Path) -> bool {
         .is_some_and(|e| SOURCE_EXTENSIONS.contains(&e.to_lowercase().as_str()))
 }
 
-/// Parse dependencies for a single file, with no path aliases.
+/// Parse dependencies for a single file, resolving against the disk.
 #[cfg(test)]
 fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
     let facts = parse_dependencies_with(
         file,
-        &Aliases::default(),
+        &Resolver::from_files(&[]),
         &HashSet::new(),
         &mut ImportTally::default(),
     );
@@ -783,7 +372,7 @@ fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
 /// counting what happened to each import in `tally`.
 fn parse_dependencies_with(
     file: &Path,
-    aliases: &Aliases,
+    resolver: &Resolver,
     python_packages: &HashSet<String>,
     tally: &mut ImportTally,
 ) -> Vec<DependencyFact> {
@@ -803,7 +392,7 @@ fn parse_dependencies_with(
 
     match ext.as_str() {
         "ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
-        | "astro" => parse_js_ts_imports(file, parent, &ext, &content, aliases, tally),
+        | "astro" => parse_js_ts_imports(file, &ext, &content, resolver, tally),
         "py" => parse_python_imports(file, parent, &content, python_packages, tally),
         "rs" => parse_rust_imports(file, parent, &content, tally),
         _ => Vec::new(),
@@ -815,18 +404,19 @@ fn parse_dependencies_with(
 // ---------------------------------------------------------------------------
 
 /// The dependency facts of a JavaScript, TypeScript or component file.
+/// The dependency facts of a JavaScript, TypeScript or component file.
 ///
 /// The file is parsed by [`javascript::scan`]; this turns each reference it
-/// found into a fact, resolving relative paths on disk and aliases through
-/// `tsconfig.json` / `jsconfig.json` `paths` and `baseUrl`. Only confirmed
-/// imports are counted in `tally`; possibilities are reported but neither
-/// counted nor drawn as edges.
+/// found into facts, resolving specifiers with
+/// [`crate::resolution::javascript`]. A specifier that loads different files
+/// under different package conditions gives one fact per condition. Only
+/// confirmed imports are counted in `tally`; possibilities are reported but
+/// neither counted nor drawn as edges.
 fn parse_js_ts_imports(
     file: &Path,
-    parent: &Path,
     ext: &str,
     content: &str,
-    aliases: &Aliases,
+    resolver: &Resolver,
     tally: &mut ImportTally,
 ) -> Vec<DependencyFact> {
     let scan = javascript::scan(ext, content);
@@ -837,6 +427,7 @@ fn parse_js_ts_imports(
         .map(|d| (d.line, d.message.clone()))
         .collect();
 
+    let ctx = resolver.context(file);
     let mut facts = Vec::new();
     let mut seen: HashSet<&str> = HashSet::new();
     let mut seen_facts: HashSet<(&str, DependencyKind, &str)> = HashSet::new();
@@ -860,56 +451,94 @@ fn parse_js_ts_imports(
         // Worker, process and URL loads name files by path, relative to
         // the file, and only count when that file exists.
         if found.kind.is_runtime_load() {
-            if let Some(resolved) = resolve_js_ts_path(parent, specifier) {
+            if let Some(resolved) = resolver.runtime_file(&ctx, specifier) {
                 facts.push(fact.resolved(vec![resolved]));
             }
             continue;
         }
+
+        let syntax = match found.kind {
+            JsRefKind::Require
+            | JsRefKind::RequireShadowed
+            | JsRefKind::ImportEquals
+            | JsRefKind::ImportTypeEquals => Syntax::Require,
+            JsRefKind::DynamicImport => Syntax::DynamicImport,
+            _ => Syntax::Import,
+        };
+        let request = Request {
+            specifier,
+            syntax,
+            types_only: kind == DependencyKind::TypeOnlyImport,
+        };
+        let mut outcome = resolver.resolve(&ctx, request);
 
         // A type named in a documentation comment is a weaker signal than an
         // import statement: comments go stale and often name generated
         // types (`./$types`). Keep it only when it reaches a real file other
         // than this one, or a package.
         if found.kind == JsRefKind::JsDocImport {
-            let resolved = if is_relative(specifier) {
-                resolve_js_ts_path(parent, specifier)
-                    .or_else(|| resolve_declaration(parent, specifier))
-            } else {
-                aliases.resolve(file, specifier)
-            };
-            match resolved {
-                Some(target) if target == normalize(file) => {}
-                Some(target) => facts.push(fact.resolved(vec![target])),
-                None if is_relative(specifier) || aliases.is_local(file, specifier) => {}
-                None => facts.push(fact.resolution(Resolution::External)),
+            outcome.targets.retain(|t| t.path != file);
+            match outcome.resolution {
+                Resolution::External => facts.push(fact.resolution(Resolution::External)),
+                _ if outcome.targets.is_empty() => {}
+                _ => facts.extend(outcome_facts(fact, outcome)),
             }
             continue;
         }
 
-        let resolved = if is_relative(specifier) {
-            resolve_js_ts_path(parent, specifier)
-        } else {
-            aliases.resolve(file, specifier)
-        };
-        let internal =
-            resolved.is_some() || is_relative(specifier) || aliases.is_local(file, specifier);
         if certainty == Certainty::Direct && seen.insert(specifier) {
-            if internal {
-                tally.internal(found.line, specifier, resolved.is_some());
-            } else {
-                tally.external += 1;
-            }
+            tally.count(found.line, specifier, &outcome);
         }
         if found.kind == JsRefKind::DynamicImport {
             fact = fact.condition("dynamic");
         }
-        facts.push(match resolved {
-            Some(resolved) => fact.resolved(vec![resolved]),
-            None if internal => fact.resolution(Resolution::Unresolved),
-            None => fact.resolution(Resolution::External),
-        });
+        facts.extend(outcome_facts(fact, outcome));
     }
     facts
+}
+
+/// The facts for one reference resolved to `outcome`: one per package
+/// condition the targets fall under (conditions joined to the fact's own
+/// with `+`), or one listing every candidate when the outcome is
+/// ambiguous. A fact whose targets were guessed is `inferred`.
+fn outcome_facts(fact: DependencyFact, outcome: Outcome) -> Vec<DependencyFact> {
+    let weaken = |mut fact: DependencyFact, targets: &[&Target]| {
+        if fact.certainty == Certainty::Direct
+            && targets.iter().any(|t| t.certainty == Certainty::Inferred)
+        {
+            fact.certainty = Certainty::Inferred;
+        }
+        fact
+    };
+    match outcome.resolution {
+        Resolution::Resolved => {
+            let mut groups: Vec<(Option<String>, Vec<&Target>)> = Vec::new();
+            for target in &outcome.targets {
+                match groups.iter_mut().find(|(c, _)| *c == target.condition) {
+                    Some((_, list)) => list.push(target),
+                    None => groups.push((target.condition.clone(), vec![target])),
+                }
+            }
+            groups
+                .into_iter()
+                .map(|(condition, targets)| {
+                    let mut fact = weaken(fact.clone(), &targets);
+                    fact.condition = match (fact.condition.take(), condition) {
+                        (Some(own), Some(c)) => Some(format!("{own}+{c}")),
+                        (own, c) => own.or(c),
+                    };
+                    fact.resolved(targets.iter().map(|t| t.path.clone()).collect())
+                })
+                .collect()
+        }
+        Resolution::Ambiguous => {
+            let targets: Vec<&Target> = outcome.targets.iter().collect();
+            let mut fact = weaken(fact, &targets);
+            fact.targets = targets.iter().map(|t| t.path.clone()).collect();
+            vec![fact.resolution(Resolution::Ambiguous)]
+        }
+        other => vec![fact.resolution(other)],
+    }
 }
 
 /// The fact kind, certainty and rule id of a JS/TS reference.
@@ -952,93 +581,6 @@ fn extract_first_quoted(s: &str) -> Option<&str> {
     let inner = &s[1..];
     let end = inner.find(quote)?;
     Some(&inner[..end])
-}
-
-/// A TypeScript declaration file standing for `specifier`: `./types` or
-/// `./types.js` → `types.d.ts`, `./dir` → `dir/index.d.ts`.
-fn resolve_declaration(parent: &Path, specifier: &str) -> Option<PathBuf> {
-    let base = parent.join(specifier);
-    let stem = match base.extension().and_then(|e| e.to_str()) {
-        Some("js" | "mjs" | "cjs" | "ts" | "mts" | "cts") => base.with_extension(""),
-        _ => base.clone(),
-    };
-    [
-        append_extension(&stem, "d.ts"),
-        append_extension(&base, "d.ts"),
-        base.join("index.d.ts"),
-    ]
-    .into_iter()
-    .find(|candidate| is_file(candidate))
-    .map(|candidate| normalize(&candidate))
-}
-
-/// Resolve a JS/TS relative import specifier to an absolute path on disk.
-///
-/// Tries in order:
-/// 1. Exact path (already has extension)
-/// 2. `<path>.ts`, `<path>.tsx`, `<path>.js`, `<path>.jsx`, `<path>.mjs`,
-///    appended so dotted names like `./user.service` keep their full name
-/// 3. A `.js` specifier pointing at TypeScript (`./routes.js` → `routes.ts`)
-/// 4. `<path>/index.ts`, `<path>/index.js`, etc.
-fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
-    let base = parent.join(specifier);
-
-    // 1. Exact path
-    if is_file(&base) {
-        return Some(normalize(&base));
-    }
-
-    // 2. With extension appended
-    for ext in &["ts", "tsx", "js", "jsx", "mjs", "mts", "cts", "cjs"] {
-        let candidate = append_extension(&base, ext);
-        if is_file(&candidate) {
-            return Some(normalize(&candidate));
-        }
-    }
-
-    // 3. JavaScript extension standing in for TypeScript
-    let js_like = base
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| matches!(e, "js" | "jsx" | "mjs" | "cjs"));
-    if js_like {
-        for ext in &["ts", "tsx"] {
-            let candidate = base.with_extension(ext);
-            if is_file(&candidate) {
-                return Some(normalize(&candidate));
-            }
-        }
-    }
-    // `./x.mjs` → `x.mts`, `./x.cjs` → `x.cts`
-    let module_ts = match base.extension().and_then(|e| e.to_str()) {
-        Some("mjs") => Some("mts"),
-        Some("cjs") => Some("cts"),
-        _ => None,
-    };
-    if let Some(ext) = module_ts {
-        let candidate = base.with_extension(ext);
-        if is_file(&candidate) {
-            return Some(normalize(&candidate));
-        }
-    }
-
-    // 4. Index file inside directory
-    for ext in &["ts", "tsx", "js", "jsx", "mjs"] {
-        let candidate = base.join(format!("index.{ext}"));
-        if is_file(&candidate) {
-            return Some(normalize(&candidate));
-        }
-    }
-
-    None
-}
-
-/// Append `.ext` to `path` without replacing a dotted suffix it already has.
-fn append_extension(path: &Path, ext: &str) -> PathBuf {
-    let mut name = path.as_os_str().to_os_string();
-    name.push(".");
-    name.push(ext);
-    PathBuf::from(name)
 }
 
 // ---------------------------------------------------------------------------
@@ -1514,11 +1056,6 @@ fn resolve_rust_mod(dir: &Path, module_name: &str) -> Option<PathBuf> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/// Return `true` if the specifier is a relative path (starts with `.`).
-fn is_relative(specifier: &str) -> bool {
-    specifier.starts_with('.')
-}
 
 /// Normalize a path by resolving `.` and `..` components without requiring
 /// the path to exist (unlike `std::fs::canonicalize`).
@@ -2247,14 +1784,6 @@ mod tests {
         assert!(deps.contains(&normalize(&polyfill)));
 
         fs::remove_dir_all(dir).ok();
-    }
-
-    #[test]
-    fn strips_jsonc_without_touching_strings() {
-        let json = strip_jsonc("{\"a\": \"http://x/*y*/\", /* c */ \"b\": [1, 2,], // d\n}");
-        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(value["a"], "http://x/*y*/");
-        assert_eq!(value["b"], serde_json::json!([1, 2]));
     }
 
     // -----------------------------------------------------------------------

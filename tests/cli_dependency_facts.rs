@@ -145,7 +145,7 @@ fn js_project() -> Vec<(&'static str, &'static str)> {
 #[test]
 fn js_imports_are_typed_facts_with_evidence() {
     let report = analyze(&js_project());
-    assert_eq!(report["dependencies"]["rules_version"], 2);
+    assert_eq!(report["dependencies"]["rules_version"], 3);
     let src = "./src/index.ts";
 
     let a = fact(&report, src, "./a");
