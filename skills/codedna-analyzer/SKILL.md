@@ -526,11 +526,7 @@ codedna json . | jq '.dependency_graph'
 
 ## Ignored Directories
 
-The scanner always skips:
-
-```
-node_modules/   .git/   target/   dist/   build/   coverage/
-```
+The scanner always skips `node_modules/` and `.git/`, plus paths matched by `.gitignore`/`.ignore`. It skips `target/`, `dist/`, `build/` and `coverage/` where they hold build output: at the top of the scan, next to a project manifest (`package.json`, `Cargo.toml`, `pyproject.toml`, …), or where the package declares them as output (`package.json` `main`/`exports`/`files`…, `tsconfig.json` `outDir`). A folder like `src/core/build` is source and is scanned.
 
 ---
 
