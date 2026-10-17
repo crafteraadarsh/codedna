@@ -173,7 +173,10 @@ mod tests {
         ];
         let mut runtime_too = fact("a", "d", Resolution::Resolved);
         runtime_too.source = PathBuf::from("z");
-        let typed = typed_edges([PathBuf::from("lonely")], facts.iter().chain([&runtime_too]));
+        let typed = typed_edges(
+            [PathBuf::from("lonely")],
+            facts.iter().chain([&runtime_too]),
+        );
         assert_eq!(
             typed[Path::new("a")],
             [
@@ -183,7 +186,10 @@ mod tests {
             ]
         );
         // The same edges as the plain graph, and the same nodes.
-        let plain = from_facts([PathBuf::from("lonely")], facts.iter().chain([&runtime_too]));
+        let plain = from_facts(
+            [PathBuf::from("lonely")],
+            facts.iter().chain([&runtime_too]),
+        );
         for (source, deps) in &plain {
             let typed: Vec<&PathBuf> = typed[source].iter().map(|(t, _)| t).collect();
             assert_eq!(typed, deps.iter().collect::<Vec<_>>());
@@ -193,6 +199,9 @@ mod tests {
         let mut both = facts[0].clone();
         both.kind = DependencyKind::RuntimeImport;
         let typed = typed_edges([], [&facts[0], &both]);
-        assert_eq!(typed[Path::new("a")], [(PathBuf::from("b"), EdgeKind::Runtime)]);
+        assert_eq!(
+            typed[Path::new("a")],
+            [(PathBuf::from("b"), EdgeKind::Runtime)]
+        );
     }
 }

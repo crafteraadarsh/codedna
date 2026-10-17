@@ -177,8 +177,14 @@ pub fn build_with_task(
         circular_imports: result
             .circular_imports
             .iter()
+            .zip(result.cycle_kinds())
             .take(LIST_LIMIT)
-            .map(|c| short_cycle_line(c))
+            .map(|(c, kind)| match kind {
+                Some(kind) if kind != crate::cycles::CycleKind::Runtime => {
+                    format!("{} ({})", short_cycle_line(c), kind.label())
+                }
+                _ => short_cycle_line(c),
+            })
             .collect(),
         workspaces: result
             .workspaces
@@ -381,7 +387,11 @@ fn render_task(out: &mut String, task: &crate::task::TaskContext) {
         return;
     }
     for f in &task.files {
-        let _ = writeln!(out, "- {}: {}", code(&f.file), f.reasons.join("; "));
+        let usage = f
+            .usage
+            .map(|u| format!(" ({})", u.label()))
+            .unwrap_or_default();
+        let _ = writeln!(out, "- {}{usage}: {}", code(&f.file), f.reasons.join("; "));
     }
     if !task.tests.is_empty() {
         let tests: Vec<String> = task.tests.iter().map(|t| code(&t.file)).collect();
@@ -601,6 +611,7 @@ mod tests {
                 file: "./src/cli.rs".to_string(),
                 score: 100,
                 reasons: vec!["name matches \"cli\"".to_string()],
+                usage: None,
             }],
             tests: vec![],
         };

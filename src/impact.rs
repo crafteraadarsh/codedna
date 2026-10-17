@@ -7,15 +7,23 @@
 //! imports a changed file, directly or through other files, is affected.
 //! The report then names the layers, API routes and tests involved.
 //!
+//! Each affected file says how the change reaches it: through runtime
+//! imports, through an import that may load one of several files
+//! (possible), or only through type imports (type-only), by the strongest
+//! chain of imports that reaches it.
+//!
 //! Only imports the dependency graph follows are seen, so a file reached
 //! some other way (reflection, configuration, a language whose imports are
-//! not followed) is not listed.
+//! not followed) is not listed. Imports that did not resolve but could name
+//! a changed file are listed apart, as places the impact may be incomplete.
 
 use crate::architecture::{is_test, layer_by_file, LAYER_NAMES};
+use crate::facts::{DependencyFact, Resolution};
+use crate::graph::{EdgeKind, TypedGraph};
 use crate::runbook::Route;
 use crate::safe_text::sanitize;
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -47,6 +55,45 @@ pub struct AffectedFile {
     pub via: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer: Option<String>,
+    /// How the change reaches it, by the strongest chain of imports.
+    pub kind: Link,
+}
+
+/// How a change reaches an affected file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Link {
+    /// Every import on the way is a runtime import.
+    Runtime,
+    /// One import on the way may load one of several files (an ambiguous
+    /// import or a lazy pattern), none is type-only.
+    Possible,
+    /// One import on the way is type-only: the file is checked against the
+    /// change, its runtime behaviour is not affected through this chain.
+    TypeOnly,
+}
+
+impl Link {
+    fn note(self) -> &'static str {
+        match self {
+            Link::Runtime => "",
+            Link::Possible => " (possibly)",
+            Link::TypeOnly => " (types only)",
+        }
+    }
+}
+
+/// An import that did not resolve and may name a changed file: the change
+/// may reach further than listed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UnresolvedImport {
+    /// The file with the import.
+    pub file: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+    pub specifier: String,
+    /// The changed file it may name.
+    pub may_name: String,
 }
 
 /// Files changed and affected in one layer.
@@ -74,6 +121,9 @@ pub struct Impact {
     pub routes: Vec<Route>,
     /// Test files that import changed code: the ones to run.
     pub tests: Vec<String>,
+    /// Imports that did not resolve and may name a changed file. At most
+    /// [`MAX_LISTED`].
+    pub unresolved: Vec<UnresolvedImport>,
 }
 
 /// Compare the working tree under `root` with `base` and work out what the
@@ -81,19 +131,19 @@ pub struct Impact {
 pub fn analyze(root: &Path, base: &str) -> Result<Impact, String> {
     let (base, changed) = changed_files(root, base)?;
     let files = crate::scanner::scan_repository(root);
-    let graph = crate::dependency_graph::build_with_tallies(&files).0;
+    let (graph, _, facts) =
+        crate::dependency_graph::build_facts(&files, &crate::cache::Cache::off());
     let layers: HashMap<PathBuf, &'static str> = layer_by_file(root, &files, &graph)
         .into_iter()
         .map(|(file, layer)| (repo_path(root, &file), layer))
         .collect();
-    let graph: HashMap<PathBuf, Vec<PathBuf>> = graph
+    let facts: Vec<DependencyFact> = facts
         .into_iter()
-        .map(|(file, deps)| {
-            let deps = deps.iter().map(|d| repo_path(root, d)).collect();
-            (repo_path(root, &file), deps)
-        })
+        .map(|f| f.map_paths(|p| repo_path(root, p)))
         .collect();
+    let graph = crate::graph::typed_edges(graph.keys().map(|f| repo_path(root, f)), &facts);
     let mut impact = trace(&graph, &layers, changed);
+    impact.unresolved = unresolved_near(&facts, &impact.changed);
     impact.base = base;
     impact.routes = routes_in(root, &impact);
     Ok(impact)
@@ -176,36 +226,55 @@ fn changed_files(root: &Path, base: &str) -> Result<(String, Vec<(PathBuf, Strin
 }
 
 /// Follow imports backwards from the changed files.
+///
+/// Each file is reached by its strongest chain: through runtime imports
+/// only if it can be, else through possible ones too, else through any
+/// import, type-only ones included. Within that, breadth-first, so it gets
+/// its shortest such path to the change.
 fn trace(
-    graph: &HashMap<PathBuf, Vec<PathBuf>>,
+    graph: &TypedGraph,
     layers: &HashMap<PathBuf, &'static str>,
     changed: Vec<(PathBuf, String)>,
 ) -> Impact {
-    let mut importers: HashMap<&PathBuf, BTreeSet<&PathBuf>> = HashMap::new();
+    let mut importers: HashMap<&PathBuf, BTreeMap<&PathBuf, EdgeKind>> = HashMap::new();
     for (file, deps) in graph {
-        for dep in deps {
+        for (dep, kind) in deps {
             if dep != file {
-                importers.entry(dep).or_default().insert(file);
+                let slot = importers
+                    .entry(dep)
+                    .or_default()
+                    .entry(file)
+                    .or_insert(*kind);
+                *slot = (*slot).min(*kind);
             }
         }
     }
     let layer = |file: &Path| layers.get(file).map(|l| l.to_string());
 
-    // Breadth-first, so each file gets its shortest path to the change.
-    let mut seen: BTreeMap<&PathBuf, (usize, &PathBuf)> = BTreeMap::new();
-    let mut queue: VecDeque<(&PathBuf, usize)> = VecDeque::new();
     let mut starts: Vec<&PathBuf> = changed.iter().map(|(f, _)| f).collect();
     starts.sort();
-    for file in &starts {
-        queue.push_back((file, 0));
-    }
-    while let Some((file, depth)) = queue.pop_front() {
-        for importer in importers.get(file).into_iter().flatten() {
-            if starts.contains(importer) || seen.contains_key(importer) {
-                continue;
+    let mut seen: BTreeMap<&PathBuf, (usize, &PathBuf, Link)> = BTreeMap::new();
+    let stages = [
+        (Link::Runtime, EdgeKind::Runtime),
+        (Link::Possible, EdgeKind::Possible),
+        (Link::TypeOnly, EdgeKind::Type),
+    ];
+    for (link, weakest) in stages {
+        // Every file reached so far, nearest first, spreads through edges
+        // no weaker than this stage allows.
+        let mut queue: VecDeque<(&PathBuf, usize)> = starts.iter().map(|f| (*f, 0)).collect();
+        let mut reached: Vec<(&PathBuf, usize)> =
+            seen.iter().map(|(f, (d, _, _))| (*f, *d)).collect();
+        reached.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(b.0)));
+        queue.extend(reached);
+        while let Some((file, depth)) = queue.pop_front() {
+            for (importer, kind) in importers.get(file).into_iter().flatten() {
+                if *kind > weakest || starts.contains(importer) || seen.contains_key(importer) {
+                    continue;
+                }
+                seen.insert(importer, (depth + 1, file, link));
+                queue.push_back((importer, depth + 1));
             }
-            seen.insert(importer, (depth + 1, file));
-            queue.push_back((importer, depth + 1));
         }
     }
 
@@ -215,7 +284,7 @@ fn trace(
         .filter(|(f, status)| status != "deleted" && is_test(f))
         .map(|(f, _)| shown(f))
         .collect();
-    for (file, (depth, via)) in &seen {
+    for (file, (depth, via, link)) in &seen {
         if is_test(file) {
             tests.push(shown(file));
         } else {
@@ -224,6 +293,7 @@ fn trace(
                 depth: *depth,
                 via: shown(via),
                 layer: layer(file),
+                kind: *link,
             });
         }
     }
@@ -278,7 +348,41 @@ fn trace(
         layers,
         routes: Vec::new(),
         tests,
+        unresolved: Vec::new(),
     }
+}
+
+/// Imports that did not resolve and could name one of the changed files
+/// (the same path without its extension, a file inside the folder it
+/// names, or an alias ending in the same segments). An unresolved import
+/// that could name none of them is left out.
+fn unresolved_near(facts: &[DependencyFact], changed: &[ChangedFile]) -> Vec<UnresolvedImport> {
+    let changed: Vec<PathBuf> = changed.iter().map(|c| PathBuf::from(&c.file)).collect();
+    let mut out: Vec<UnresolvedImport> = Vec::new();
+    for fact in facts {
+        if fact.resolution != Resolution::Unresolved || changed.contains(&fact.source) {
+            continue;
+        }
+        for file in &changed {
+            if crate::dead_code_detector::could_name(&fact.source, &fact.specifier, file) {
+                out.push(UnresolvedImport {
+                    file: shown(&fact.source),
+                    line: fact.evidence.line,
+                    specifier: sanitize(&fact.specifier),
+                    may_name: shown(file),
+                });
+            }
+        }
+    }
+    out.sort_by(|a, b| {
+        a.file
+            .cmp(&b.file)
+            .then(a.line.cmp(&b.line))
+            .then_with(|| a.may_name.cmp(&b.may_name))
+    });
+    out.dedup();
+    out.truncate(MAX_LISTED);
+    out
 }
 
 /// API routes declared in the changed and affected files.
@@ -368,10 +472,11 @@ pub fn render_text(impact: &Impact) -> String {
         for a in &impact.affected {
             let _ = writeln!(
                 out,
-                "  {}{}  imports {}",
+                "  {}{}  imports {}{}",
                 a.file,
                 layer_note(&a.layer),
-                a.via
+                a.via,
+                a.kind.note()
             );
         }
         if impact.affected_total > impact.affected.len() {
@@ -379,6 +484,22 @@ pub fn render_text(impact: &Impact) -> String {
                 out,
                 "  … and {} more",
                 impact.affected_total - impact.affected.len()
+            );
+        }
+    }
+    if !impact.unresolved.is_empty() {
+        let _ = writeln!(
+            out,
+            "\nMay reach further: {} import(s) did not resolve and may name a changed file",
+            impact.unresolved.len()
+        );
+        for u in &impact.unresolved {
+            let _ = writeln!(
+                out,
+                "  {}  imports {}  (may be {})",
+                at(u),
+                u.specifier,
+                u.may_name
             );
         }
     }
@@ -399,6 +520,14 @@ pub fn render_text(impact: &Impact) -> String {
         }
     }
     out
+}
+
+/// `file:line` of an unresolved import.
+fn at(u: &UnresolvedImport) -> String {
+    match u.line {
+        Some(line) => format!("{}:{line}", u.file),
+        None => u.file.clone(),
+    }
 }
 
 fn describe_layer(l: &LayerImpact) -> String {
@@ -446,13 +575,29 @@ pub fn render_markdown(impact: &Impact) -> String {
         for a in &impact.affected {
             let _ = writeln!(
                 out,
-                "| {} | {} | {} |",
+                "| {} | {} | {}{} |",
                 code(&a.file),
                 a.layer.as_deref().unwrap_or(""),
-                code(&a.via)
+                code(&a.via),
+                a.kind.note()
             );
         }
         out.push_str("\n</details>\n");
+    }
+    if !impact.unresolved.is_empty() {
+        let _ = writeln!(
+            out,
+            "\n**May reach further**: these imports did not resolve and may name a changed file\n"
+        );
+        for u in &impact.unresolved {
+            let _ = writeln!(
+                out,
+                "- {} imports {} (may be {})",
+                code(&at(u)),
+                code(&u.specifier),
+                code(&u.may_name)
+            );
+        }
     }
     if !impact.routes.is_empty() {
         let _ = writeln!(out, "\n**API routes**\n");
@@ -485,13 +630,14 @@ mod tests {
 
     #[test]
     fn traces_importers_layers_and_tests() {
-        let graph: HashMap<PathBuf, Vec<PathBuf>> = [
+        let r = |s: &str| (p(s), EdgeKind::Runtime);
+        let graph: TypedGraph = [
             (p("src/db/user.ts"), vec![]),
-            (p("src/services/user.ts"), vec![p("src/db/user.ts")]),
-            (p("src/routes/users.ts"), vec![p("src/services/user.ts")]),
-            (p("src/index.ts"), vec![p("src/routes/users.ts")]),
+            (p("src/services/user.ts"), vec![r("src/db/user.ts")]),
+            (p("src/routes/users.ts"), vec![r("src/services/user.ts")]),
+            (p("src/index.ts"), vec![r("src/routes/users.ts")]),
             (p("src/other.ts"), vec![]),
-            (p("tests/user.test.ts"), vec![p("src/services/user.ts")]),
+            (p("tests/user.test.ts"), vec![r("src/services/user.ts")]),
         ]
         .into_iter()
         .collect();

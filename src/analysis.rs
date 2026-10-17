@@ -11,8 +11,8 @@ use crate::dead_code_detector::{self, DeadCodeCandidate, UsageReport};
 use crate::dependency_graph;
 use crate::facts::{self, DependencyFact, DependencyFacts};
 use crate::framework_detector;
-use crate::graph;
 use crate::frameworks;
+use crate::graph;
 use crate::language_detector;
 use crate::loc_counter;
 use crate::scanner;
@@ -322,14 +322,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     let uncertain =
         dead_code_detector::uncertainty(&dependency_facts, &usage, &typed_graph, make_relative);
     let usage = usage.report(make_relative);
-    let dead_code_details = dead_code_detector::assess_with(
-        root,
-        &dead_code,
-        &files,
-        &dep_graph,
-        &uncertain,
-        &cache,
-    )
+    let dead_code_details =
+        dead_code_detector::assess_with(root, &dead_code, &files, &dep_graph, &uncertain, &cache)
             .into_iter()
             .map(|c| DeadCodeCandidate {
                 file: make_relative(&c.file),

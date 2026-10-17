@@ -188,6 +188,20 @@ pub enum UsageKind {
     Unreachable,
 }
 
+impl UsageKind {
+    /// How the usage reads in text.
+    pub fn label(self) -> &'static str {
+        match self {
+            UsageKind::Confirmed => "used",
+            UsageKind::Possible => "possibly loaded",
+            UsageKind::TypeOnly => "types only",
+            UsageKind::TestOnly => "tests only",
+            UsageKind::ToolingOnly => "tooling only",
+            UsageKind::Unreachable => "unreachable",
+        }
+    }
+}
+
 /// A file that is reached, but not confirmed: how, and the path from the
 /// entry point that reaches it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -380,11 +394,7 @@ pub fn uncertainty(
                 if fact.certainty == Certainty::Possibility =>
             {
                 for target in fact.targets.iter().filter(|t| dead_set.contains(t)) {
-                    let condition = format!(
-                        "{} may load it ({})",
-                        at(fact),
-                        fact.evidence.rule
-                    );
+                    let condition = format!("{} may load it ({})", at(fact), fact.evidence.rule);
                     note(target, DeadStatus::Possible, condition);
                 }
             }
@@ -392,7 +402,10 @@ pub fn uncertainty(
                 let Some(prefix) = computed_prefix(&fact.source, &fact.specifier) else {
                     continue;
                 };
-                for file in dead.iter().filter(|f| f.to_string_lossy().starts_with(&prefix)) {
+                for file in dead
+                    .iter()
+                    .filter(|f| f.to_string_lossy().starts_with(&prefix))
+                {
                     let condition = format!(
                         "{} builds an import path that may name it: {}",
                         at(fact),
@@ -402,7 +415,10 @@ pub fn uncertainty(
                 }
             }
             Resolution::Unresolved => {
-                for file in dead.iter().filter(|f| could_name(&fact.source, &fact.specifier, f)) {
+                for file in dead
+                    .iter()
+                    .filter(|f| could_name(&fact.source, &fact.specifier, f))
+                {
                     let condition = format!(
                         "{} imports {}, which did not resolve and may name it",
                         at(fact),
@@ -470,7 +486,7 @@ fn computed_prefix(source: &Path, specifier: &str) -> Option<String> {
 
 /// Whether an unresolved `specifier` imported from `source` could name
 /// `file`.
-fn could_name(source: &Path, specifier: &str, file: &Path) -> bool {
+pub(crate) fn could_name(source: &Path, specifier: &str, file: &Path) -> bool {
     let without_ext = file.with_extension("");
     if specifier.starts_with("./") || specifier.starts_with("../") {
         let Some(dir) = source.parent() else {
@@ -508,8 +524,10 @@ fn could_name(source: &Path, specifier: &str, file: &Path) -> bool {
                 .all(|(a, b)| a == b)
     };
     ends_with(&parts)
-        || (matches!(parts.last().map(String::as_str), Some("index" | "__init__" | "mod"))
-            && ends_with(&parts[..parts.len() - 1]))
+        || (matches!(
+            parts.last().map(String::as_str),
+            Some("index" | "__init__" | "mod")
+        ) && ends_with(&parts[..parts.len() - 1]))
 }
 
 /// Classify every node of `graph` by how it is used.
@@ -574,12 +592,28 @@ pub fn classify(
     let not_type = |k: EdgeKind| k != EdgeKind::Type;
     let any = |_: EdgeKind| true;
 
-    let seeds: Vec<(&PathBuf, Option<&PathBuf>)> =
-        roles(Role::Production).into_iter().map(|f| (f, None)).collect();
-    spread(graph, seeds, UsageKind::Confirmed, runtime, &mut usage, &mut parent);
+    let seeds: Vec<(&PathBuf, Option<&PathBuf>)> = roles(Role::Production)
+        .into_iter()
+        .map(|f| (f, None))
+        .collect();
+    spread(
+        graph,
+        seeds,
+        UsageKind::Confirmed,
+        runtime,
+        &mut usage,
+        &mut parent,
+    );
 
     let seeds = crossing(graph, &usage, &[UsageKind::Confirmed], EdgeKind::Possible);
-    spread(graph, seeds, UsageKind::Possible, not_type, &mut usage, &mut parent);
+    spread(
+        graph,
+        seeds,
+        UsageKind::Possible,
+        not_type,
+        &mut usage,
+        &mut parent,
+    );
 
     let mut seeds = crossing(
         graph,
@@ -588,13 +622,37 @@ pub fn classify(
         EdgeKind::Type,
     );
     seeds.extend(roles(Role::Types).into_iter().map(|f| (f, None)));
-    spread(graph, seeds, UsageKind::TypeOnly, any, &mut usage, &mut parent);
+    spread(
+        graph,
+        seeds,
+        UsageKind::TypeOnly,
+        any,
+        &mut usage,
+        &mut parent,
+    );
 
     let seeds = roles(Role::Test).into_iter().map(|f| (f, None)).collect();
-    spread(graph, seeds, UsageKind::TestOnly, any, &mut usage, &mut parent);
+    spread(
+        graph,
+        seeds,
+        UsageKind::TestOnly,
+        any,
+        &mut usage,
+        &mut parent,
+    );
 
-    let seeds = roles(Role::Tooling).into_iter().map(|f| (f, None)).collect();
-    spread(graph, seeds, UsageKind::ToolingOnly, any, &mut usage, &mut parent);
+    let seeds = roles(Role::Tooling)
+        .into_iter()
+        .map(|f| (f, None))
+        .collect();
+    spread(
+        graph,
+        seeds,
+        UsageKind::ToolingOnly,
+        any,
+        &mut usage,
+        &mut parent,
+    );
 
     out.usage = nodes
         .iter()
@@ -1009,7 +1067,14 @@ struct Loader {
 /// and for each candidate's name.
 #[cfg(test)]
 pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeCandidate> {
-    assess_with(root, dead, files, &HashMap::new(), &HashMap::new(), &Cache::off())
+    assess_with(
+        root,
+        dead,
+        files,
+        &HashMap::new(),
+        &HashMap::new(),
+        &Cache::off(),
+    )
 }
 
 /// [`assess`], reusing the mentions `cache` holds for files that have not
@@ -2077,7 +2142,14 @@ mod tests {
         );
         let mut graph = make_graph(&[]);
         graph.insert(normalize(&files[0]), vec![normalize(&files[1])]);
-        let c = assess_with(&root, &files, &files, &graph, &HashMap::new(), &Cache::off());
+        let c = assess_with(
+            &root,
+            &files,
+            &files,
+            &graph,
+            &HashMap::new(),
+            &Cache::off(),
+        );
 
         let card = rated(&c, &root, "ui/Card.tsx");
         assert_eq!(card.confidence, Confidence::Low);

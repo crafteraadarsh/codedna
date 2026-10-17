@@ -11,6 +11,8 @@
 
 use crate::analysis::AnalysisResult;
 use crate::architecture::is_test;
+use crate::dead_code_detector::UsageKind;
+use crate::graph::EdgeKind;
 use crate::safe_text::sanitize;
 use rayon::prelude::*;
 use serde::Serialize;
@@ -63,7 +65,14 @@ pub struct TaskFile {
     /// Relevance from 1 to 100, relative to the best match for this task.
     pub score: u32,
     /// E.g. `name matches "login"`, `mentions "rate" 4×`, `imported by src/app.ts`.
+    /// A neighbour linked only by a type import says `(types only)`, one
+    /// linked by an import that may load another file says `(possibly)`.
     pub reasons: Vec<String>,
+    /// How the file is used when the program does not confirm it is loaded
+    /// at runtime: `type_only`, `test_only`, `unreachable`, …. Left out
+    /// for a confirmed file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<UsageKind>,
 }
 
 /// Files that matter for a task.
@@ -211,6 +220,21 @@ where
             }
         }
     }
+    let typed = crate::graph::typed_edges(
+        result.dependency_graph.keys().cloned(),
+        &result.dependencies.facts,
+    );
+    let kinds: HashMap<(&PathBuf, &PathBuf), EdgeKind> = typed
+        .iter()
+        .flat_map(|(file, deps)| deps.iter().map(move |(dep, kind)| ((file, dep), *kind)))
+        .collect();
+    // How a link reads: a type import passes on half as much.
+    let link = |file: &PathBuf, dep: &PathBuf| match kinds.get(&(file, dep)) {
+        Some(EdgeKind::Type) => (0.5, " (types only)"),
+        Some(EdgeKind::Possible) => (1.0, " (possibly)"),
+        _ => (1.0, ""),
+    };
+    let usage = usage_by_file(result);
     let mut seeds: Vec<(&PathBuf, f64)> = scores.iter().map(|(f, (s, _))| (*f, *s)).collect();
     seeds.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(b.0)));
     seeds.truncate(FILE_LIMIT);
@@ -219,17 +243,24 @@ where
         let imports = result.dependency_graph.get(*seed).into_iter().flatten();
         let imported_by = importers.get(seed).into_iter().flatten().copied();
         let neighbours = imports
-            .map(|n| (n, format!("imported by {}", show(seed))))
-            .chain(imported_by.map(|n| (n, format!("imports {}", show(seed)))));
+            .map(|n| {
+                let (weight, note) = link(seed, n);
+                (n, weight, format!("imported by {}{note}", show(seed)))
+            })
+            .chain(imported_by.map(|n| {
+                let (weight, note) = link(n, seed);
+                (n, weight, format!("imports {}{note}", show(seed)))
+            }));
         // A file that imports everything (`main.rs`, an index) passes on
         // little to each.
         let degree = result.dependency_graph.get(*seed).map_or(0, Vec::len)
             + importers.get(seed).map_or(0, BTreeSet::len);
         let share = score * NEIGHBOUR_SHARE * (5.0 / degree.max(1) as f64).min(1.0);
-        for (neighbour, reason) in neighbours {
+        for (neighbour, weight, reason) in neighbours {
             if neighbour == *seed {
                 continue;
             }
+            let share = share * weight;
             let entry = passed.entry(neighbour).or_insert((0.0, String::new()));
             if share > entry.0 {
                 *entry = (share, reason);
@@ -259,6 +290,7 @@ where
             file: show(file),
             score: ((score / top) * 100.0).round().max(1.0) as u32,
             reasons,
+            usage: usage.get(&key(file)).copied(),
         };
         if is_test(file) {
             if context.tests.len() < TEST_LIMIT {
@@ -300,6 +332,7 @@ where
                     file: show(test),
                     score: (score / divisor).max(1),
                     reasons: vec![reason],
+                    usage: usage.get(&key(test)).copied(),
                 });
             }
         }
@@ -388,6 +421,26 @@ fn undouble(base: &str) -> String {
     } else {
         base.to_string()
     }
+}
+
+/// The usage of every file the analysis did not confirm, by [`key`].
+fn usage_by_file(result: &AnalysisResult) -> HashMap<String, UsageKind> {
+    let mut usage: HashMap<String, UsageKind> = result
+        .usage
+        .files
+        .iter()
+        .map(|f| (key(&f.file), f.usage))
+        .collect();
+    for file in &result.dead_code {
+        usage.insert(key(file), UsageKind::Unreachable);
+    }
+    usage
+}
+
+/// A path as comparable text, without a leading `./`.
+fn key(path: &Path) -> String {
+    let text = path.to_string_lossy().replace('\\', "/");
+    text.strip_prefix("./").unwrap_or(&text).to_string()
 }
 
 fn show(path: &Path) -> String {
