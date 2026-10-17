@@ -16,7 +16,7 @@ use crate::facts::{Certainty, DependencyFact, DependencyKind, Resolution};
 use crate::graph;
 use crate::parsers::javascript::{self, RefKind as JsRefKind};
 use crate::parsers::ParseStatus;
-use crate::resolution::javascript::{Request, Resolver, Syntax};
+use crate::resolution::javascript::{GlobMatch, Request, Resolver, Syntax};
 use crate::resolution::{self, Outcome, Target};
 use rayon::prelude::*;
 use std::cell::RefCell;
@@ -448,6 +448,23 @@ fn parse_js_ts_imports(
             facts.push(fact.resolution(Resolution::Unsupported));
             continue;
         }
+        // `import.meta.glob`: every scanned file the patterns match.
+        if matches!(found.kind, JsRefKind::Glob | JsRefKind::GlobAsset) {
+            let patterns: Vec<String> = if specifier.starts_with('[') {
+                serde_json::from_str(specifier).unwrap_or_default()
+            } else {
+                vec![specifier.to_string()]
+            };
+            facts.push(match resolver.glob(&ctx, file, &patterns) {
+                GlobMatch::Files(files) => fact.resolved(files),
+                GlobMatch::None => fact.resolution(Resolution::Unresolved),
+                GlobMatch::Unsupported => {
+                    fact.certainty = Certainty::Possibility;
+                    fact.resolution(Resolution::Unsupported)
+                }
+            });
+            continue;
+        }
         // Worker, process and URL loads name files by path, relative to
         // the file, and only count when that file exists.
         if found.kind.is_runtime_load() {
@@ -565,6 +582,13 @@ fn js_fact_kind(kind: JsRefKind) -> (DependencyKind, Certainty, &'static str) {
         JsRefKind::Worker => (K::WorkerEntry, Inferred, "js.worker"),
         JsRefKind::WorkerShadowed => (K::WorkerEntry, Possibility, "js.worker_shadowed"),
         JsRefKind::Process => (K::ProcessEntry, Inferred, "js.process"),
+        JsRefKind::Glob => (K::RuntimeImport, Direct, "js.import_meta_glob"),
+        JsRefKind::GlobAsset => (K::ResourceReference, Direct, "js.import_meta_glob"),
+        JsRefKind::ComputedGlob => (
+            K::PossibleDynamicLoad,
+            Possibility,
+            "js.import_meta_glob_computed",
+        ),
         JsRefKind::TextScan => (K::RuntimeImport, Possibility, "js.text_scan"),
     }
 }

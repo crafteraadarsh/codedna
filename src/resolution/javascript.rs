@@ -278,7 +278,39 @@ pub struct Resolver {
     svelte: HashSet<PathBuf>,
     /// Directories holding a `docusaurus.config.*`.
     docusaurus: HashSet<PathBuf>,
+    /// Directories holding a `vite.config.*`.
+    vite: HashSet<PathBuf>,
+    /// The known files in path order, for glob expansion.
+    sorted: Vec<PathBuf>,
 }
+
+/// What an `import.meta.glob` expands to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GlobMatch {
+    /// The matching files, sorted.
+    Files(Vec<PathBuf>),
+    /// No file matches, or the patterns are aliases.
+    None,
+    /// More files than [`MAX_GLOB_FILES`], or a pattern this matcher does
+    /// not read (extglobs).
+    Unsupported,
+}
+
+/// The most files one `import.meta.glob` may expand to.
+pub const MAX_GLOB_FILES: usize = 10_000;
+
+/// `path` under `base`, with forward slashes.
+fn relative_path(base: &Path, path: &Path) -> Option<String> {
+    let rel = path.strip_prefix(base).ok()?;
+    let parts: Vec<&str> = rel
+        .components()
+        .map(|c| c.as_os_str().to_str())
+        .collect::<Option<_>>()?;
+    Some(parts.join("/"))
+}
+
+/// Config files that make a directory a Vite root.
+const VITE_CONFIG_EXTENSIONS: &[&str] = &["js", "mjs", "cjs", "ts", "mts", "cts"];
 
 /// What resolution knows about the file doing the importing.
 #[derive(Debug, Clone, Copy)]
@@ -375,6 +407,9 @@ impl Resolver {
                         "docusaurus.config" => {
                             resolver.docusaurus.insert(dir.to_path_buf());
                         }
+                        "vite.config" if VITE_CONFIG_EXTENSIONS.contains(&ext) => {
+                            resolver.vite.insert(dir.to_path_buf());
+                        }
                         _ => {}
                     }
                 }
@@ -410,6 +445,7 @@ impl Resolver {
             }
             resolver.configs.insert(path.clone(), config);
         }
+        resolver.sorted = paths;
         resolver
     }
 
@@ -546,6 +582,110 @@ impl Resolver {
             return Outcome::external();
         }
         self.bare(ctx, request)
+    }
+
+    /// The files Vite's `import.meta.glob(patterns)` in `file` loads.
+    /// `./` and `../` patterns are relative to the file, `/` patterns to
+    /// the Vite root (the nearest folder with a `vite.config.*`, within the
+    /// package, else the package folder). Patterns starting `!` remove
+    /// files. Alias patterns (`@/x/*`) match nothing here. Like Vite,
+    /// `node_modules` and dot folders are skipped unless named, and the
+    /// file never matches itself.
+    pub fn glob(&self, ctx: &Context, file: &Path, patterns: &[String]) -> GlobMatch {
+        let file = normalize(file);
+        let mut include = Vec::new();
+        let mut exclude = Vec::new();
+        for pattern in patterns {
+            let (negated, body) = match pattern.strip_prefix('!') {
+                Some(body) => (true, body),
+                None => (false, pattern.as_str()),
+            };
+            let anchor = if body.starts_with("./") || body.starts_with("../") {
+                ctx.dir.to_path_buf()
+            } else if body.starts_with('/') {
+                self.vite_root(ctx)
+            } else if negated {
+                // An aliased negation cannot be applied; matching more is
+                // the safe side.
+                continue;
+            } else {
+                // Aliases and package paths are not followed.
+                return GlobMatch::Unsupported;
+            };
+            let body = body.trim_start_matches('/');
+            // The folder part before the first wildcard is a plain path.
+            let wild = body.find(['*', '?', '[', '{']).unwrap_or(body.len());
+            let split = body[..wild].rfind('/').map_or(0, |i| i + 1);
+            let (prefix, rest) = body.split_at(split);
+            let base = normalize(&anchor.join(prefix));
+            if rest.is_empty() {
+                continue;
+            }
+            let Some(glob) = crate::frameworks::Glob::new(rest) else {
+                return GlobMatch::Unsupported;
+            };
+            let hidden_ok = rest.starts_with('.') || rest.contains("/.");
+            let modules_ok = rest.contains("node_modules");
+            if negated {
+                exclude.push((base, glob));
+            } else {
+                include.push((base, glob, hidden_ok, modules_ok));
+            }
+        }
+        let mut found = Vec::new();
+        for (base, glob, hidden_ok, modules_ok) in &include {
+            let start = self.sorted.partition_point(|p| p < base);
+            for path in self.sorted[start..]
+                .iter()
+                .take_while(|p| p.starts_with(base))
+            {
+                if *path == file {
+                    continue;
+                }
+                let Some(rel) = relative_path(base, path) else {
+                    continue;
+                };
+                let skipped = rel.split('/').any(|segment| {
+                    (!hidden_ok && segment.starts_with('.'))
+                        || (!modules_ok && segment == "node_modules")
+                });
+                if skipped || !glob.matches(&rel) {
+                    continue;
+                }
+                let excluded = exclude.iter().any(|(base, glob)| {
+                    relative_path(base, path).is_some_and(|rel| glob.matches(&rel))
+                });
+                if !excluded {
+                    found.push(path.clone());
+                    if found.len() > MAX_GLOB_FILES {
+                        return GlobMatch::Unsupported;
+                    }
+                }
+            }
+        }
+        found.sort();
+        found.dedup();
+        if found.is_empty() {
+            GlobMatch::None
+        } else {
+            GlobMatch::Files(found)
+        }
+    }
+
+    /// The folder Vite's `/` patterns start from for the file `ctx`
+    /// describes.
+    fn vite_root(&self, ctx: &Context) -> PathBuf {
+        let dir = normalize(ctx.dir);
+        let package = ctx.package.map(|p| normalize(&p.dir));
+        for ancestor in dir.ancestors() {
+            if self.vite.contains(ancestor) {
+                return ancestor.to_path_buf();
+            }
+            if package.as_deref() == Some(ancestor) {
+                return ancestor.to_path_buf();
+            }
+        }
+        package.unwrap_or(dir)
     }
 
     /// The file a runtime load (`new Worker`, `new URL`, `spawn`) names,

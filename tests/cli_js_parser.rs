@@ -100,7 +100,7 @@ fn rule(f: &Value) -> &str {
 #[test]
 fn reports_the_new_rules_version() {
     let report = analyze(&[("a.ts", "export {};\n")]);
-    assert_eq!(report["dependencies"]["rules_version"], 4);
+    assert_eq!(report["dependencies"]["rules_version"], 5);
 }
 
 #[test]
