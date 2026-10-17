@@ -27,7 +27,7 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Bumped when the stored layout changes.
-const FORMAT: u32 = 3;
+const FORMAT: u32 = 4;
 /// Largest cache file read.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
 /// Files changed this close to the start of a run are not stored: an edit
@@ -69,6 +69,10 @@ struct Imports {
     facts: Vec<DependencyFact>,
     readable: bool,
     resolved: usize,
+    #[serde(default)]
+    ambiguous: usize,
+    #[serde(default)]
+    inferred: usize,
     unresolved: Vec<(usize, String)>,
     external: usize,
     #[serde(default)]
@@ -173,7 +177,8 @@ impl Cache {
             tree.add(file.as_os_str().as_encoded_bytes());
             let settings = file
                 .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("json") || e.eq_ignore_ascii_case("toml"));
+                .is_some_and(|e| e.eq_ignore_ascii_case("json") || e.eq_ignore_ascii_case("toml"))
+                || file.file_name().is_some_and(|n| n == "pnpm-workspace.yaml");
             if settings {
                 let (size, mtime) = stamps.get(&normalize(file)).copied().unwrap_or_default();
                 tree.add(&size.to_le_bytes());
@@ -289,6 +294,8 @@ impl Cache {
                     let tally = ImportTally {
                         readable: i.readable,
                         resolved: i.resolved,
+                        ambiguous: i.ambiguous,
+                        inferred: i.inferred,
                         unresolved: i.unresolved.clone(),
                         external: i.external,
                         parse: i.parse,
@@ -303,6 +310,8 @@ impl Cache {
                     facts,
                     readable: tally.readable,
                     resolved: tally.resolved,
+                    ambiguous: tally.ambiguous,
+                    inferred: tally.inferred,
                     unresolved: tally.unresolved,
                     external: tally.external,
                     parse: tally.parse,

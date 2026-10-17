@@ -69,6 +69,15 @@ pub struct ImportCounts {
     pub unresolved: usize,
     /// Imports of packages outside the repository.
     pub external: usize,
+    /// Resolved imports that could load one of several files (a subset of
+    /// `resolved`).
+    #[serde(default)]
+    pub ambiguous: usize,
+    /// Resolved imports whose target CodeDna inferred rather than read from
+    /// configuration, e.g. a built `dist/x.js` mapped to `src/x.ts` (a
+    /// subset of `resolved`).
+    #[serde(default)]
+    pub inferred: usize,
 }
 
 /// Files read with a syntax parser, by how far they got.
@@ -175,6 +184,8 @@ pub fn measure(
         coverage.imports.resolved += tally.resolved;
         coverage.imports.unresolved += tally.unresolved.len();
         coverage.imports.external += tally.external;
+        coverage.imports.ambiguous += tally.ambiguous;
+        coverage.imports.inferred += tally.inferred;
         unresolved.extend(
             tally
                 .unresolved
@@ -369,7 +380,9 @@ mod tests {
                 internal: 5,
                 resolved: 4,
                 unresolved: 1,
-                external: 7
+                external: 7,
+                ambiguous: 0,
+                inferred: 0
             }
         );
         assert_eq!(

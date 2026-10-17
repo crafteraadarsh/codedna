@@ -122,6 +122,9 @@ codedna/
 │   ├── parsers/
 │   │   ├── mod.rs            # Parse status and diagnostics shared by parsers
 │   │   └── javascript.rs     # JS/TS/Vue/Svelte/Astro import scan on the Oxc syntax tree
+│   ├── resolution/
+│   │   ├── mod.rs            # Resolution outcomes, targets, order-preserving JSON
+│   │   └── javascript.rs     # JS/TS resolution: package.json exports/imports, tsconfig, workspaces
 │   ├── facts.rs              # Typed dependency facts (kind, resolution, evidence)
 │   ├── graph.rs              # File graph built from resolved facts
 │   ├── dead_code_detector.rs # BFS from entry points → unreachable files
@@ -200,6 +203,17 @@ JS/TS imports are read from an [Oxc](https://oxc.rs) syntax tree in `src/parsers
 4. Bump `RULES_VERSION` in `src/facts.rs` and `FORMAT` in `src/cache.rs`, since cached results from the old rules are no longer valid.
 
 Oxc crates are pinned to an exact version in `Cargo.toml`; upgrade them together and run the whole test suite.
+
+### Changing JavaScript and TypeScript Resolution
+
+Specifiers are resolved to files in `src/resolution/javascript.rs`. The README's "How it works" section has the resolution matrix; keep it in step with the code.
+
+1. Cite the rule you follow (a step of Node's ESM resolution algorithm, or a TypeScript option) in the code, and check the expected result with `tsc --traceResolution` or `node` on a small fixture. Do not claim equivalence where CodeDna deliberately differs (no `node_modules`, undecided conditions kept as alternatives).
+2. Add a failing test first in `tests/cli_js_resolution.rs`, with a negative case next to the positive one.
+3. A mapping CodeDna guesses (folder names, framework defaults) is `inferred`; only configuration or the file system makes it `direct`. Never read a file the scanner did not list.
+4. Bump `RULES_VERSION` and the cache `FORMAT`, and check the output with the cache on and off.
+
+Why not `oxc_resolver`: it resolves one condition set to one file, needs `node_modules` links for workspaces, has no notion of an inferred or ambiguous result, and would need a custom file system to stay inside the scanned files. CodeDna needs every condition branch, an honest certainty and a fence, so it has its own resolver.
 
 ### Adding Infrastructure Detection
 

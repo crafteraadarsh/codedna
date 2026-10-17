@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// Version of the extraction rules. It goes up when a rule starts or stops
 /// producing facts, or a rule id changes meaning, so consumers can tell
 /// reports made with different rules apart.
-pub const RULES_VERSION: u32 = 2;
+pub const RULES_VERSION: u32 = 3;
 
 /// What kind of dependency a fact records.
 #[derive(
@@ -75,7 +75,8 @@ pub enum Resolution {
     External,
     /// Points into the repository but matched no file.
     Unresolved,
-    /// Could be one of several files. Reserved: no rule produces it yet.
+    /// Could be one of several files; `targets` lists every candidate (two
+    /// workspace packages with the same name, say).
     Ambiguous,
     /// The specifier cannot be resolved statically, e.g. a template literal.
     Unsupported,
@@ -244,6 +245,7 @@ pub fn sort(facts: &mut [DependencyFact]) {
             a.kind,
             &a.evidence.rule,
             &a.targets,
+            &a.condition,
         )
             .cmp(&(
                 &b.source,
@@ -253,6 +255,7 @@ pub fn sort(facts: &mut [DependencyFact]) {
                 b.kind,
                 &b.evidence.rule,
                 &b.targets,
+                &b.condition,
             ))
     });
 }
