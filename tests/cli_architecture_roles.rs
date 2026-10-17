@@ -520,3 +520,151 @@ fn django_packages_hooks_and_migrations_take_their_real_roles() {
     assert_eq!(files_in(&report, "Data"), 3);
     assert_eq!(files_in(&report, "UI"), 2);
 }
+
+/// A workspace with an express app and two published packages: shared
+/// models it uses, and a client SDK for outside callers.
+fn product_monorepo(app_manifest: &str) -> Vec<(&str, String)> {
+    let model = |name: &str| {
+        format!("const mongoose = require('mongoose');\nmodule.exports = mongoose.model('{name}', new mongoose.Schema({{}}));\n")
+    };
+    vec![
+        ("package.json", r#"{"name":"root","private":true,"workspaces":["apps/*","packages/*"]}"#.to_string()),
+        ("apps/api/package.json", app_manifest.to_string()),
+        ("apps/api/routes/users.js", "const router = require('express').Router();\nrouter.get('/users', (req, res) => res.json([]));\nmodule.exports = router;\n".to_string()),
+        ("packages/schemas/package.json", r#"{"name":"@acme/schemas","version":"1.0.0","exports":"./index.js","files":["models"]}"#.to_string()),
+        ("packages/schemas/models/user.js", model("User")),
+        ("packages/schemas/models/team.js", model("Team")),
+        ("packages/sdk/package.json", r#"{"name":"@acme/sdk","version":"1.0.0","exports":"./index.js","files":["models"]}"#.to_string()),
+        ("packages/sdk/models/user.js", model("User")),
+    ]
+}
+
+fn borrowed<'a>(files: &'a [(&'a str, String)]) -> Vec<(&'a str, &'a str)> {
+    files.iter().map(|(p, c)| (*p, c.as_str())).collect()
+}
+
+#[test]
+fn shared_packages_of_an_application_count_but_its_sdk_does_not() {
+    let files =
+        product_monorepo(r#"{"name":"api","private":true,"dependencies":{"express":"^4.18.0"}}"#);
+    let report = analyze(&borrowed(&files));
+    assert_eq!(purpose(&report, "apps/api").as_deref(), Some("application"));
+    assert_eq!(
+        purpose(&report, "packages/schemas").as_deref(),
+        Some("library")
+    );
+    assert_eq!(files_in(&report, "Data"), 2, "{}", details(&report));
+    assert!(
+        all_dirs(&report)
+            .iter()
+            .all(|d| !d.contains("packages/sdk")),
+        "{:?}",
+        all_dirs(&report)
+    );
+    let competing = competing(&report);
+    assert!(
+        competing
+            .iter()
+            .any(|c| c.starts_with("packages/sdk is a library")),
+        "{competing:?}"
+    );
+}
+
+#[test]
+fn without_an_application_the_same_packages_are_libraries_only() {
+    let files = product_monorepo(
+        r#"{"name":"api","version":"1.0.0","exports":"./index.js","files":["routes"]}"#,
+    );
+    let report = analyze(&borrowed(&files));
+    assert_eq!(purpose(&report, "apps/api").as_deref(), Some("library"));
+    assert_eq!(layers(&report), vec![], "{}", details(&report));
+}
+
+#[test]
+fn an_app_nested_in_a_library_repository_is_a_demo() {
+    let report = analyze(&[
+        (
+            "package.json",
+            r#"{"name":"forms","version":"1.0.0","exports":"./src/index.ts","files":["dist"]}"#,
+        ),
+        ("src/index.ts", "export function useForm() { return {}; }\n"),
+        (
+            "app/package.json",
+            r#"{"name":"app","private":true,"dependencies":{"express":"^4.18.0"}}"#,
+        ),
+        (
+            "app/routes/a.js",
+            "const router = require('express').Router();\nrouter.get('/a', (req, res) => res.end());\nmodule.exports = router;\n",
+        ),
+        (
+            "app/routes/b.js",
+            "const router = require('express').Router();\nrouter.get('/b', (req, res) => res.end());\nmodule.exports = router;\n",
+        ),
+    ]);
+    assert_eq!(purpose(&report, ".").as_deref(), Some("library"));
+    assert_eq!(purpose(&report, "app").as_deref(), Some("application"));
+    assert_eq!(layers(&report), vec![], "{}", details(&report));
+}
+
+#[test]
+fn bundled_browser_app_with_index_html_is_an_application() {
+    let manifest = r#"{"name":"@acme/app","version":"1.0.0","exports":{".":"./dist/index.html"},"files":["dist"],"scripts":{"dev":"vite --host","build":"vite build"},"devDependencies":{"vue":"^3.4.0","vite":"^5.0.0"}}"#;
+    let mut files = vec![
+        ("app/package.json", manifest),
+        ("app/index.html", "<div id=\"app\"></div>\n"),
+    ];
+    let vue = "<template><div>x</div></template>\n";
+    files.extend_from_slice(&[
+        ("app/src/components/a.vue", vue),
+        ("app/src/components/b.vue", vue),
+        (
+            "package.json",
+            r#"{"name":"root","private":true,"workspaces":["app"]}"#,
+        ),
+    ]);
+    let report = analyze(&files);
+    assert_eq!(
+        purpose(&report, "app").as_deref(),
+        Some("application"),
+        "{}",
+        details(&report)
+    );
+    assert_eq!(files_in(&report, "UI"), 2);
+
+    // Without index.html the same manifest is a published library.
+    files.retain(|(p, _)| *p != "app/index.html");
+    let report = analyze(&files);
+    assert_eq!(purpose(&report, "app").as_deref(), Some("library"));
+    assert_eq!(layers(&report), vec![], "{}", details(&report));
+}
+
+#[test]
+fn a_library_wsgi_adapter_is_not_a_server_entry() {
+    let pyproject = "[project]\nname = \"client\"\nversion = \"1.0\"\ndependencies = [\"idna\"]\n";
+    let mut files = vec![
+        ("pyproject.toml", pyproject),
+        ("client/__init__.py", ""),
+        (
+            "client/transports/wsgi.py",
+            "class WSGITransport:\n    def handle(self, request):\n        return request\n",
+        ),
+    ];
+    files.extend_from_slice(PY_LAYERS);
+    let report = analyze(&files);
+    assert_eq!(
+        purpose(&report, ".").as_deref(),
+        Some("library"),
+        "{}",
+        details(&report)
+    );
+    assert_eq!(layers(&report), vec![]);
+
+    // A wsgi.py that defines the application makes it a server.
+    files.push((
+        "client/wsgi.py",
+        "from client import create\n\napplication = create()\n",
+    ));
+    let report = analyze(&files);
+    assert_eq!(purpose(&report, ".").as_deref(), Some("application"));
+    assert_eq!(files_in(&report, "Routes"), 2, "{}", details(&report));
+}

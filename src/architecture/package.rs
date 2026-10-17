@@ -39,11 +39,6 @@ impl Purpose {
             Purpose::Unknown => "unknown",
         }
     }
-
-    /// Whether the package's own files are kept out of application layers.
-    pub fn is_not_an_app(self) -> bool {
-        matches!(self, Purpose::Library | Purpose::Cli)
-    }
 }
 
 /// One package: its folder relative to the repository root and why it has
@@ -187,6 +182,22 @@ pub struct Packages {
     pub list: Vec<Package>,
 }
 
+/// Folder names that mark a published package as a client SDK or shared
+/// type models rather than shared product code.
+const SDK_NAMES: &[&str] = &["sdk", "client", "types", "typings"];
+
+/// Whether a package folder is named like a client SDK or type models
+/// (`sdk`, `api-client`, `turbo-types`).
+fn is_sdk_dir(dir: &Path) -> bool {
+    dir.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|name| {
+            let name = name.to_ascii_lowercase();
+            name.split(['-', '_', '.'])
+                .any(|part| SDK_NAMES.contains(&part))
+        })
+}
+
 /// Whether a relative path has a folder in `names`.
 fn has_dir(path: &Path, names: &[&str]) -> bool {
     path.parent().is_some_and(|dir| {
@@ -234,6 +245,7 @@ impl Packages {
         let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).to_path_buf();
         let relative: Vec<PathBuf> = files.iter().map(|f| rel(f)).collect();
         let mut by_dir: BTreeMap<PathBuf, Vec<(Purpose, String)>> = BTreeMap::new();
+        let mut spa: BTreeMap<PathBuf, String> = BTreeMap::new();
         for (file, relative) in files.iter().zip(&relative) {
             let Some(name) = relative.file_name().and_then(|n| n.to_str()) else {
                 continue;
@@ -249,7 +261,12 @@ impl Packages {
                 continue;
             }
             let found = match name {
-                "package.json" => read(file).map(|t| js_purpose(&t)),
+                "package.json" => read(file).map(|t| {
+                    if let Some(framework) = js_spa(&t) {
+                        spa.insert(dir.clone(), framework);
+                    }
+                    js_purpose(&t)
+                }),
                 "pyproject.toml" | "setup.py" | "setup.cfg" => {
                     read(file).map(|t| python_purpose(name, &t))
                 }
@@ -290,12 +307,31 @@ impl Packages {
             .map(|(dir, _)| dir.clone())
             .collect();
         let mut rust_targets: BTreeMap<PathBuf, (bool, bool)> = BTreeMap::new();
-        for relative in &relative {
+        for (file, relative) in files.iter().zip(&relative) {
             if is_harness(relative) || crate::architecture::is_test(relative) {
                 continue;
             }
+            // A browser app bundled at build time keeps its framework in
+            // `devDependencies`; its `index.html` shows it is an app.
+            if relative.file_name().is_some_and(|n| n == "index.html") {
+                let parent = relative.parent().unwrap_or(Path::new(""));
+                for (dir, framework) in &spa {
+                    if parent == dir || parent == dir.join("public") || parent == dir.join("src") {
+                        by_dir.entry(dir.clone()).or_default().push((
+                            Purpose::Application,
+                            format!(
+                                "package.json: {framework} app with index.html and a dev server"
+                            ),
+                        ));
+                    }
+                }
+            }
             for dir in &python {
-                if let Some(name) = relative.strip_prefix(dir).ok().and_then(python_app_file) {
+                if let Some(name) = relative
+                    .strip_prefix(dir)
+                    .ok()
+                    .and_then(|below| python_app_file(below, file))
+                {
                     by_dir
                         .entry(dir.clone())
                         .or_default()
@@ -383,6 +419,31 @@ impl Packages {
         Packages { list }
     }
 
+    /// Whether the root manifest makes the whole repository a library or
+    /// CLI; applications nested in it are then demos or test apps.
+    fn root_is_library(&self) -> bool {
+        self.list.iter().any(|p| {
+            p.dir.as_os_str().is_empty() && matches!(p.purpose, Purpose::Library | Purpose::Cli)
+        })
+    }
+
+    /// Whether the repository has an application its libraries serve.
+    fn serves_application(&self) -> bool {
+        !self.root_is_library() && self.list.iter().any(|p| p.purpose == Purpose::Application)
+    }
+
+    /// Whether a package's own files stay out of application layers: every
+    /// CLI, and libraries unless the repository also has an application
+    /// they serve (then only SDK and type-model packages stay out).
+    pub fn excluded(&self, index: usize) -> bool {
+        let p = &self.list[index];
+        match p.purpose {
+            Purpose::Cli => true,
+            Purpose::Library => !self.serves_application() || is_sdk_dir(&p.dir),
+            _ => false,
+        }
+    }
+
     /// Index of the package `path` belongs to: the closest folder with a
     /// manifest.
     pub fn of(&self, path: &Path) -> Option<usize> {
@@ -415,7 +476,12 @@ impl Packages {
                     }
                 }
                 Purpose::Cli if template_below(&p.dir, path) => return Scope::Template,
-                Purpose::Library | Purpose::Cli => return Scope::NotAnApp(index),
+                Purpose::Application if !p.dir.as_os_str().is_empty() && self.root_is_library() => {
+                    return Scope::Sample;
+                }
+                Purpose::Library | Purpose::Cli if self.excluded(index) => {
+                    return Scope::NotAnApp(index);
+                }
                 _ => {}
             }
         }
@@ -430,7 +496,7 @@ impl Packages {
 
     /// Whether any package is a library or CLI.
     pub fn has_non_app(&self) -> bool {
-        self.list.iter().any(|p| p.purpose.is_not_an_app())
+        (0..self.list.len()).any(|i| self.excluded(i))
     }
 }
 
@@ -592,6 +658,46 @@ fn js_purpose(text: &str) -> (Purpose, String) {
     )
 }
 
+/// Browser frameworks and dev servers that, with an `index.html`, make a
+/// package a bundled browser app.
+const JS_SPA_FRAMEWORKS: &[&str] = &[
+    "react-dom",
+    "vue",
+    "svelte",
+    "solid-js",
+    "preact",
+    "@angular/core",
+];
+const JS_DEV_SERVERS: &[&str] = &[
+    "vite",
+    "webpack",
+    "parcel",
+    "rsbuild",
+    "react-scripts",
+    "vue-cli-service",
+    "ng",
+];
+
+/// The browser framework of a package whose scripts run a dev server, in
+/// any dependency list.
+fn js_spa(text: &str) -> Option<String> {
+    let json = serde_json::from_str::<serde_json::Value>(text).ok()?;
+    let scripts = json.get("scripts")?.as_object()?;
+    let serves = scripts.values().filter_map(|v| v.as_str()).any(|script| {
+        let words: Vec<&str> = script.split([' ', '&', ';']).collect();
+        JS_DEV_SERVERS.iter().any(|tool| words.contains(tool))
+    });
+    if !serves {
+        return None;
+    }
+    ["dependencies", "devDependencies"]
+        .into_iter()
+        .filter_map(|k| json.get(k).and_then(|d| d.as_object()))
+        .flat_map(|deps| deps.keys())
+        .find(|k| JS_SPA_FRAMEWORKS.contains(&k.as_str()))
+        .map(|k| k.to_string())
+}
+
 /// Package names in a Python requirement list (`"fastapi>=0.100"`).
 fn requirement_name(spec: &str) -> String {
     spec.trim()
@@ -667,10 +773,15 @@ fn python_purpose(name: &str, text: &str) -> (Purpose, String) {
 
 /// Strong signs of a deployed Python program next to a manifest, checked
 /// once files are known (`manage.py`, `alembic.ini`, `app/main.py`).
-fn python_app_file(below: &Path) -> Option<String> {
+fn python_app_file(below: &Path, file: &Path) -> Option<String> {
     let name = below.file_name()?.to_str()?;
     let depth = below.components().count();
     if PY_APP_FILES.contains(&name) && depth <= 3 {
+        // A library's `wsgi.py` or `asgi.py` is an adapter module; a
+        // program's defines the `application` (or `app`) a server runs.
+        if matches!(name, "wsgi.py" | "asgi.py") && !defines_server_app(file) {
+            return None;
+        }
         return Some(name.to_string());
     }
     let s = below.to_string_lossy().replace('\\', "/");
@@ -678,6 +789,18 @@ fn python_app_file(below: &Path) -> Option<String> {
         return Some(s);
     }
     None
+}
+
+/// Whether a Python file assigns a top-level `application` or `app`.
+fn defines_server_app(file: &Path) -> bool {
+    read(file).is_some_and(|text| {
+        text.lines().any(|line| {
+            ["application", "app"].iter().any(|name| {
+                line.strip_prefix(name)
+                    .is_some_and(|rest| rest.trim_start().starts_with('=') || rest.starts_with(':'))
+            })
+        })
+    })
 }
 
 /// A Go module's purpose: a module with a `package main` outside tests,
