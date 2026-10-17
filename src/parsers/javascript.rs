@@ -24,8 +24,8 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, BinaryOperator, BindingPattern, CallExpression,
     ExportAllDeclaration, ExportFromDeclaration, Expression, ImportDeclaration,
-    ImportDeclarationSpecifier, ImportExpression, NewExpression, TSImportEqualsDeclaration,
-    TSImportType, TSModuleReference, VariableDeclarator,
+    ImportDeclarationSpecifier, ImportExpression, NewExpression, ObjectPropertyKind,
+    TSImportEqualsDeclaration, TSImportType, TSModuleReference, VariableDeclarator,
 };
 use oxc_ast_visit::{walk, Visit};
 use oxc_parser::{ParseOptions, Parser};
@@ -76,6 +76,14 @@ pub enum RefKind {
     WorkerShadowed,
     /// `spawn("node", ["./y.js"])`
     Process,
+    /// `import.meta.glob("./pages/*.ts")`: the specifier is the pattern,
+    /// or a JSON array of patterns when there are several.
+    Glob,
+    /// `import.meta.glob("./x/*.svg", { query: "?url" })`: the files are
+    /// loaded as assets, not as modules.
+    GlobAsset,
+    /// `import.meta.glob(pattern)`: a pattern known only at runtime.
+    ComputedGlob,
     /// Found by the text scan of a file that did not parse.
     TextScan,
 }
@@ -695,6 +703,27 @@ fn whole(span: Span) -> [usize; 2] {
     [span.start as usize, span.end as usize]
 }
 
+/// A relative glob pattern under Vite's `base` option:
+/// `with_base("./widgets", "!./*.ts")` is `"!./widgets/*.ts"`. Root and
+/// alias patterns ignore `base`.
+fn with_base(base: &str, pattern: &str) -> String {
+    let (negated, rest) = match pattern.strip_prefix('!') {
+        Some(rest) => ("!", rest),
+        None => ("", pattern),
+    };
+    if !(rest.starts_with("./") || rest.starts_with("../")) {
+        return pattern.to_string();
+    }
+    let base = base.trim_end_matches('/');
+    let rest = rest.strip_prefix("./").unwrap_or(rest);
+    let base = if base.starts_with('.') || base.starts_with('/') {
+        base.to_string()
+    } else {
+        format!("./{base}")
+    };
+    format!("{negated}{base}/{rest}")
+}
+
 /// The constant string `expr` always is, folding `+` over strings and
 /// templates without `${}`.
 fn constant(expr: &Expression, depth: usize) -> Option<String> {
@@ -779,6 +808,113 @@ impl<'s> Collector<'s> {
             }
             _ => None,
         }
+    }
+
+    /// Vite's `import.meta.glob(patterns, options)` (and the older
+    /// `globEager`/`globEagerDefault`). Literal patterns, with a literal
+    /// `base` folded into the relative ones, are a [`RefKind::Glob`];
+    /// anything Vite would only know at runtime is a [`RefKind::ComputedGlob`].
+    fn import_meta_glob(&self, call: &CallExpression) -> Option<Item> {
+        let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression() else {
+            return None;
+        };
+        if !matches!(member.object, Expression::ImportMeta(_))
+            || !matches!(
+                member.property.name.as_str(),
+                "glob" | "globEager" | "globEagerDefault"
+            )
+        {
+            return None;
+        }
+        let first = call.arguments.first()?;
+        let first_span = whole(first.span());
+        let all_span = [
+            first_span[0],
+            call.arguments
+                .last()
+                .map_or(first_span[1], |a| a.span().end as usize),
+        ];
+        let computed = |item: Specifier| match item {
+            Specifier::Constant((text, span))
+            | Specifier::Template((text, span))
+            | Specifier::Computed((text, span)) => {
+                Some(Item::Ready(text, RefKind::ComputedGlob, span))
+            }
+        };
+        let Some(expr) = first.as_expression() else {
+            return computed(Specifier::Computed((
+                self.source(first_span).to_string(),
+                first_span,
+            )));
+        };
+        let mut patterns = Vec::new();
+        match expr.get_inner_expression() {
+            Expression::ArrayExpression(array) => {
+                for element in &array.elements {
+                    match element.as_expression().and_then(|e| constant(e, 0)) {
+                        Some(value) => patterns.push(value),
+                        None => return computed(self.specifier(expr)),
+                    }
+                }
+            }
+            other => match constant(other, 0) {
+                Some(value) => patterns.push(value),
+                None => return computed(self.specifier(expr)),
+            },
+        }
+        if patterns.is_empty() {
+            return None;
+        }
+        let whole_call = || {
+            computed(Specifier::Computed((
+                self.source(all_span).to_string(),
+                all_span,
+            )))
+        };
+        let mut asset = false;
+        if let Some(options) = call.arguments.get(1) {
+            let Some(Expression::ObjectExpression(object)) = options
+                .as_expression()
+                .map(Expression::get_inner_expression)
+            else {
+                return whole_call();
+            };
+            for property in &object.properties {
+                let ObjectPropertyKind::ObjectProperty(property) = property else {
+                    return whole_call();
+                };
+                let Some(key) = property.key.static_name() else {
+                    return whole_call();
+                };
+                match key.as_ref() {
+                    "as" | "query" => asset = true,
+                    "base" => {
+                        let Some(base) = constant(&property.value, 0) else {
+                            return whole_call();
+                        };
+                        for pattern in &mut patterns {
+                            *pattern = with_base(&base, pattern);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let specifier = if patterns.len() == 1 {
+            patterns.pop()?
+        } else {
+            serde_json::to_string(&patterns).ok()?
+        };
+        let span = match expr.get_inner_expression() {
+            Expression::StringLiteral(s) => inner(s.span),
+            other => whole(other.span()),
+        };
+        let kind = if asset {
+            RefKind::GlobAsset
+        } else {
+            RefKind::Glob
+        };
+        Some(Item::Ready(specifier, kind, span))
     }
 
     /// `x` in `require("x")`, when the call is one.
@@ -1124,6 +1260,9 @@ impl<'a> Visit<'a> for Collector<'_> {
     }
 
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Some(item) = self.import_meta_glob(it) {
+            self.items.push(item);
+        }
         if let Expression::Identifier(id) = it.callee.get_inner_expression() {
             if id.name.as_str() == "require" {
                 if let Some(arg) = it.arguments.first().and_then(Argument::as_expression) {
@@ -1222,6 +1361,39 @@ mod tests {
             .into_iter()
             .map(|r| (r.specifier, r.kind))
             .collect()
+    }
+
+    #[test]
+    fn import_meta_glob_kinds() {
+        assert_eq!(
+            found("ts", "import.meta.glob('./a/*.ts', { eager: true });"),
+            [("./a/*.ts".to_string(), RefKind::Glob)]
+        );
+        assert_eq!(
+            found("ts", "import.meta.glob(['./a/*.ts', '!./a/_*.ts']);"),
+            [(r#"["./a/*.ts","!./a/_*.ts"]"#.to_string(), RefKind::Glob)]
+        );
+        assert_eq!(
+            found("ts", "import.meta.glob('./a/*.svg', { query: '?url' });"),
+            [("./a/*.svg".to_string(), RefKind::GlobAsset)]
+        );
+        assert_eq!(
+            found("ts", "import.meta.glob('./*.ts', { ...o });"),
+            [("'./*.ts', { ...o }".to_string(), RefKind::ComputedGlob)]
+        );
+        assert_eq!(
+            found("ts", "import.meta.glob(['./a/*.ts', p]);"),
+            [("['./a/*.ts', p]".to_string(), RefKind::ComputedGlob)]
+        );
+        assert!(found("ts", "meta.glob('./a/*.ts'); import.meta.url;").is_empty());
+    }
+
+    #[test]
+    fn glob_base_moves_relative_patterns_only() {
+        assert_eq!(with_base("./widgets", "./*.ts"), "./widgets/*.ts");
+        assert_eq!(with_base("widgets/", "!./_*.ts"), "!./widgets/_*.ts");
+        assert_eq!(with_base("../up", "../*.ts"), "../up/../*.ts");
+        assert_eq!(with_base("./w", "/src/*.ts"), "/src/*.ts");
     }
 
     #[test]

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// Version of the extraction rules. It goes up when a rule starts or stops
 /// producing facts, or a rule id changes meaning, so consumers can tell
 /// reports made with different rules apart.
-pub const RULES_VERSION: u32 = 4;
+pub const RULES_VERSION: u32 = 5;
 
 /// What kind of dependency a fact records.
 #[derive(

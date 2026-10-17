@@ -27,7 +27,7 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Bumped when the stored layout changes.
-const FORMAT: u32 = 5;
+const FORMAT: u32 = 6;
 /// Largest cache file read.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
 /// Files changed this close to the start of a run are not stored: an edit
