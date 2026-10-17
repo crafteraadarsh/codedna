@@ -681,7 +681,7 @@ fn resolution_matches_with_the_cache_on_and_off() {
     }
     assert_eq!(
         cold["dependencies"]["rules_version"],
-        json!(3),
+        json!(4),
         "rules version"
     );
 

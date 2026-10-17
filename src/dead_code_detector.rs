@@ -91,28 +91,35 @@ const ENTRY_POINT_NAMES: &[&str] = &[
 /// Returns a sorted `Vec<PathBuf>` of unreachable files.
 #[cfg(test)]
 pub fn detect_dead_code(graph: &HashMap<PathBuf, Vec<PathBuf>>) -> Vec<PathBuf> {
-    detect_dead_code_from(graph, &[])
+    detect_dead_code_from(graph, &[], &[])
 }
 
 /// [`detect_dead_code`], also starting from `extra_entries`: files a
-/// manifest names, or directories whose files all load (see
-/// [`manifest_entries`]).
+/// framework adapter names, or directories whose files all load (see
+/// [`crate::frameworks`]). In `next_roots` the Next.js adapter decides
+/// which files are routes, so the name heuristics for Next files and
+/// `pages/` folders do not apply there.
 pub fn detect_dead_code_from(
     graph: &HashMap<PathBuf, Vec<PathBuf>>,
     extra_entries: &[PathBuf],
+    next_roots: &[PathBuf],
 ) -> Vec<PathBuf> {
     if graph.is_empty() {
         return Vec::new();
     }
 
+    let entries: HashSet<PathBuf> = extra_entries.iter().map(|e| normalize(e)).collect();
+    let next_roots: Vec<PathBuf> = next_roots.iter().map(|r| normalize(r)).collect();
     let all_files: HashSet<&PathBuf> = graph.keys().collect();
     let entry_points: Vec<&PathBuf> = all_files
         .iter()
         .copied()
         .filter(|f| {
+            let file = normalize(f);
+            let in_next = next_roots.iter().any(|root| file.starts_with(root));
             is_entry_point(f)
-                || is_loaded_by_tooling(f)
-                || extra_entries.iter().any(|entry| f.starts_with(entry))
+                || is_loaded_by_tooling(f, in_next)
+                || file.ancestors().any(|a| entries.contains(a))
         })
         .collect();
 
@@ -166,7 +173,7 @@ pub fn is_entry_point(path: &Path) -> bool {
 
 /// A manual mock in `__mocks__/` that a test swaps in by path. One next to
 /// a `package.json` mocks a dependency instead, so it is only used while the
-/// package still depends on it: [`manifest_entries`] names those.
+/// package still depends on it: the test-runner adapter names those.
 fn is_module_mock(path: &Path) -> bool {
     path.ancestors()
         .find(|dir| dir.file_name().is_some_and(|n| n == "__mocks__"))
@@ -174,135 +181,10 @@ fn is_module_mock(path: &Path) -> bool {
         .is_some_and(|parent| !parent.join("package.json").is_file())
 }
 
-/// Entry points that `package.json` files declare: the files named by
-/// `main`, `module`, `bin`, `exports` and the commands in `scripts` and
-/// `prisma.seed` (`node ./seed.js`), and the `app/` (or `src/app/`) directory Expo Router
-/// loads in full when the package depends on `expo-router`, and the mocks
-/// in `__mocks__/` of the packages it depends on.
-pub fn manifest_entries(files: &[PathBuf]) -> Vec<PathBuf> {
-    let mut entries = Vec::new();
-    for manifest in files
-        .iter()
-        .filter(|f| f.file_name().is_some_and(|n| n == "package.json"))
-    {
-        let Some(dir) = manifest.parent() else {
-            continue;
-        };
-        let Ok(text) = fs::read_to_string(manifest) else {
-            continue;
-        };
-        let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else {
-            continue;
-        };
-        if text.contains("\"expo-router\"") {
-            entries.push(dir.join("app"));
-            entries.push(dir.join("src").join("app"));
-        }
-        for deps in [
-            "dependencies",
-            "devDependencies",
-            "peerDependencies",
-            "optionalDependencies",
-        ] {
-            let Some(deps) = json.get(deps).and_then(|d| d.as_object()) else {
-                continue;
-            };
-            for dep in deps.keys() {
-                let mock = dir.join("__mocks__").join(dep);
-                entries.extend(
-                    ["js", "mjs", "cjs", "ts", "mts", "cts", "jsx", "tsx"]
-                        .iter()
-                        .map(|ext| {
-                            mock.with_file_name(format!(
-                                "{}.{ext}",
-                                dep.rsplit('/').next().unwrap_or(dep)
-                            ))
-                        }),
-                );
-                // A mock with its own directory: `__mocks__/zustand/index.ts`.
-                entries.push(mock);
-            }
-        }
-        let mut named = Vec::new();
-        for key in ["main", "module", "browser", "bin", "exports"] {
-            if let Some(value) = json.get(key) {
-                collect_strings(value, &mut named);
-            }
-        }
-        let mut commands = Vec::new();
-        if let Some(scripts) = json.get("scripts") {
-            collect_strings(scripts, &mut commands);
-        }
-        // Prisma runs its seed command from `"prisma": {"seed": ...}`.
-        if let Some(seed) = json.pointer("/prisma/seed") {
-            collect_strings(seed, &mut commands);
-        }
-        // Only words that name a source file: `eslint src` must not make
-        // all of `src/` an entry point.
-        named.extend(
-            commands
-                .iter()
-                .flat_map(|c| c.split(|ch: char| ch.is_whitespace() || ch == '='))
-                .map(|word| word.trim_matches(|ch| ch == '"' || ch == '\''))
-                .filter(|word| {
-                    Path::new(word)
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .is_some_and(|e| SCRIPT_EXTENSIONS.contains(&e))
-                })
-                .map(str::to_string),
-        );
-        entries.extend(
-            named
-                .iter()
-                .filter(|path| !path.contains('*') && !path.starts_with('/'))
-                .map(|path| dir.join(path)),
-        );
-    }
-    entries
-        .iter()
-        .map(|entry| crate::dependency_graph::normalize(entry))
-        .collect()
-}
-
-/// Extensions of the files a `package.json` script can run directly.
-const SCRIPT_EXTENSIONS: &[&str] = &["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx", "py"];
-
-/// Every string inside a JSON value: `"bin": {"a": "./cli.js"}` and nested
-/// conditional `exports`.
-fn collect_strings(value: &serde_json::Value, out: &mut Vec<String>) {
-    match value {
-        serde_json::Value::String(s) => out.push(s.clone()),
-        serde_json::Value::Array(items) => items.iter().for_each(|v| collect_strings(v, out)),
-        serde_json::Value::Object(map) => map.values().for_each(|v| collect_strings(v, out)),
-        _ => {}
-    }
-}
-
-/// File stems that Next.js loads by convention from `app/`, or from the
-/// project root.
-const NEXT_CONVENTION_STEMS: &[&str] = &[
-    "page",
-    "layout",
-    "loading",
-    "error",
-    "not-found",
-    "route",
-    "template",
-    "default",
-    "global-error",
-    "middleware",
-    "instrumentation",
-    "instrumentation-client",
-    // Metadata routes and the Next 16 `proxy.ts`.
-    "robots",
-    "sitemap",
-    "manifest",
-    "opengraph-image",
-    "twitter-image",
-    "icon",
-    "apple-icon",
-    "proxy",
+/// File stems that frameworks without an adapter load by convention. The
+/// Next.js files (`page`, `layout`, `route`, `middleware`, ...) are named by
+/// the Next.js adapter, only in packages that depend on `next`.
+const CONVENTION_STEMS: &[&str] = &[
     // React Router / Remix.
     "entry.server",
     "entry.client",
@@ -327,8 +209,9 @@ const TASK_RUNNER_STEMS: &[&str] = &[
 
 /// Whether a test runner, compiler or framework loads the file, so nothing
 /// imports it: tests, declaration files, Cargo targets, tool configs and
-/// file-based routes.
-fn is_loaded_by_tooling(path: &Path) -> bool {
+/// file-based routes. `in_next_root`: the file is in a package where the
+/// Next.js adapter decides what `pages/` holds.
+fn is_loaded_by_tooling(path: &Path, in_next_root: bool) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
@@ -382,8 +265,10 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "mts" | "cts"
     ) {
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-        let file_routes =
-            dirs.contains(&"pages") || dirs.windows(2).any(|w| w == ["app", "routes"]);
+        // `pages/` routes for Astro, Gatsby, Docusaurus and Nuxt; in a
+        // Next.js package the adapter names them.
+        let file_routes = (!in_next_root && dirs.contains(&"pages"))
+            || dirs.windows(2).any(|w| w == ["app", "routes"]);
         // SvelteKit routes (`+page.ts`, `+server.js`), dotfile configs
         // (`.eslintrc.js`), Stimulus controllers, Storybook setup and
         // Docusaurus theme overrides.
@@ -395,7 +280,7 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
             // Manual mocks that Jest and Vitest swap in by path.
             || is_module_mock(path)
             || dirs.windows(2).any(|w| w == ["src", "theme"]);
-        return NEXT_CONVENTION_STEMS.contains(&stem) || file_routes || by_name;
+        return CONVENTION_STEMS.contains(&stem) || file_routes || by_name;
     }
 
     false
@@ -1373,6 +1258,11 @@ mod tests {
         PathBuf::from(s)
     }
 
+    /// Whether tooling loads the file outside any Next.js package.
+    fn tooling(path: &Path) -> bool {
+        is_loaded_by_tooling(path, false)
+    }
+
     /// Helper: build a graph from (file, deps) pairs.
     fn make_graph(edges: &[(&str, &[&str])]) -> HashMap<PathBuf, Vec<PathBuf>> {
         edges
@@ -1674,39 +1564,45 @@ mod tests {
 
     #[test]
     fn recognises_cargo_targets() {
-        assert!(is_loaded_by_tooling(&p("tests/cli.rs")));
-        assert!(is_loaded_by_tooling(&p("crates/core/benches/speed.rs")));
-        assert!(is_loaded_by_tooling(&p("examples/basic.rs")));
-        assert!(is_loaded_by_tooling(&p("src/bin/tool.rs")));
-        assert!(!is_loaded_by_tooling(&p("src/scanner.rs")));
-        assert!(!is_loaded_by_tooling(&p("src/bin/helpers/x.rs")));
+        assert!(tooling(&p("tests/cli.rs")));
+        assert!(tooling(&p("crates/core/benches/speed.rs")));
+        assert!(tooling(&p("examples/basic.rs")));
+        assert!(tooling(&p("src/bin/tool.rs")));
+        assert!(!tooling(&p("src/scanner.rs")));
+        assert!(!tooling(&p("src/bin/helpers/x.rs")));
     }
 
     #[test]
     fn recognises_framework_conventions() {
-        assert!(is_loaded_by_tooling(&p("app/dashboard/page.tsx")));
-        assert!(is_loaded_by_tooling(&p("app/layout.tsx")));
-        assert!(is_loaded_by_tooling(&p("app/api/users/route.ts")));
-        assert!(is_loaded_by_tooling(&p("middleware.ts")));
-        assert!(is_loaded_by_tooling(&p("src/pages/about.tsx")));
-        assert!(is_loaded_by_tooling(&p("app/routes/_index.tsx")));
-        assert!(is_loaded_by_tooling(&p("postcss.config.mjs")));
-        assert!(is_loaded_by_tooling(&p("src/Button.stories.tsx")));
-        assert!(is_loaded_by_tooling(&p("src/form.test-d.ts")));
-        assert!(is_loaded_by_tooling(&p("src/__mocks__/axios.ts")));
-        assert!(is_loaded_by_tooling(&p("instrumentation-client.ts")));
-        assert!(is_loaded_by_tooling(&p("src/components/Button.vue")));
-        assert!(is_loaded_by_tooling(&p("src/lib/Modal.svelte")));
-        assert!(is_loaded_by_tooling(&p("plopfile.js")));
-        assert!(is_loaded_by_tooling(&p(
+        // Next.js files are named by the Next.js adapter, not by name.
+        assert!(!tooling(&p("app/dashboard/page.tsx")));
+        assert!(!tooling(&p("app/layout.tsx")));
+        assert!(!tooling(&p("app/api/users/route.ts")));
+        assert!(!tooling(&p("middleware.ts")));
+        assert!(!tooling(&p("instrumentation-client.ts")));
+        // `pages/` stays a route folder (Astro, Gatsby, Docusaurus) except
+        // in a Next.js package, where the adapter decides.
+        assert!(tooling(&p("src/pages/about.tsx")));
+        assert!(!is_loaded_by_tooling(&p("src/pages/about.tsx"), true));
+        assert!(tooling(&p("app/root.tsx")));
+        assert!(tooling(&p("src/hooks.server.ts")));
+        assert!(tooling(&p("app/routes/_index.tsx")));
+        assert!(tooling(&p("postcss.config.mjs")));
+        assert!(tooling(&p("src/Button.stories.tsx")));
+        assert!(tooling(&p("src/form.test-d.ts")));
+        assert!(tooling(&p("src/__mocks__/axios.ts")));
+        assert!(tooling(&p("src/components/Button.vue")));
+        assert!(tooling(&p("src/lib/Modal.svelte")));
+        assert!(tooling(&p("plopfile.js")));
+        assert!(tooling(&p(
             "api/src/database/migrations/20240716A-dates.ts"
         )));
-        assert!(is_loaded_by_tooling(&p(
+        assert!(tooling(&p(
             "backend/migrations/versions/d4c1a8e37b62_add.py"
         )));
-        assert!(!is_loaded_by_tooling(&p("src/form.ts")));
-        assert!(!is_loaded_by_tooling(&p("src/components/Button.tsx")));
-        assert!(!is_loaded_by_tooling(&p("src/page.py")));
+        assert!(!tooling(&p("src/form.ts")));
+        assert!(!tooling(&p("src/components/Button.tsx")));
+        assert!(!tooling(&p("src/page.py")));
     }
 
     #[test]
@@ -1749,13 +1645,13 @@ mod tests {
 
     #[test]
     fn recognises_files_loaded_by_tooling() {
-        assert!(is_loaded_by_tooling(&p("src/app.test.ts")));
-        assert!(is_loaded_by_tooling(&p("e2e/server.spec.ts")));
-        assert!(is_loaded_by_tooling(&p("src/types/user-request.d.ts")));
-        assert!(is_loaded_by_tooling(&p("tests/test_users.py")));
-        assert!(is_loaded_by_tooling(&p("tests/users_test.py")));
-        assert!(is_loaded_by_tooling(&p("tests/conftest.py")));
-        assert!(!is_loaded_by_tooling(&p("src/utils.ts")));
+        assert!(tooling(&p("src/app.test.ts")));
+        assert!(tooling(&p("e2e/server.spec.ts")));
+        assert!(tooling(&p("src/types/user-request.d.ts")));
+        assert!(tooling(&p("tests/test_users.py")));
+        assert!(tooling(&p("tests/users_test.py")));
+        assert!(tooling(&p("tests/conftest.py")));
+        assert!(!tooling(&p("src/utils.ts")));
     }
 
     #[test]
@@ -1923,6 +1819,24 @@ mod tests {
         assert_eq!(dead, expected, "output should be sorted");
     }
 
+    /// Dead files of `graph`, starting from what the adapters find in
+    /// `files`.
+    fn dead_with_adapters(
+        graph: &HashMap<PathBuf, Vec<PathBuf>>,
+        files: &[PathBuf],
+    ) -> Vec<PathBuf> {
+        let adapters = crate::frameworks::detect(files);
+        detect_dead_code_from(graph, &adapters.entry_files(), &adapters.next_roots)
+    }
+
+    fn graph_of(files: &[PathBuf]) -> HashMap<PathBuf, Vec<PathBuf>> {
+        files
+            .iter()
+            .filter(|f| f.extension().is_some_and(|e| e != "json"))
+            .map(|f| (f.clone(), vec![]))
+            .collect()
+    }
+
     #[test]
     fn mocks_of_dependencies_load_only_while_depended_on() {
         let (root, files) = temp_repo(
@@ -1938,64 +1852,56 @@ mod tests {
                 ("web/src/__mocks__/api.ts", ""),
             ],
         );
-        let web = root.join("web");
-        let graph: HashMap<PathBuf, Vec<PathBuf>> = [
-            "__mocks__/zustand.ts",
-            "__mocks__/@scope/ui.js",
-            "__mocks__/removed-package.js",
-            "src/__mocks__/api.ts",
-        ]
-        .iter()
-        .map(|f| (web.join(f), vec![]))
-        .collect();
         assert_eq!(
-            detect_dead_code_from(&graph, &manifest_entries(&files)),
-            vec![web.join("__mocks__/removed-package.js")]
+            dead_with_adapters(&graph_of(&files), &files),
+            vec![root.join("web/__mocks__/removed-package.js")]
         );
+        fs::remove_dir_all(root).ok();
     }
 
     #[test]
     fn package_json_names_entry_points() {
         let (root, files) = temp_repo(
             "codedna_manifest",
-            &[(
-                "apps/worker/package.json",
-                r#"{"main": "dist/index.js", "bin": {"w": "./cli.mjs"},
+            &[
+                (
+                    "apps/worker/package.json",
+                    r#"{"main": "dist/index.js", "bin": {"w": "./cli.mjs"},
                     "scripts": {"start": "ts-node worker.ts", "seed": "node ./seed.js", "lint": "eslint src"},
                     "prisma": {"seed": "tsx prisma/seed.ts"}}"#,
-            )],
+                ),
+                ("apps/worker/cli.mjs", ""),
+                ("apps/worker/worker.ts", ""),
+                ("apps/worker/seed.js", ""),
+                ("apps/worker/prisma/seed.ts", ""),
+                ("apps/worker/workers/indexing.ts", ""),
+                ("apps/worker/src/unused.ts", ""),
+            ],
         );
         let dir = root.join("apps/worker");
-        let entries = manifest_entries(&files);
-        for name in [
-            "dist/index.js",
-            "cli.mjs",
-            "worker.ts",
-            "seed.js",
-            "prisma/seed.ts",
-        ] {
+        let entries = crate::frameworks::detect(&files).entry_files();
+        for name in ["cli.mjs", "worker.ts", "seed.js", "prisma/seed.ts"] {
             assert!(entries.contains(&dir.join(name)), "{name}");
         }
-        assert!(!entries.contains(&dir.join("src")));
+        // `dist/` is not there, and `eslint src` names a folder, not a file.
+        assert!(!entries.iter().any(|e| e.starts_with(dir.join("dist"))));
+        assert!(!entries.iter().any(|e| e.starts_with(dir.join("src"))));
 
         let worker = dir.join("worker.ts");
         let job = dir.join("workers/indexing.ts");
-        let unused = dir.join("src/unused.ts");
-        let graph: HashMap<PathBuf, Vec<PathBuf>> = [
-            (worker.clone(), vec![job.clone()]),
-            (job, vec![]),
-            (unused.clone(), vec![]),
-        ]
-        .into_iter()
-        .collect();
-        assert_eq!(detect_dead_code_from(&graph, &entries), vec![unused]);
+        let mut graph = graph_of(&files);
+        graph.insert(worker, vec![job]);
+        assert_eq!(
+            dead_with_adapters(&graph, &files),
+            vec![dir.join("src/unused.ts")]
+        );
 
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
     fn expo_router_directories_are_entry_points() {
-        let (root, _) = temp_repo(
+        let (root, files) = temp_repo(
             "codedna_expo",
             &[
                 (
@@ -2006,32 +1912,23 @@ mod tests {
                     "apps/web/package.json",
                     r#"{"dependencies": {"next": "15"}}"#,
                 ),
+                ("apps/mobile/app/(tabs)/_layout.tsx", ""),
+                ("apps/mobile/components/Sheet.tsx", ""),
+                ("apps/mobile/components/Unused.tsx", ""),
+                ("apps/web/app/settings.tsx", ""),
             ],
         );
-        let files = vec![
-            root.join("apps/mobile/package.json"),
-            root.join("apps/web/package.json"),
-        ];
-        let dirs = manifest_entries(&files);
-        assert!(dirs.contains(&root.join("apps/mobile/app")));
-        assert!(dirs.contains(&root.join("apps/mobile/src/app")));
-        assert!(!dirs
-            .iter()
-            .any(|d| d.starts_with(root.join("apps/web/app"))));
-
         let layout = root.join("apps/mobile/app/(tabs)/_layout.tsx");
         let sheet = root.join("apps/mobile/components/Sheet.tsx");
-        let unused = root.join("apps/mobile/components/Unused.tsx");
-        let web = root.join("apps/web/app/settings.tsx");
-        let graph: HashMap<PathBuf, Vec<PathBuf>> = [
-            (layout.clone(), vec![sheet.clone()]),
-            (sheet.clone(), vec![]),
-            (unused.clone(), vec![]),
-            (web.clone(), vec![]),
-        ]
-        .into_iter()
-        .collect();
-        assert_eq!(detect_dead_code_from(&graph, &dirs), vec![unused, web]);
+        let mut graph = graph_of(&files);
+        graph.insert(layout, vec![sheet]);
+        assert_eq!(
+            dead_with_adapters(&graph, &files),
+            vec![
+                root.join("apps/mobile/components/Unused.tsx"),
+                root.join("apps/web/app/settings.tsx")
+            ]
+        );
 
         fs::remove_dir_all(root).ok();
     }
