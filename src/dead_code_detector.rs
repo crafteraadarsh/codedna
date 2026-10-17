@@ -364,6 +364,7 @@ pub fn uncertainty(
         return out;
     }
     let dead_set: HashSet<&PathBuf> = dead.iter().collect();
+    let candidates: Vec<Candidate> = dead.iter().map(|f| Candidate::new(f)).collect();
     let at = |fact: &DependencyFact| {
         let source = shown(&fact.source);
         match fact.evidence.line {
@@ -415,9 +416,14 @@ pub fn uncertainty(
                 }
             }
             Resolution::Unresolved => {
+                let Some(name) = Name::parse(&fact.source, &fact.specifier) else {
+                    continue;
+                };
                 for file in dead
                     .iter()
-                    .filter(|f| could_name(&fact.source, &fact.specifier, f))
+                    .zip(&candidates)
+                    .filter(|(_, c)| name.names(c))
+                    .map(|(f, _)| f)
                 {
                     let condition = format!(
                         "{} imports {}, which did not resolve and may name it",
@@ -487,47 +493,85 @@ fn computed_prefix(source: &Path, specifier: &str) -> Option<String> {
 /// Whether an unresolved `specifier` imported from `source` could name
 /// `file`.
 pub(crate) fn could_name(source: &Path, specifier: &str, file: &Path) -> bool {
-    let without_ext = file.with_extension("");
-    if specifier.starts_with("./") || specifier.starts_with("../") {
-        let Some(dir) = source.parent() else {
-            return false;
+    Name::parse(source, specifier).is_some_and(|name| name.names(&Candidate::new(file)))
+}
+
+/// A file split once, for many [`Name::names`] checks.
+pub(crate) struct Candidate<'a> {
+    file: &'a Path,
+    without_ext: PathBuf,
+    parts: Vec<String>,
+}
+
+impl<'a> Candidate<'a> {
+    pub(crate) fn new(file: &'a Path) -> Self {
+        let without_ext = file.with_extension("");
+        let parts = without_ext
+            .iter()
+            .map(|c| c.to_string_lossy().into_owned())
+            .collect();
+        Candidate {
+            file,
+            without_ext,
+            parts,
+        }
+    }
+}
+
+/// What an unresolved specifier may point at, parsed once per import.
+pub(crate) enum Name {
+    /// A relative path, joined to the importing file's folder.
+    Path(PathBuf),
+    /// An alias or module path: the segments a file's path must end with.
+    Tail(Vec<String>),
+}
+
+impl Name {
+    pub(crate) fn parse(source: &Path, specifier: &str) -> Option<Self> {
+        if specifier.starts_with("./") || specifier.starts_with("../") {
+            let dir = source.parent()?;
+            return Some(Name::Path(normalize(&dir.join(specifier))));
+        }
+        // An alias or a module path: compare the last segments. `@/`, `~/` and
+        // `#` aliases point at a folder of their own.
+        let python = source.extension().is_some_and(|e| e == "py");
+        let mut segments: Vec<&str> = if python {
+            specifier.split('.').filter(|s| !s.is_empty()).collect()
+        } else {
+            specifier.split('/').filter(|s| !s.is_empty()).collect()
         };
-        let target = normalize(&dir.join(specifier));
-        return without_ext == target || file.starts_with(&target);
+        if segments
+            .first()
+            .is_some_and(|s| matches!(*s, "@" | "~" | "$lib") || s.starts_with('#'))
+        {
+            segments.remove(0);
+        }
+        if segments.is_empty() || segments.iter().any(|s| *s == "." || *s == "..") {
+            return None;
+        }
+        Some(Name::Tail(segments.into_iter().map(String::from).collect()))
     }
-    // An alias or a module path: compare the last segments. `@/`, `~/` and
-    // `#` aliases point at a folder of their own.
-    let python = source.extension().is_some_and(|e| e == "py");
-    let mut segments: Vec<&str> = if python {
-        specifier.split('.').filter(|s| !s.is_empty()).collect()
-    } else {
-        specifier.split('/').filter(|s| !s.is_empty()).collect()
-    };
-    if segments
-        .first()
-        .is_some_and(|s| matches!(*s, "@" | "~" | "$lib") || s.starts_with('#'))
-    {
-        segments.remove(0);
+
+    pub(crate) fn names(&self, file: &Candidate) -> bool {
+        match self {
+            Name::Path(target) => file.without_ext == *target || file.file.starts_with(target),
+            Name::Tail(segments) => {
+                let ends_with = |parts: &[String]| {
+                    parts.len() >= segments.len()
+                        && parts[parts.len() - segments.len()..]
+                            .iter()
+                            .zip(segments)
+                            .all(|(a, b)| a == b)
+                };
+                let parts = &file.parts;
+                ends_with(parts)
+                    || (matches!(
+                        parts.last().map(String::as_str),
+                        Some("index" | "__init__" | "mod")
+                    ) && ends_with(&parts[..parts.len() - 1]))
+            }
+        }
     }
-    if segments.is_empty() || segments.iter().any(|s| *s == "." || *s == "..") {
-        return false;
-    }
-    let parts: Vec<String> = without_ext
-        .iter()
-        .map(|c| c.to_string_lossy().into_owned())
-        .collect();
-    let ends_with = |parts: &[String]| {
-        parts.len() >= segments.len()
-            && parts[parts.len() - segments.len()..]
-                .iter()
-                .zip(&segments)
-                .all(|(a, b)| a == b)
-    };
-    ends_with(&parts)
-        || (matches!(
-            parts.last().map(String::as_str),
-            Some("index" | "__init__" | "mod")
-        ) && ends_with(&parts[..parts.len() - 1]))
 }
 
 /// Classify every node of `graph` by how it is used.
