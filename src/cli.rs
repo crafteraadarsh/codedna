@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// CodeDna — Rust-powered codebase intelligence engine.
 #[derive(Debug, Parser)]
@@ -291,6 +291,30 @@ pub enum Commands {
         /// Only this labelled set
         #[arg(long, value_parser = ["third", "fresh", "original"])]
         set: Option<String>,
+        /// Only sets with this role
+        #[arg(long, value_parser = ["development", "calibration", "sealed"])]
+        role: Option<String>,
+        /// Allow re-measuring the sealed set (aggregates only); once per release
+        #[arg(long)]
+        release: bool,
+        /// Run the fully annotated fixtures and their gates instead
+        #[arg(long, conflicts_with_all = ["corpus", "set", "role"])]
+        fixtures: bool,
+        /// With --fixtures: exit with status 1 when a gate fails
+        #[arg(long, requires = "fixtures")]
+        check: bool,
+        /// Compare with a baseline written by --write-baseline; exit 1 on a regression
+        #[arg(long, value_name = "FILE", requires = "corpus")]
+        baseline: Option<PathBuf>,
+        /// Write the measurement as a baseline
+        #[arg(long, value_name = "FILE", requires = "corpus")]
+        write_baseline: Option<PathBuf>,
+        /// Write a seeded sample of unlabelled results to label
+        #[arg(long, value_name = "FILE", requires = "corpus")]
+        queue: Option<PathBuf>,
+        /// With --queue: how many per kind
+        #[arg(long, default_value_t = 30)]
+        sample: usize,
     },
 }
 
@@ -767,24 +791,177 @@ pub fn run() {
         }
 
         // ── calibration ───────────────────────────────────────────────────────
-        Commands::Calibration { json, corpus, set } => {
-            let all: Vec<_> = crate::calibration::sets(set.as_deref())
-                .into_iter()
-                .map(|s| match &corpus {
-                    Some(dir) => crate::calibration::measure(s, dir),
-                    None => crate::calibration::published(s),
-                })
-                .collect();
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&all).expect("calibration serializes")
-                );
-            } else {
-                let text: Vec<String> = all.iter().map(crate::calibration::render).collect();
-                print!("{}", text.join("\n"));
+        Commands::Calibration {
+            json,
+            corpus,
+            set,
+            role,
+            release,
+            fixtures,
+            check,
+            baseline,
+            write_baseline,
+            queue,
+            sample,
+        } => {
+            if fixtures {
+                calibration_fixtures(json, check);
+                return;
             }
+            let chosen = crate::calibration::sets(set.as_deref(), role.as_deref());
+            let Some(dir) = corpus else {
+                let all: Vec<_> = chosen
+                    .into_iter()
+                    .map(crate::calibration::published)
+                    .collect();
+                print_calibration(&all, json);
+                return;
+            };
+            let named = set.is_some() || role.is_some();
+            let writes = baseline.is_some() || write_baseline.is_some() || queue.is_some();
+            let mut measured = Vec::new();
+            for s in chosen {
+                if s.sealed() {
+                    if writes {
+                        eprintln!(
+                            "The {} set is sealed: baselines and labelling queues are never made from it.",
+                            s.name
+                        );
+                        std::process::exit(2);
+                    }
+                    if !release {
+                        if named {
+                            eprintln!(
+                                "The {} set is sealed: it is measured once per release. Add --release to measure it (aggregates only).",
+                                s.name
+                            );
+                            std::process::exit(2);
+                        }
+                        eprintln!(
+                            "Skipping the sealed {} set; add --release to measure it.",
+                            s.name
+                        );
+                        continue;
+                    }
+                }
+                measured.push(crate::calibration::run(s, &dir));
+            }
+            if measured.is_empty() {
+                eprintln!("No set matches.");
+                std::process::exit(2);
+            }
+            if let Some(file) = &queue {
+                let labels: Vec<_> = measured
+                    .iter()
+                    .flat_map(|r| r.queue(sample, 0x5EED))
+                    .map(queue_entry)
+                    .collect();
+                write_json(file, &labels);
+                eprintln!(
+                    "Wrote {} results to label to {}",
+                    labels.len(),
+                    file.display()
+                );
+            }
+            let recorded = crate::calibration::baseline::record(&measured);
+            if let Some(file) = &write_baseline {
+                write_json(file, &recorded);
+                eprintln!(
+                    "Wrote a baseline of {} labels to {}",
+                    recorded.labels.len(),
+                    file.display()
+                );
+            }
+            if let Some(file) = &baseline {
+                let old: crate::calibration::baseline::Baseline = match std::fs::read(file)
+                    .map_err(|e| e.to_string())
+                    .and_then(|b| serde_json::from_slice(&b).map_err(|e| e.to_string()))
+                {
+                    Ok(old) => old,
+                    Err(e) => {
+                        eprintln!("Cannot read baseline {}: {e}", file.display());
+                        std::process::exit(2);
+                    }
+                };
+                let missing: Vec<String> =
+                    measured.iter().flat_map(|r| r.missing.clone()).collect();
+                let comparison = crate::calibration::baseline::compare(&old, &recorded, &missing);
+                print!(
+                    "{}",
+                    crate::calibration::baseline::render(&comparison, &file.display().to_string())
+                );
+                if !comparison.regressions.is_empty() {
+                    std::process::exit(1);
+                }
+                return;
+            }
+            if write_baseline.is_some() || queue.is_some() {
+                return;
+            }
+            let all: Vec<_> = measured.iter().map(|r| r.calibration()).collect();
+            print_calibration(&all, json);
         }
+    }
+}
+
+fn print_calibration(all: &[crate::calibration::Calibration], json: bool) {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(all).expect("calibration serializes")
+        );
+    } else {
+        let text: Vec<String> = all.iter().map(crate::calibration::render).collect();
+        print!("{}", text.join("\n"));
+    }
+}
+
+fn calibration_fixtures(json: bool, check: bool) {
+    let report = match crate::calibration::fixtures::run() {
+        Ok(report) => report,
+        Err(e) => {
+            eprintln!("Cannot write the fixtures: {e}");
+            std::process::exit(2);
+        }
+    };
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).expect("fixtures serialize")
+        );
+    } else {
+        print!("{}", crate::calibration::fixtures::render(&report));
+    }
+    if check && !report.passed {
+        std::process::exit(1);
+    }
+}
+
+/// A label template for the queue, with the verdict left to fill in.
+fn queue_entry(label: crate::calibration::Label) -> serde_json::Value {
+    let mut entry = serde_json::json!({
+        "kind": label.kind,
+        "repo": label.repo,
+        "file": label.file,
+        "confidence": label.confidence,
+        "sample": label.sample,
+        "verdict": "",
+        "note": "",
+    });
+    if let Some(line) = label.line {
+        entry["line"] = line.into();
+    }
+    if let Some(check) = label.check {
+        entry["check"] = check.into();
+    }
+    entry
+}
+
+fn write_json<T: serde::Serialize>(file: &Path, value: &T) {
+    let text = serde_json::to_string_pretty(value).expect("serializes") + "\n";
+    if let Err(e) = std::fs::write(file, text) {
+        eprintln!("Cannot write {}: {e}", file.display());
+        std::process::exit(2);
     }
 }
 
@@ -806,7 +983,9 @@ mod tests {
         ])
         .unwrap();
         match cli.command {
-            Commands::Calibration { json, corpus, set } => {
+            Commands::Calibration {
+                json, corpus, set, ..
+            } => {
                 assert!(json);
                 assert_eq!(set.as_deref(), Some("fresh"));
                 assert_eq!(corpus, Some(PathBuf::from("/x")));

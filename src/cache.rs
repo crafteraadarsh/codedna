@@ -42,6 +42,11 @@ pub fn enable() {
     ENABLED.store(true, Ordering::Relaxed);
 }
 
+/// Turn the cache off again, e.g. to compare a cached run with an uncached one.
+pub fn disable() {
+    ENABLED.store(false, Ordering::Relaxed);
+}
+
 /// Never cache `root`, e.g. a temporary clone of a remote repository.
 pub fn exclude(root: &Path) {
     if let Ok(mut excluded) = EXCLUDED.lock() {
