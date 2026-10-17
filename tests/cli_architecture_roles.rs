@@ -668,3 +668,80 @@ fn a_library_wsgi_adapter_is_not_a_server_entry() {
     assert_eq!(purpose(&report, ".").as_deref(), Some("application"));
     assert_eq!(files_in(&report, "Routes"), 2, "{}", details(&report));
 }
+
+fn run(files: &[(&str, &str)], args: &[&str]) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), files);
+    let output = Command::new(env!("CARGO_BIN_EXE_codedna"))
+        .args(args)
+        .arg(dir.path())
+        .arg("--no-cache")
+        .env("NO_COLOR", "1")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap()
+}
+
+fn mostly_elixir() -> Vec<(String, String)> {
+    let mut files = elixir(25);
+    files.extend(components(3));
+    files.push((
+        "mix.exs".into(),
+        "defmodule App.MixProject do\nend\n".into(),
+    ));
+    files
+}
+
+#[test]
+fn context_says_when_the_architecture_is_unknown() {
+    let files = mostly_elixir();
+    let markdown = run(&owned(&files), &["context"]);
+    assert!(markdown.contains("architecture is unknown"), "{markdown}");
+    let json: Value =
+        serde_json::from_str(&run(&owned(&files), &["context", "--format", "json"])).unwrap();
+    assert!(
+        json["architecture_unknown"]
+            .as_str()
+            .is_some_and(|u| u.contains("Elixir")),
+        "{json}"
+    );
+    assert!(
+        json["competing_interpretations"]
+            .as_array()
+            .is_some_and(|c| !c.is_empty()),
+        "{json}"
+    );
+}
+
+#[test]
+fn report_and_context_show_the_readings_the_layers_leave_out() {
+    let files = [
+        (
+            "package.json",
+            r#"{"name":"create-thing","version":"1.0.0","bin":{"create-thing":"index.js"},"files":["index.js","template"],"dependencies":{"commander":"^11.0.0"}}"#,
+        ),
+        ("index.js", "console.log('creating');\n"),
+        (
+            "examples/demo/src/components/A.tsx",
+            "export function A() { return <div />; }\n",
+        ),
+        (
+            "examples/demo/src/components/B.tsx",
+            "export function B() { return <div />; }\n",
+        ),
+    ];
+    let report = analyze(&files);
+    let readings = competing(&report);
+    assert!(!readings.is_empty(), "{}", details(&report));
+    let terminal = run(&files, &["analyze"]);
+    let markdown = run(&files, &["context"]);
+    for reading in &readings {
+        assert!(terminal.contains(reading.as_str()), "{terminal}");
+        assert!(markdown.contains(reading.as_str()), "{markdown}");
+    }
+}
