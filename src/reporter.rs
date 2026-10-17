@@ -203,6 +203,9 @@ pub fn print_report(result: &AnalysisResult) {
             );
         }
     }
+    for reading in &details.competing {
+        println!("    \x1b[2m· also possible: {reading}\x1b[0m");
+    }
 
     // ── Languages ─────────────────────────────────────────────────────────────
     section("Languages");

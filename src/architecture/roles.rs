@@ -1,11 +1,12 @@
 //! File roles: which layer each source file plays, from settings, code
 //! signs, folder and file names, and imports.
 
+use super::package::{Packages, Scope};
 use super::{display_path, CodeSign};
 use crate::cache::Cache;
 use crate::safe_text::sanitize;
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 /// Layers in top-down order, with the folder and file names that mark them.
@@ -92,11 +93,23 @@ pub(super) const LAYERS: &[(&str, &[&str])] = &[
 pub(super) const UI_EXTENSIONS: &[&str] = &["tsx", "jsx", "vue", "svelte", "astro"];
 
 /// Every placed file with its layer, what placed it and what matched, plus
-/// each file's code sign and the names its code overruled.
+/// each file's code signs (main role first) and the names its code
+/// overruled, and what was left out of the layers and why.
 pub(super) struct Placed<'a> {
-    pub(super) by_code: HashMap<&'a PathBuf, (usize, CodeSign)>,
+    pub(super) by_code: HashMap<&'a PathBuf, Vec<(usize, CodeSign)>>,
     pub(super) layer_of: HashMap<&'a PathBuf, (usize, Source, String)>,
     pub(super) name_said: HashMap<&'a PathBuf, String>,
+    pub(super) packages: Packages,
+    /// Source files per package, by index into `packages.list`.
+    pub(super) package_files: Vec<usize>,
+    /// Files per layer each package's names or code suggest, placed or not.
+    pub(super) package_layers: Vec<[usize; 5]>,
+    /// Files per layer that library and CLI packages suggest, left out.
+    pub(super) not_an_app: BTreeMap<usize, [usize; 5]>,
+    /// Files per layer in project templates, and whether they were used
+    /// because nothing else had layers.
+    pub(super) template: [usize; 5],
+    pub(super) template_used: bool,
 }
 
 /// Place each source file in a layer: settings, then code, then names, then
@@ -123,7 +136,7 @@ pub(super) fn place<'a>(
     let deps_of = |file: &PathBuf| graph.get(file).unwrap_or(&no_deps);
 
     // What each file's code does, read once.
-    let by_code: HashMap<&PathBuf, (usize, CodeSign)> = nodes
+    let by_code: HashMap<&PathBuf, Vec<(usize, CodeSign)>> = nodes
         .par_iter()
         .filter_map(|&file| {
             let relative = rel(file);
@@ -148,7 +161,7 @@ pub(super) fn place<'a>(
             layer_of.insert(file, (index, Source::Settings, prefix));
             continue;
         }
-        let code = by_code.get(file);
+        let code = by_code.get(file).and_then(|roles| roles.first());
         let found = match (classify(&relative), code) {
             (Some((name_index, name)), Some((code_index, sign)))
                 if code_wins(*code_index, name_index) =>
@@ -165,15 +178,68 @@ pub(super) fn place<'a>(
         layer_of.insert(file, found);
     }
 
-    // Sample apps in examples/ or docs/ show how the project is used, not
-    // how it is built; they count only when nothing else has layers.
-    let in_samples = |file: &PathBuf| crate::framework_detector::in_sample_dir(&rel(file));
-    if layer_of
+    // Which files count. Product code does; test harnesses, stories and
+    // the files of library and CLI packages never do (a library's
+    // `middleware/` is what it ships, not layers it is built from).
+    // Project templates count only when nothing else has layers and they
+    // outweigh the tool around them; sample apps in examples/ or docs/
+    // only when nothing else has layers and every package is an app.
+    let packages = Packages::detect(root, files);
+    let mut package_files = vec![0usize; packages.list.len()];
+    let mut package_layers = vec![[0usize; 5]; packages.list.len()];
+    let scope: HashMap<&PathBuf, Scope> = nodes
         .iter()
-        .any(|(file, (_, source, _))| *source != Source::Settings && !in_samples(file))
-    {
-        layer_of.retain(|file, (_, source, _)| *source == Source::Settings || !in_samples(file));
+        .map(|&file| (file, packages.scope(&rel(file))))
+        .collect();
+    let mut not_an_app_files = 0usize;
+    for &file in &nodes {
+        let relative = rel(file);
+        if is_test(&relative) {
+            continue;
+        }
+        if let Some(index) = packages.of(&relative) {
+            package_files[index] += 1;
+            if let Some((layer, _, _)) = layer_of.get(file) {
+                package_layers[index][*layer] += 1;
+            }
+        }
+        if matches!(scope[file], Scope::NotAnApp(_)) {
+            not_an_app_files += 1;
+        }
     }
+    let mut not_an_app: BTreeMap<usize, [usize; 5]> = BTreeMap::new();
+    let mut template = [0usize; 5];
+    let mut has = [false; 3]; // product, template, sample
+    for (file, (layer, source, _)) in &layer_of {
+        if *source == Source::Settings {
+            continue;
+        }
+        match scope[file] {
+            Scope::Product => has[0] = true,
+            Scope::Template => {
+                has[1] = true;
+                template[*layer] += 1;
+            }
+            Scope::Sample => has[2] = true,
+            Scope::NotAnApp(index) => not_an_app.entry(index).or_default()[*layer] += 1,
+            Scope::Harness => {}
+        }
+    }
+    let template_files: usize = template.iter().sum();
+    let template_used = !has[0] && has[1] && template_files >= not_an_app_files;
+    let kept = if has[0] {
+        Scope::Product
+    } else if template_used {
+        Scope::Template
+    } else if has[2] && !packages.has_non_app() {
+        Scope::Sample
+    } else {
+        Scope::Product
+    };
+    if template_used {
+        template = [0; 5];
+    }
+    layer_of.retain(|file, (_, source, _)| *source == Source::Settings || scope[file] == kept);
 
     // A file nothing else placed, imported by routes or middleware and
     // importing data, is the service layer between them.
@@ -193,7 +259,11 @@ pub(super) fn place<'a>(
         .copied()
         .filter(|file| {
             let relative = rel(file);
-            !layer_of.contains_key(file) && !is_test(&relative) && !is_shape(&relative)
+            !layer_of.contains_key(file)
+                && scope[file] == kept
+                && !is_test(&relative)
+                && !is_shape(&relative)
+                && !is_package_wiring(&relative)
         })
         .filter_map(|file| {
             let by = importers
@@ -220,7 +290,22 @@ pub(super) fn place<'a>(
         by_code,
         layer_of,
         name_said,
+        packages,
+        package_files,
+        package_layers,
+        not_an_app,
+        template,
+        template_used,
     }
+}
+
+/// Python package wiring (`__init__.py`, Django's `apps.py`): imported by
+/// everything and importing models, without being a service.
+fn is_package_wiring(path: &Path) -> bool {
+    matches!(
+        path.file_name().and_then(|n| n.to_str()),
+        Some("__init__.py" | "apps.py")
+    )
 }
 
 /// Whether a file's code layer overrules the layer its name suggests.
@@ -280,7 +365,15 @@ pub(super) fn classify_by_name(path: &Path) -> Option<(usize, String)> {
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
-    let is_ui_file = UI_EXTENSIONS.contains(&ext.as_str());
+    // Schema migrations are data, whatever their generated names say
+    // (`0004_alter_options_domain.py`).
+    if let Some(dir) = path.parent().and_then(|d| {
+        d.iter()
+            .filter_map(|c| c.to_str())
+            .find(|c| c.eq_ignore_ascii_case("migrations"))
+    }) {
+        return Some((4, format!("{}/", sanitize(dir))));
+    }
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -294,7 +387,7 @@ pub(super) fn classify_by_name(path: &Path) -> Option<(usize, String)> {
         .filter(|m| *m != stem)
         .map(str::to_string);
     for name in marker.iter().chain(std::iter::once(&stem)) {
-        if let Some(index) = layer_for_name(name, is_ui_file) {
+        if let Some(index) = layer_for_name(name, &ext) {
             let file = path
                 .file_name()
                 .map(|n| n.to_string_lossy())
@@ -308,12 +401,20 @@ pub(super) fn classify_by_name(path: &Path) -> Option<(usize, String)> {
         .rev()
         .filter_map(|c| c.to_str())
         .find_map(|dir| {
-            layer_for_name(&dir.to_ascii_lowercase(), is_ui_file)
+            layer_for_name(&dir.to_ascii_lowercase(), &ext)
                 .map(|index| (index, format!("{}/", sanitize(dir))))
         })
 }
 
-pub(super) fn layer_for_name(name: &str, is_ui_file: bool) -> Option<usize> {
+/// Extensions of code that runs in a browser; `hooks` only means React or
+/// Vue hooks in these (`wagtail_hooks.py` is not UI).
+const BROWSER_EXTENSIONS: &[&str] = &["js", "mjs", "cjs", "ts", "jsx", "tsx", "vue", "svelte"];
+
+pub(super) fn layer_for_name(name: &str, ext: &str) -> Option<usize> {
+    let is_ui_file = UI_EXTENSIONS.contains(&ext);
+    if name == "hooks" && !BROWSER_EXTENSIONS.contains(&ext) {
+        return None;
+    }
     // Server-rendered `views/` and file-routed `pages/` are routes unless the
     // file is a UI component.
     if matches!(name, "views" | "pages") && is_ui_file {
@@ -464,8 +565,9 @@ pub(super) fn read_capped(path: &Path) -> Option<String> {
     Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// Layer index shown by a file's code, if any, with what matched and where.
-pub(super) fn content_layer(path: &Path, text: &str) -> Option<(usize, CodeSign)> {
+/// Layers shown by a file's code, main role first, each with what matched
+/// and where. A file can show several: routes that also define a model.
+pub(super) fn content_layer(path: &Path, text: &str) -> Option<Vec<(usize, CodeSign)>> {
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -476,7 +578,7 @@ pub(super) fn content_layer(path: &Path, text: &str) -> Option<(usize, CodeSign)
             line: 0,
             sign: format!(".{ext} component"),
         };
-        return Some((0, sign));
+        return Some(vec![(0, sign)]);
     }
     // Signs count only in code, not in strings, comments or fixtures.
     let original = text;
@@ -488,7 +590,7 @@ pub(super) fn content_layer(path: &Path, text: &str) -> Option<(usize, CodeSign)
             .flatten()
             .min();
         if let Some(at) = markup {
-            return Some((0, sign_at(text, at, "JSX markup")));
+            return Some(vec![(0, sign_at(text, at, "JSX markup"))]);
         }
     }
     let first = |signs: &[&'static str]| {
@@ -499,23 +601,26 @@ pub(super) fn content_layer(path: &Path, text: &str) -> Option<(usize, CodeSign)
             .map(|(at, s)| sign_at(text, at, s))
     };
     let file = path.to_string_lossy().replace('\\', "/");
+    let mut roles: Vec<(usize, CodeSign)> = Vec::new();
     if let Some(route) = crate::runbook::routes(&file, original).into_iter().next() {
         let sign = CodeSign {
             line: route.line,
             sign: sanitize(&format!("{} {}", route.method, route.path)),
         };
-        return Some((1, sign));
-    }
-    if let Some(sign) = first(CONTROLLER_SIGNS) {
-        return Some((1, sign));
+        roles.push((1, sign));
+    } else if let Some(sign) = first(CONTROLLER_SIGNS) {
+        roles.push((1, sign));
     }
     if let Some(sign) = first(MIDDLEWARE_SIGNS) {
-        return Some((2, sign));
+        roles.push((2, sign));
     }
     if let Some(sign) = first(DATA_SIGNS) {
-        return Some((4, sign));
+        roles.push((4, sign));
     }
-    first(SERVICE_SIGNS).map(|sign| (3, sign))
+    if let Some(sign) = first(SERVICE_SIGNS) {
+        roles.push((3, sign));
+    }
+    (!roles.is_empty()).then_some(roles)
 }
 
 /// A sign found at byte `at` of `text`.

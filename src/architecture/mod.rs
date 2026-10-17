@@ -11,6 +11,7 @@
 //!    confidence; folders without supporting imports give medium; no layered
 //!    folders at all give low.
 
+mod package;
 mod roles;
 
 use crate::cache::Cache;
@@ -19,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
+pub use package::Purpose;
 pub(crate) use roles::is_test;
 pub use roles::SETTINGS_FILE;
 use roles::*;
@@ -141,6 +143,16 @@ pub struct Placement {
     /// suggested (`services/ (Services)`), when they disagreed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name_said: Option<String>,
+    /// Other layers the file's code also shows (routes that define a model).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<AlsoShown>,
+}
+
+/// Another role a file's code shows besides the layer it is placed in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct AlsoShown {
+    pub layer: String,
+    pub code: CodeSign,
 }
 
 impl Placement {
@@ -195,6 +207,25 @@ pub struct Layer {
     /// A few of its files and why each is here, code-backed ones first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<Placement>,
+    /// How many of its files also show another layer in their code, by layer.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub also_shown: BTreeMap<String, usize>,
+}
+
+/// One package (a folder with a manifest) and what it is for.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct PackageRole {
+    /// Folder relative to the repository root; `.` for the root.
+    pub path: String,
+    pub purpose: Purpose,
+    /// What decided the purpose (`package.json depends on express`).
+    pub signals: Vec<String>,
+    /// Source files in the package, tests left out.
+    pub files: usize,
+    /// Files per layer its names or code suggest, whether or not they were
+    /// counted as application layers.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub layers: BTreeMap<String, usize>,
 }
 
 /// Import edges from one layer to another.
@@ -218,6 +249,16 @@ pub struct ArchitectureInsight {
     pub confidence: Confidence,
     /// Short, human-readable reasons for the result.
     pub evidence: Vec<String>,
+    /// Packages and their purpose, largest first (at most 20).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub packages: Vec<PackageRole>,
+    /// Readings the layers leave out: library folders that look like layers,
+    /// project templates, code in languages that are not read.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub competing: Vec<String>,
+    /// Why the architecture is unknown, when most source is not read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unknown: Option<String>,
 }
 
 impl ArchitectureInsight {
@@ -244,6 +285,29 @@ const MAX_EVIDENCE: usize = 8;
 
 /// Most example files kept per layer, and imports per flow.
 const MAX_EXAMPLES: usize = 3;
+
+/// Most packages listed.
+const MAX_PACKAGES: usize = 20;
+
+/// Most competing readings listed.
+const MAX_COMPETING: usize = 6;
+
+/// `UI (3 files), Routes (1 file)` for per-layer counts.
+fn layer_counts(counts: &[usize; 5]) -> String {
+    counts
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| **n > 0)
+        .map(|(i, n)| {
+            format!(
+                "{} ({n} file{})",
+                LAYERS[i].0,
+                if *n == 1 { "" } else { "s" }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
 
 /// The layer name of every file placed in one, keyed by the paths in
 /// `graph` and `files`.
@@ -273,15 +337,89 @@ pub fn infer(
     let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).to_path_buf();
     let Placed {
         by_code,
-        layer_of,
+        mut layer_of,
         name_said,
+        packages,
+        package_files,
+        package_layers,
+        not_an_app,
+        template,
+        template_used,
     } = place(root, files, graph, cache);
+
+    // Packages, largest first, then listed by path.
+    let mut package_roles: Vec<PackageRole> = packages
+        .list
+        .iter()
+        .enumerate()
+        .map(|(i, p)| PackageRole {
+            path: sanitize(&p.display()),
+            purpose: p.purpose,
+            signals: p.signals.iter().map(|s| sanitize(s)).collect(),
+            files: package_files[i],
+            layers: package_layers[i]
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| **n > 0)
+                .map(|(l, n)| (LAYERS[l].0.to_string(), *n))
+                .collect(),
+        })
+        .collect();
+    package_roles.sort_by(|a, b| b.files.cmp(&a.files).then_with(|| a.path.cmp(&b.path)));
+    package_roles.truncate(MAX_PACKAGES);
+    package_roles.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let mut competing: Vec<String> = Vec::new();
+    let mut left_out: Vec<(&usize, &[usize; 5])> = not_an_app.iter().collect();
+    left_out.sort_by_key(|(_, counts)| std::cmp::Reverse(counts.iter().sum::<usize>()));
+    for (&index, counts) in left_out {
+        let p = &packages.list[index];
+        competing.push(format!(
+            "{} is a {} ({}): names or code suggest {}; not counted as application layers",
+            sanitize(&p.display()),
+            p.purpose.as_str(),
+            sanitize(&p.signals.join("; ")),
+            layer_counts(counts)
+        ));
+    }
+    if template.iter().sum::<usize>() > 0 {
+        competing.push(format!(
+            "Project templates suggest {}; they describe the projects the templates generate, not this repository",
+            layer_counts(&template)
+        ));
+    }
+
+    // Where most source is in languages that are not read, the layers of
+    // the rest are not the architecture.
+    let unknown = package::unread_majority(root, files).map(|(language, unread, read)| {
+        format!(
+            "Most source files are in languages CodeDna does not read ({language}: {unread} files vs {read} supported); the architecture is unknown"
+        )
+    });
+    if unknown.is_some() {
+        let mut counts = [0usize; 5];
+        for (index, _, _) in layer_of.values() {
+            counts[*index] += 1;
+        }
+        if counts.iter().sum::<usize>() > 0 {
+            competing.insert(
+                0,
+                format!(
+                    "Supported code alone shows {}; not reported as the architecture",
+                    layer_counts(&counts)
+                ),
+            );
+        }
+        layer_of.clear();
+    }
+    competing.truncate(MAX_COMPETING);
 
     let mut dir_counts: Vec<BTreeMap<String, usize>> = vec![BTreeMap::new(); LAYERS.len()];
     let mut confirmed = vec![0usize; LAYERS.len()];
     let mut placed = vec![0usize; LAYERS.len()];
     let mut from_settings = 0usize;
     let mut examples: Vec<Vec<Placement>> = vec![Vec::new(); LAYERS.len()];
+    let mut also_shown: Vec<BTreeMap<String, usize>> = vec![BTreeMap::new(); LAYERS.len()];
     for (file, (index, source, matched)) in &layer_of {
         let (index, source) = (*index, *source);
         let relative = rel(file);
@@ -291,12 +429,26 @@ pub fn infer(
             .filter(|d| !d.is_empty())
             .unwrap_or_else(|| ".".to_string());
         *dir_counts[index].entry(dir).or_default() += 1;
-        let code = by_code
-            .get(file)
-            .filter(|(code_index, _)| *code_index == index)
+        let roles = by_code.get(file).map(Vec::as_slice).unwrap_or_default();
+        let code = roles
+            .iter()
+            .find(|(code_index, _)| *code_index == index)
             .map(|(_, sign)| sign.clone());
         if code.is_some() {
             confirmed[index] += 1;
+        }
+        // Request handlers share the middleware signature, so routes do not
+        // also count as middleware.
+        let also: Vec<AlsoShown> = roles
+            .iter()
+            .filter(|(i, _)| *i != index && !(index == 1 && *i == 2))
+            .map(|(i, sign)| AlsoShown {
+                layer: LAYERS[*i].0.to_string(),
+                code: sign.clone(),
+            })
+            .collect();
+        for role in &also {
+            *also_shown[index].entry(role.layer.clone()).or_default() += 1;
         }
         examples[index].push(Placement {
             file: display_path(root, file),
@@ -304,6 +456,7 @@ pub fn infer(
             matched: matched.clone(),
             code,
             name_said: name_said.get(file).cloned(),
+            also,
         });
         match source {
             Source::Imports => placed[index] += 1,
@@ -369,6 +522,7 @@ pub fn infer(
                 confirmed_by_code: confirmed[index],
                 placed_by_imports: placed[index],
                 examples: std::mem::take(&mut examples[index]),
+                also_shown: std::mem::take(&mut also_shown[index]),
                 dirs: top
                     .into_iter()
                     .take(3)
@@ -412,7 +566,9 @@ pub fn infer(
     let code_backed =
         layers.len() >= 2 && layers.iter().all(|l| l.confirmed_by_code > 0) && upward <= downward;
     let one_way = layers.len() >= 2 && downward >= 2 && downward >= 3 * upward;
-    let confidence = if one_way || code_backed {
+    let confidence = if unknown.is_some() {
+        Confidence::Low
+    } else if one_way || code_backed {
         Confidence::High
     } else if !layers.is_empty() {
         Confidence::Medium
@@ -474,7 +630,16 @@ pub fn infer(
             if upward == 1 { "" } else { "s" }
         ));
     }
-    if layers.is_empty() {
+    if template_used {
+        evidence.insert(
+            0,
+            "Only project templates show layers; they describe the project the template generates"
+                .to_string(),
+        );
+    }
+    if let Some(unknown) = &unknown {
+        evidence.insert(0, unknown.clone());
+    } else if layers.is_empty() {
         evidence.push(
             "No layers found from folder names or code (routes, services, models, …)".to_string(),
         );
@@ -487,6 +652,18 @@ pub fn infer(
             ));
         }
     }
+    let mut purposes: BTreeMap<Purpose, usize> = BTreeMap::new();
+    for p in &packages.list {
+        *purposes.entry(p.purpose).or_default() += 1;
+    }
+    if packages.list.iter().any(|p| p.purpose != Purpose::Unknown) {
+        let list: Vec<String> = purposes
+            .iter()
+            .filter(|(p, _)| **p != Purpose::Unknown)
+            .map(|(p, n)| format!("{n} {}", p.as_str()))
+            .collect();
+        evidence.push(format!("Package purposes: {}", list.join(", ")));
+    }
     evidence.truncate(MAX_EVIDENCE);
 
     ArchitectureInsight {
@@ -494,6 +671,9 @@ pub fn infer(
         flows,
         confidence,
         evidence,
+        packages: package_roles,
+        competing,
+        unknown,
     }
 }
 
@@ -668,7 +848,11 @@ mod tests {
     }
     #[test]
     fn content_sign_names_the_line_that_matched() {
-        let sign = |p: &str, t: &str| content_layer(Path::new(p), t).map(|(_, s)| s);
+        let sign = |p: &str, t: &str| {
+            content_layer(Path::new(p), t)
+                .and_then(|v| v.into_iter().next())
+                .map(|(_, s)| s)
+        };
         let route = sign(
             "src/a.ts",
             "import x from 'y';\n\nrouter.get(\"/users\", list)",
@@ -703,6 +887,7 @@ mod tests {
                 sign: sign.to_string(),
             }),
             name_said: None,
+            also: Vec::new(),
         };
         assert_eq!(
             p("code", "", Some((14, "GET /users"))).describe(),
@@ -741,7 +926,11 @@ mod tests {
 
     #[test]
     fn signs_in_strings_and_comments_are_not_evidence() {
-        let at = |p: &str, t: &str| content_layer(Path::new(p), t).map(|(i, _)| LAYERS[i].0);
+        let at = |p: &str, t: &str| {
+            content_layer(Path::new(p), t)
+                .and_then(|v| v.into_iter().next())
+                .map(|(i, _)| LAYERS[i].0)
+        };
         let fixture =
             "export const samples = [\"@RestController\", 'pgTable(', `@Injectable()`];\n\
                        // app.get(\"/old\", h)\n/* (req, res, next) */\n\
@@ -753,13 +942,19 @@ mod tests {
         assert_eq!(at("src/Doc.java", java), None);
         // The real thing next to a string still counts.
         let mixed = "const label = \"pgTable(\";\nexport const t = pgTable(\"t\", {});\n";
-        let (layer, sign) = content_layer(Path::new("src/t.ts"), mixed).unwrap();
+        let (layer, sign) = content_layer(Path::new("src/t.ts"), mixed)
+            .unwrap()
+            .remove(0);
         assert_eq!((LAYERS[layer].0, sign.line), ("Data", 2));
     }
 
     #[test]
     fn content_shows_the_layer() {
-        let at = |p: &str, t: &str| content_layer(Path::new(p), t).map(|(i, _)| LAYERS[i].0);
+        let at = |p: &str, t: &str| {
+            content_layer(Path::new(p), t)
+                .and_then(|v| v.into_iter().next())
+                .map(|(i, _)| LAYERS[i].0)
+        };
         assert_eq!(
             at("src/a.ts", "router.get(\"/users\", list)"),
             Some("Routes")

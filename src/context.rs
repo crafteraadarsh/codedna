@@ -78,6 +78,14 @@ pub struct ContextPack {
     /// One file per layer and what shows its layer, e.g.
     /// `Routes: src/routes/user.ts:14  GET /users`.
     pub layer_examples: Vec<String>,
+    /// Why the architecture is unknown, when most source is in languages
+    /// that are not read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub architecture_unknown: Option<String>,
+    /// Readings the layers leave out: library folders that look like
+    /// layers, project templates, examples.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub competing_interpretations: Vec<String>,
     pub total_loc: usize,
     pub file_count: usize,
     pub languages: Vec<LanguageShare>,
@@ -142,6 +150,8 @@ pub fn build_with_task(
                     .map(|e| format!("{}: {}", l.name, e.describe()))
             })
             .collect(),
+        architecture_unknown: result.architecture_details.unknown.clone(),
+        competing_interpretations: result.architecture_details.competing.clone(),
         total_loc: result.total_loc,
         file_count: result.file_breakdown.len(),
         languages: languages(result),
@@ -252,6 +262,20 @@ pub fn render_markdown(pack: &ContextPack) -> String {
         for example in &pack.layer_examples {
             let _ = writeln!(out, "  - {}", code(example));
         }
+    }
+    if let Some(unknown) = &pack.architecture_unknown {
+        let _ = writeln!(out, "- Code layers: {unknown}");
+    }
+    const READINGS: usize = 3;
+    for reading in pack.competing_interpretations.iter().take(READINGS) {
+        let _ = writeln!(out, "- Also possible: {reading}");
+    }
+    if pack.competing_interpretations.len() > READINGS {
+        let _ = writeln!(
+            out,
+            "  - and {} more in the JSON output",
+            pack.competing_interpretations.len() - READINGS
+        );
     }
     let _ = writeln!(
         out,

@@ -27,7 +27,7 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Bumped when the stored layout changes.
-const FORMAT: u32 = 7;
+const FORMAT: u32 = 8;
 /// Largest cache file read.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
 /// Files changed this close to the start of a run are not stored: an edit
@@ -95,7 +95,7 @@ struct Entry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     loc: Option<Known<[usize; 3]>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    layer: Option<Known<(usize, CodeSign)>>,
+    layer: Option<Known<Vec<(usize, CodeSign)>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     imports: Option<Imports>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -264,12 +264,12 @@ impl Cache {
         )
     }
 
-    /// The layer `file`'s code shows.
+    /// The layers `file`'s code shows, strongest first.
     pub fn layer(
         &self,
         file: &Path,
-        compute: impl FnOnce() -> Option<(usize, CodeSign)>,
-    ) -> Option<(usize, CodeSign)> {
+        compute: impl FnOnce() -> Option<Vec<(usize, CodeSign)>>,
+    ) -> Option<Vec<(usize, CodeSign)>> {
         self.get(
             file,
             |_, e| e.layer.as_ref().map(|k| k.v.clone()),

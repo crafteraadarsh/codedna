@@ -211,6 +211,22 @@
     "file_breakdown"
   ],
   "$defs": {
+    "AlsoShown": {
+      "description": "Another role a file's code shows besides the layer it is placed in.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/CodeSign"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer",
+        "code"
+      ]
+    },
     "Analyzer": {
       "description": "The tool that produced a report.",
       "type": "object",
@@ -231,6 +247,13 @@
       "description": "Layers, the imports between them, and how confident the result is.",
       "type": "object",
       "properties": {
+        "competing": {
+          "description": "Readings the layers leave out: library folders that look like layers,\nproject templates, code in languages that are not read.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "confidence": {
           "$ref": "#/$defs/Confidence"
         },
@@ -254,6 +277,20 @@
           "items": {
             "$ref": "#/$defs/Layer"
           }
+        },
+        "packages": {
+          "description": "Packages and their purpose, largest first (at most 20).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PackageRole"
+          }
+        },
+        "unknown": {
+          "description": "Why the architecture is unknown, when most source is not read.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -841,6 +878,15 @@
       "description": "One architectural layer found in the code.",
       "type": "object",
       "properties": {
+        "also_shown": {
+          "description": "How many of its files also show another layer in their code, by layer.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0
+          }
+        },
         "confirmed_by_code": {
           "description": "Files whose code shows the layer (route handlers, models, …).",
           "type": "integer",
@@ -940,6 +986,47 @@
         "text"
       ]
     },
+    "PackageRole": {
+      "description": "One package (a folder with a manifest) and what it is for.",
+      "type": "object",
+      "properties": {
+        "files": {
+          "description": "Source files in the package, tests left out.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "layers": {
+          "description": "Files per layer its names or code suggest, whether or not they were\ncounted as application layers.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0
+          }
+        },
+        "path": {
+          "description": "Folder relative to the repository root; `.` for the root.",
+          "type": "string"
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
+        },
+        "signals": {
+          "description": "What decided the purpose (`package.json depends on express`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "path",
+        "purpose",
+        "signals",
+        "files"
+      ]
+    },
     "ParseCounts": {
       "description": "Files read with a syntax parser, by how far they got.",
       "type": "object",
@@ -1011,6 +1098,13 @@
       "description": "Why one file is in its layer.",
       "type": "object",
       "properties": {
+        "also": {
+          "description": "Other layers the file's code also shows (routes that define a model).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlsoShown"
+          }
+        },
         "code": {
           "description": "The code that shows the layer, when it agrees.",
           "anyOf": [
@@ -1046,6 +1140,36 @@
         "file",
         "placed_by",
         "matched"
+      ]
+    },
+    "Purpose": {
+      "description": "What a package is for.",
+      "oneOf": [
+        {
+          "description": "A deployable program: web app, service, desktop or mobile app.",
+          "type": "string",
+          "const": "application"
+        },
+        {
+          "description": "A command-line tool installed from a registry.",
+          "type": "string",
+          "const": "cli"
+        },
+        {
+          "description": "A package published for other code to import.",
+          "type": "string",
+          "const": "library"
+        },
+        {
+          "description": "A project template (`cookiecutter.json`).",
+          "type": "string",
+          "const": "template"
+        },
+        {
+          "description": "Not enough evidence, or a workspace root.",
+          "type": "string",
+          "const": "unknown"
+        }
       ]
     },
     "Resolution": {
