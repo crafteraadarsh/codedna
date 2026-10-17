@@ -9,6 +9,7 @@
 
 use crate::architecture::Location;
 use crate::dependency_graph::{follows_imports, ImportTally};
+use crate::parsers::ParseStatus;
 use crate::rules;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -16,6 +17,9 @@ use std::path::{Path, PathBuf};
 
 /// Most unresolved imports listed by file and line.
 const MAX_UNRESOLVED: usize = 20;
+
+/// Most files that did not parse listed by file and line.
+const MAX_PARSE_FAILURES: usize = 20;
 
 /// How much of the repository the dependency analysis covered.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -38,6 +42,10 @@ pub struct Coverage {
     /// few by path and line.
     #[serde(default)]
     pub unresolved: Vec<UnresolvedImport>,
+    /// How the files read with a syntax parser (JavaScript, TypeScript and
+    /// component scripts) parsed.
+    #[serde(default)]
+    pub parse: ParseCounts,
     /// One sentence for people, e.g. "Imports followed in 120 of 140 source
     /// files (85%); 3 of 410 internal imports unresolved; not analyzed:
     /// Go (20 files)".
@@ -63,6 +71,36 @@ pub struct ImportCounts {
     pub external: usize,
 }
 
+/// Files read with a syntax parser, by how far they got.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct ParseCounts {
+    /// Parsed with no syntax errors.
+    pub parsed: usize,
+    /// Parsed with syntax errors the parser recovered from; their facts
+    /// come from the recovered tree.
+    pub partial: usize,
+    /// Not parsed at all; only possibilities from a text scan are
+    /// reported for these files, and they add no edges.
+    pub failed: usize,
+    /// The first syntax error of the first few partial or failed files, by
+    /// path.
+    #[serde(default)]
+    pub failures: Vec<ParseFailure>,
+}
+
+/// The first syntax error in a file that did not fully parse.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct ParseFailure {
+    /// Path relative to the repository root.
+    pub file: String,
+    /// 1-based line number.
+    pub line: usize,
+    /// What the parser reported.
+    pub message: String,
+    /// `partial` or `failed`.
+    pub status: String,
+}
+
 /// One import of the repository's own code that matched no file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct UnresolvedImport {
@@ -78,7 +116,10 @@ impl Coverage {
     /// Whether some source code was skipped or some internal imports did not
     /// resolve, so graph-based findings may be incomplete.
     pub fn is_partial(&self) -> bool {
-        self.analyzed_files < self.source_files || self.imports.unresolved > 0
+        self.analyzed_files < self.source_files
+            || self.imports.unresolved > 0
+            || self.parse.partial > 0
+            || self.parse.failed > 0
     }
 }
 
@@ -111,12 +152,26 @@ pub fn measure(
     }
 
     let mut unresolved: Vec<(&PathBuf, usize, &str)> = Vec::new();
+    let mut failures: Vec<(&PathBuf, usize, &str, ParseStatus)> = Vec::new();
     for (path, tally) in tallies {
         if !tally.readable {
             coverage.unreadable_files += 1;
             continue;
         }
         coverage.analyzed_files += 1;
+        match tally.parse {
+            ParseStatus::NotParsed => {}
+            ParseStatus::Parsed => coverage.parse.parsed += 1,
+            ParseStatus::Partial => coverage.parse.partial += 1,
+            ParseStatus::Failed => coverage.parse.failed += 1,
+        }
+        if matches!(tally.parse, ParseStatus::Partial | ParseStatus::Failed) {
+            let (line, message) = tally
+                .parse_errors
+                .first()
+                .map_or((1, "syntax error"), |(l, m)| (*l, m.as_str()));
+            failures.push((path, line, message, tally.parse));
+        }
         coverage.imports.resolved += tally.resolved;
         coverage.imports.unresolved += tally.unresolved.len();
         coverage.imports.external += tally.external;
@@ -139,6 +194,25 @@ pub fn measure(
                 file: at.file,
                 line,
                 import: at.text,
+            }
+        })
+        .collect();
+
+    failures.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    coverage.parse.failures = failures
+        .into_iter()
+        .take(MAX_PARSE_FAILURES)
+        .map(|(path, line, message, status)| {
+            let at = Location::new(root, path, line, message);
+            ParseFailure {
+                file: at.file,
+                line,
+                message: at.text,
+                status: match status {
+                    ParseStatus::Failed => "failed",
+                    _ => "partial",
+                }
+                .to_string(),
             }
         })
         .collect();
@@ -188,6 +262,13 @@ pub fn summary(c: &Coverage) -> String {
                 c.imports.unresolved, c.imports.internal
             ));
         }
+    }
+    let unparsed = c.parse.partial + c.parse.failed;
+    if unparsed > 0 {
+        parts.push(format!(
+            "{unparsed} file{} did not parse cleanly",
+            plural(unparsed)
+        ));
     }
     if c.unreadable_files > 0 {
         parts.push(format!(
@@ -243,6 +324,7 @@ mod tests {
                 .map(|(l, s)| (*l, s.to_string()))
                 .collect(),
             external,
+            ..ImportTally::default()
         }
     }
 

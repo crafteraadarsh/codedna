@@ -51,6 +51,7 @@ jobs:
         with:
           persist-credentials: false
 
+      # Stable Rust, so the pinned Oxc parser crates (Rust 1.97 or later) build.
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:

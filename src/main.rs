@@ -21,6 +21,7 @@ mod impact;
 mod language_detector;
 mod loc_counter;
 mod mcp;
+mod parsers;
 mod repo_map;
 mod report;
 mod reporter;

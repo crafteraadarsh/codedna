@@ -17,6 +17,7 @@ use crate::architecture::CodeSign;
 use crate::dependency_graph::{normalize, ImportTally};
 use crate::facts::DependencyFact;
 use crate::loc_counter::LineCounts;
+use crate::parsers::ParseStatus;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,7 +27,7 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Bumped when the stored layout changes.
-const FORMAT: u32 = 2;
+const FORMAT: u32 = 3;
 /// Largest cache file read.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
 /// Files changed this close to the start of a run are not stored: an edit
@@ -70,6 +71,10 @@ struct Imports {
     resolved: usize,
     unresolved: Vec<(usize, String)>,
     external: usize,
+    #[serde(default)]
+    parse: ParseStatus,
+    #[serde(default)]
+    parse_errors: Vec<(usize, String)>,
 }
 
 /// Dead-code names a file mentions, `(candidate, file is unused, line)`,
@@ -286,6 +291,8 @@ impl Cache {
                         resolved: i.resolved,
                         unresolved: i.unresolved.clone(),
                         external: i.external,
+                        parse: i.parse,
+                        parse_errors: i.parse_errors.clone(),
                     };
                     (i.facts.clone(), tally)
                 })
@@ -298,6 +305,8 @@ impl Cache {
                     resolved: tally.resolved,
                     unresolved: tally.unresolved,
                     external: tally.external,
+                    parse: tally.parse,
+                    parse_errors: tally.parse_errors,
                 })
             },
         )

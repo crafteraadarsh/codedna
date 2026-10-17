@@ -63,6 +63,12 @@
           "unresolved": 0
         },
         "not_analyzed": [],
+        "parse": {
+          "failed": 0,
+          "failures": [],
+          "parsed": 0,
+          "partial": 0
+        },
         "source_files": 0,
         "summary": "",
         "unreadable_files": 0,
@@ -310,6 +316,16 @@
           "default": [],
           "items": {
             "$ref": "#/$defs/LanguageGap"
+          }
+        },
+        "parse": {
+          "description": "How the files read with a syntax parser (JavaScript, TypeScript and\ncomponent scripts) parsed.",
+          "$ref": "#/$defs/ParseCounts",
+          "default": {
+            "failed": 0,
+            "failures": [],
+            "parsed": 0,
+            "partial": 0
           }
         },
         "source_files": {
@@ -721,6 +737,73 @@
         "file",
         "line",
         "text"
+      ]
+    },
+    "ParseCounts": {
+      "description": "Files read with a syntax parser, by how far they got.",
+      "type": "object",
+      "properties": {
+        "failed": {
+          "description": "Not parsed at all; only possibilities from a text scan are\nreported for these files, and they add no edges.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "failures": {
+          "description": "The first syntax error of the first few partial or failed files, by\npath.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ParseFailure"
+          }
+        },
+        "parsed": {
+          "description": "Parsed with no syntax errors.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "partial": {
+          "description": "Parsed with syntax errors the parser recovered from; their facts\ncome from the recovered tree.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "parsed",
+        "partial",
+        "failed"
+      ]
+    },
+    "ParseFailure": {
+      "description": "The first syntax error in a file that did not fully parse.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Path relative to the repository root.",
+          "type": "string"
+        },
+        "line": {
+          "description": "1-based line number.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "message": {
+          "description": "What the parser reported.",
+          "type": "string"
+        },
+        "status": {
+          "description": "`partial` or `failed`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "line",
+        "message",
+        "status"
       ]
     },
     "Placement": {
