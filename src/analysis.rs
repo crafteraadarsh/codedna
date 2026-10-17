@@ -9,6 +9,7 @@ use crate::coverage::{self, Coverage};
 use crate::cycles;
 use crate::dead_code_detector::{self, DeadCodeCandidate};
 use crate::dependency_graph;
+use crate::facts::{self, DependencyFact, DependencyFacts};
 use crate::framework_detector;
 use crate::language_detector;
 use crate::loc_counter;
@@ -129,10 +130,18 @@ pub struct AnalysisResult {
     #[serde(default)]
     pub workspaces: Vec<Workspace>,
 
-    /// Directed import graph: `file → [files it imports]`.
+    /// Directed import graph: `file → [files it imports]`. A projection of
+    /// `dependencies`: the targets of its resolved facts, per source file.
     #[serde(serialize_with = "serialize_dep_graph")]
     #[serde(deserialize_with = "deserialize_dep_graph")]
     pub dependency_graph: HashMap<PathBuf, Vec<PathBuf>>,
+
+    /// Typed dependency facts: every import, re-export, worker, process,
+    /// configured entry and possible dynamic load found, with its kind,
+    /// resolution, certainty and evidence. Unresolved and external imports
+    /// are kept too. Sorted by source file and position.
+    #[serde(default)]
+    pub dependencies: DependencyFacts,
 
     /// How much of the code the dependency analysis covered: files whose
     /// imports were followed, imports that did not resolve and languages
@@ -249,7 +258,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     let infrastructure = framework_detector::detect_infrastructure(&files);
 
     // ── 5. Dependency graph ───────────────────────────────────────────────────
-    let (dep_graph, import_tallies) = dependency_graph::build_cached(&files, &cache);
+    let (dep_graph, import_tallies, dependency_facts) =
+        dependency_graph::build_facts(&files, &cache);
     let coverage = coverage::measure(root, &files, &import_tallies);
 
     // ── 6. Dead code ──────────────────────────────────────────────────────────
@@ -300,6 +310,15 @@ pub fn analyze(root: &Path) -> AnalysisResult {
             (key, vals)
         })
         .collect();
+    let mut facts: Vec<DependencyFact> = dependency_facts
+        .into_iter()
+        .map(|f| f.map_paths(make_relative))
+        .collect();
+    facts::sort(&mut facts);
+    let dependencies = DependencyFacts {
+        rules_version: facts::RULES_VERSION,
+        facts,
+    };
     let circular_imports = cycles::find_cycles(&dependency_graph);
 
     let file_breakdown = file_breakdown
@@ -348,6 +367,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         circular_imports,
         workspaces,
         dependency_graph,
+        dependencies,
         coverage,
         file_breakdown,
     }

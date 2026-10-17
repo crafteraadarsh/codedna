@@ -347,6 +347,7 @@ mod tests {
             architecture: String::new(),
             dead_code: vec![],
             dependency_graph: HashMap::new(),
+            dependencies: Default::default(),
             file_breakdown: files
                 .iter()
                 .map(|(f, loc)| FileInfo {

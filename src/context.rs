@@ -527,6 +527,7 @@ mod tests {
             architecture: "Monolithic / undetermined".to_string(),
             dead_code: vec![PathBuf::from("./src/old.rs")],
             dependency_graph: graph,
+            dependencies: Default::default(),
             file_breakdown: vec![
                 FileInfo {
                     file: PathBuf::from("./src/cli.rs"),

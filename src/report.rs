@@ -689,6 +689,7 @@ mod tests {
             architecture: "Monolith".to_string(),
             dead_code: vec![PathBuf::from(file)],
             dependency_graph: HashMap::new(),
+            dependencies: Default::default(),
             file_breakdown: vec![
                 FileInfo {
                     file: PathBuf::from("./src/main.rs"),

@@ -434,6 +434,7 @@ mod tests {
                 .iter()
                 .map(|(f, deps)| (p(f), deps.iter().map(|d| p(d)).collect()))
                 .collect(),
+            dependencies: Default::default(),
         }
     }
 

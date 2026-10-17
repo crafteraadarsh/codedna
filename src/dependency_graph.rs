@@ -12,6 +12,8 @@
 //! stdlib imports are ignored.
 
 use crate::cache::Cache;
+use crate::facts::{Certainty, DependencyFact, DependencyKind, Resolution};
+use crate::graph;
 use rayon::prelude::*;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -82,33 +84,52 @@ pub fn build_cached(
     files: &[PathBuf],
     cache: &Cache,
 ) -> (DependencyGraph, HashMap<PathBuf, ImportTally>) {
+    let (graph, tallies, _) = build_facts(files, cache);
+    (graph, tallies)
+}
+
+/// Extract the dependency facts of every source file, then build the graph
+/// from them. Facts come back in the order they were found, which is the
+/// order of each file's edges; [`crate::facts::sort`] puts them in report
+/// order.
+pub fn build_facts(
+    files: &[PathBuf],
+    cache: &Cache,
+) -> (
+    DependencyGraph,
+    HashMap<PathBuf, ImportTally>,
+    Vec<DependencyFact>,
+) {
     BUILD.fetch_add(1, Ordering::Relaxed);
     let aliases = Aliases::from_files(files);
     let python_packages = python_packages(files);
 
     // Each file is parsed independently — no shared mutable state needed.
-    let parsed: Vec<(PathBuf, Vec<PathBuf>, ImportTally)> = files
+    let parsed: Vec<(PathBuf, Vec<DependencyFact>, ImportTally)> = files
         .par_iter()
         .filter(|file| is_source_file(file))
         .map(|file| {
             let key = normalize(file);
-            let (deps, tally) = cache.imports(file, || {
+            let (facts, tally) = cache.imports(file, || {
                 let mut tally = ImportTally::default();
-                let deps = parse_dependencies_with(&key, &aliases, &python_packages, &mut tally);
-                (deps, tally)
+                let facts = parse_dependencies_with(&key, &aliases, &python_packages, &mut tally);
+                (facts, tally)
             });
-            (key, deps, tally)
+            (key, facts, tally)
         })
         .collect();
 
-    let mut graph = DependencyGraph::with_capacity(parsed.len());
+    let mut nodes = Vec::with_capacity(parsed.len());
+    let mut facts = Vec::new();
     let mut tallies = HashMap::with_capacity(parsed.len());
-    for (key, deps, tally) in parsed {
+    for (key, file_facts, tally) in parsed {
         tallies.insert(key.clone(), tally);
-        graph.insert(key, deps);
+        nodes.push(key);
+        facts.extend(file_facts);
     }
-    link_django_apps(&mut graph, files);
-    (graph, tallies)
+    facts.extend(django_app_facts(files));
+    let graph = graph::from_facts(nodes, &facts);
+    (graph, tallies, facts)
 }
 
 /// Modules Django imports from every installed app without an import
@@ -137,11 +158,11 @@ fn is_django_app(dir: &Path, exists: impl Fn(&Path) -> bool) -> bool {
 /// Folders inside a Django app that Django loads by name.
 const DJANGO_APP_DIRS: &[&str] = &["templatetags", "management", "migrations"];
 
-/// Link each Django app's `__init__.py` and `apps.py` to the modules Django
+/// Facts linking each Django app's `__init__.py` and `apps.py` to the modules Django
 /// loads from it by convention, so an installed app keeps them reachable.
 /// An app is a package whose folder holds an `apps.py`, a `models.py` or
 /// `migrations/`.
-fn link_django_apps(graph: &mut DependencyGraph, files: &[PathBuf]) {
+fn django_app_facts(files: &[PathBuf]) -> Vec<DependencyFact> {
     let keys: HashSet<PathBuf> = files.iter().map(|f| normalize(f)).collect();
     let apps: HashSet<PathBuf> = keys
         .iter()
@@ -150,7 +171,7 @@ fn link_django_apps(graph: &mut DependencyGraph, files: &[PathBuf]) {
         .map(Path::to_path_buf)
         .collect();
     if apps.is_empty() {
-        return;
+        return Vec::new();
     }
 
     let mut loaded: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
@@ -189,20 +210,34 @@ fn link_django_apps(graph: &mut DependencyGraph, files: &[PathBuf]) {
         }
     }
 
+    let mut facts = Vec::new();
     for (app, modules) in loaded {
         // Only files that exist: an app need not have an `apps.py`.
         for from in [app.join("__init__.py"), app.join("apps.py")] {
             if !keys.contains(&from) {
                 continue;
             }
-            let deps = graph.entry(from.clone()).or_default();
-            for module in &modules {
-                if *module != from && !deps.contains(module) {
-                    deps.push(module.clone());
-                }
+            for module in modules.iter().filter(|m| **m != from) {
+                let name: Vec<String> = module
+                    .strip_prefix(&app)
+                    .unwrap_or(module)
+                    .components()
+                    .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                    .collect();
+                facts.push(
+                    DependencyFact::new(
+                        &from,
+                        &name.join("/"),
+                        DependencyKind::ConfiguredEntry,
+                        Certainty::Inferred,
+                        "python.django_app_module",
+                    )
+                    .resolved(vec![module.clone()]),
+                );
             }
         }
     }
+    facts
 }
 
 /// Whether `ext` (lowercase) is a source extension whose imports CodeDna
@@ -727,22 +762,25 @@ fn is_source_file(file: &Path) -> bool {
 /// Parse dependencies for a single file, with no path aliases.
 #[cfg(test)]
 fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
-    parse_dependencies_with(
+    let facts = parse_dependencies_with(
         file,
         &Aliases::default(),
         &HashSet::new(),
         &mut ImportTally::default(),
-    )
+    );
+    graph::from_facts([], &facts)
+        .remove(file)
+        .unwrap_or_default()
 }
 
-/// Parse dependencies for a single file based on its extension, counting
-/// what happened to each import in `tally`.
+/// Parse the dependency facts of a single file based on its extension,
+/// counting what happened to each import in `tally`.
 fn parse_dependencies_with(
     file: &Path,
     aliases: &Aliases,
     python_packages: &HashSet<String>,
     tally: &mut ImportTally,
-) -> Vec<PathBuf> {
+) -> Vec<DependencyFact> {
     let ext = file
         .extension()
         .and_then(|e| e.to_str())
@@ -761,7 +799,7 @@ fn parse_dependencies_with(
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "vue" | "svelte" | "astro" => {
             parse_js_ts_imports(file, parent, &content, aliases, tally)
         }
-        "py" => parse_python_imports(parent, &content, python_packages, tally),
+        "py" => parse_python_imports(file, parent, &content, python_packages, tally),
         "rs" => parse_rust_imports(file, parent, &content, tally),
         _ => Vec::new(),
     }
@@ -786,13 +824,16 @@ fn parse_js_ts_imports(
     content: &str,
     aliases: &Aliases,
     tally: &mut ImportTally,
-) -> Vec<PathBuf> {
-    let mut deps = Vec::new();
+) -> Vec<DependencyFact> {
+    let mut facts = Vec::new();
     let mut seen: HashSet<&str> = HashSet::new();
+    let mut seen_facts: HashSet<(&str, DependencyKind, &str)> = HashSet::new();
 
     // Set when a line ends in `import(` or `require(`, so the path on the
     // next line belongs to it.
-    let mut open_call = false;
+    let mut open_call: Option<JsTrigger> = None;
+    // The `import {` or `export {` whose `from` is on a later line.
+    let mut open_list: Option<JsStatement> = None;
     for (number, line) in content.lines().enumerate() {
         let mut trimmed = line.trim();
         // A leading `/* webpackChunkName: "x" */` hint is not the path.
@@ -807,19 +848,55 @@ fn parse_js_ts_imports(
             continue;
         }
 
-        let continued = std::mem::take(&mut open_call)
-            .then(|| extract_first_quoted(trimmed))
-            .flatten();
-        open_call = trimmed.ends_with("import(") || trimmed.ends_with("require(");
+        let continued = open_call
+            .take()
+            .and_then(|trigger| Some((trigger, extract_first_quoted(trimmed)?)));
+        open_call = if trimmed.ends_with("import(") {
+            Some(JsTrigger::DynamicImport)
+        } else if trimmed.ends_with("require(") {
+            Some(JsTrigger::Require)
+        } else {
+            None
+        };
+
+        // The statement a `from "x"` on this line belongs to.
+        let statement = JsStatement::starting(trimmed).or(open_list);
+        if trimmed.contains('}') {
+            open_list = None;
+        }
+        if let Some(started) = JsStatement::starting(trimmed) {
+            if trimmed.contains('{') && !trimmed.contains('}') {
+                open_list = Some(started);
+            }
+        }
 
         // Collect all quoted string literals on this line that look like
         // relative paths.
-        for specifier in continued
+        for (trigger, specifier) in continued
             .into_iter()
             .chain(extract_quoted_specifiers(trimmed))
         {
+            if specifier.is_empty() {
+                continue;
+            }
+            let line = number + 1;
             // Template literals with `${...}` are built at runtime.
-            if specifier.is_empty() || specifier.contains("${") {
+            if specifier.contains("${") {
+                let kind = DependencyKind::PossibleDynamicLoad;
+                if seen_facts.insert((specifier, kind, "js.template_import")) {
+                    facts.push(
+                        DependencyFact::new(
+                            file,
+                            specifier,
+                            kind,
+                            Certainty::Possibility,
+                            "js.template_import",
+                        )
+                        .line(line)
+                        .span_in(content, specifier)
+                        .resolution(Resolution::Unsupported),
+                    );
+                }
                 continue;
             }
             let resolved = if is_relative(specifier) {
@@ -827,32 +904,129 @@ fn parse_js_ts_imports(
             } else {
                 aliases.resolve(file, specifier)
             };
+            let internal =
+                resolved.is_some() || is_relative(specifier) || aliases.is_local(file, specifier);
             if seen.insert(specifier) {
-                if resolved.is_some() || is_relative(specifier) || aliases.is_local(file, specifier)
-                {
-                    tally.internal(number + 1, specifier, resolved.is_some());
+                if internal {
+                    tally.internal(line, specifier, resolved.is_some());
                 } else {
                     tally.external += 1;
                 }
             }
 
-            if let Some(resolved) = resolved {
-                if !deps.contains(&resolved) {
-                    deps.push(resolved);
+            let (kind, rule) = trigger.kind(statement);
+            if !seen_facts.insert((specifier, kind, rule)) {
+                continue;
+            }
+            let mut fact = DependencyFact::new(file, specifier, kind, Certainty::Direct, rule)
+                .line(line)
+                .span_in(content, specifier);
+            if trigger == JsTrigger::DynamicImport {
+                fact = fact.condition("dynamic");
+            }
+            facts.push(match resolved {
+                Some(resolved) => fact.resolved(vec![resolved]),
+                None if internal => fact.resolution(Resolution::Unresolved),
+                None => fact.resolution(Resolution::External),
+            });
+        }
+    }
+
+    for (literal, load) in runtime_loaded_files(file, content) {
+        if let Some(resolved) = resolve_js_ts_path(parent, literal) {
+            let (kind, rule) = match load {
+                RuntimeLoad::Url => (DependencyKind::ResourceReference, "js.new_url"),
+                RuntimeLoad::Worker => (DependencyKind::WorkerEntry, "js.worker"),
+                RuntimeLoad::Process => (DependencyKind::ProcessEntry, "js.process"),
+            };
+            let mut fact = DependencyFact::new(file, literal, kind, Certainty::Inferred, rule)
+                .span_in(content, literal)
+                .resolved(vec![resolved]);
+            if let Some([start, _]) = fact.evidence.span {
+                fact = fact.line(content[..start].matches('\n').count() + 1);
+            }
+            facts.push(fact);
+        }
+    }
+
+    facts
+}
+
+/// What introduced a quoted specifier on a JS/TS line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JsTrigger {
+    /// `... from "x"`
+    From,
+    /// `require("x")`
+    Require,
+    /// `import("x")`
+    DynamicImport,
+    /// `import "x"`
+    SideEffect,
+}
+
+/// The statement a `from "x"` closes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JsStatement {
+    Import,
+    ImportType,
+    Export,
+    ExportType,
+}
+
+impl JsStatement {
+    /// The statement `line` starts, if it starts an import or export.
+    fn starting(line: &str) -> Option<Self> {
+        let keyword = |rest: &str| rest.starts_with([' ', '{', '*', '\t']);
+        if let Some(rest) = line.strip_prefix("import") {
+            if let Some(after) = rest.trim_start().strip_prefix("type") {
+                if keyword(after) && rest.starts_with(char::is_whitespace) {
+                    return Some(JsStatement::ImportType);
                 }
             }
+            return keyword(rest).then_some(JsStatement::Import);
         }
-    }
-
-    for literal in runtime_loaded_files(file, content) {
-        if let Some(resolved) = resolve_js_ts_path(parent, literal) {
-            if !deps.contains(&resolved) {
-                deps.push(resolved);
+        if let Some(rest) = line.strip_prefix("export") {
+            if let Some(after) = rest.trim_start().strip_prefix("type") {
+                if keyword(after) && rest.starts_with(char::is_whitespace) {
+                    return Some(JsStatement::ExportType);
+                }
             }
+            return keyword(rest).then_some(JsStatement::Export);
+        }
+        None
+    }
+}
+
+impl JsTrigger {
+    /// The kind of dependency and the rule id for a specifier this trigger
+    /// introduced, inside `statement`.
+    fn kind(self, statement: Option<JsStatement>) -> (DependencyKind, &'static str) {
+        match self {
+            JsTrigger::Require => (DependencyKind::RuntimeImport, "js.require"),
+            JsTrigger::DynamicImport => (DependencyKind::RuntimeImport, "js.dynamic_import"),
+            JsTrigger::SideEffect => (DependencyKind::RuntimeImport, "js.side_effect_import"),
+            JsTrigger::From => match statement {
+                Some(JsStatement::ImportType) => (DependencyKind::TypeOnlyImport, "js.import_type"),
+                Some(JsStatement::ExportType) => {
+                    (DependencyKind::TypeOnlyImport, "js.export_type_from")
+                }
+                Some(JsStatement::Export) => (DependencyKind::ReExport, "js.export_from"),
+                Some(JsStatement::Import) | None => (DependencyKind::RuntimeImport, "js.import"),
+            },
         }
     }
+}
 
-    deps
+/// How a JS/TS file starts another file at runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RuntimeLoad {
+    /// `new URL("./w.ts", import.meta.url)`
+    Url,
+    /// `new Worker("./w.js")`
+    Worker,
+    /// `spawn("tsx", ["job.ts"])`
+    Process,
 }
 
 /// Modules whose exports start a file in another process or thread.
@@ -900,7 +1074,7 @@ const WORKER_CONSTRUCTORS: &[&str] = &["Worker", "SharedWorker"];
 /// Calls are found in code only, so a path in a log message, a comment or
 /// any other string is not a dependency, and neither is a call to a local
 /// function that happens to share a loader's name.
-fn runtime_loaded_files<'a>(file: &Path, content: &'a str) -> Vec<&'a str> {
+fn runtime_loaded_files<'a>(file: &Path, content: &'a str) -> Vec<(&'a str, RuntimeLoad)> {
     let ext = file
         .extension()
         .and_then(|e| e.to_str())
@@ -932,7 +1106,12 @@ fn runtime_loaded_files<'a>(file: &Path, content: &'a str) -> Vec<&'a str> {
         let literals = string_literals(&code, content, args.clone());
         if after_new && name == "URL" && receiver.is_none() {
             if code[args].contains("import.meta.url") {
-                found.extend(literals.first().filter(|l| l.0 == 0).map(|l| l.1));
+                found.extend(
+                    literals
+                        .first()
+                        .filter(|l| l.0 == 0)
+                        .map(|l| (l.1, RuntimeLoad::Url)),
+                );
             }
         } else if after_new && WORKER_CONSTRUCTORS.contains(&name) {
             let is_loader = match receiver {
@@ -943,7 +1122,12 @@ fn runtime_loaded_files<'a>(file: &Path, content: &'a str) -> Vec<&'a str> {
                 }
             };
             if is_loader {
-                found.extend(literals.first().filter(|l| l.0 == 0).map(|l| l.1));
+                found.extend(
+                    literals
+                        .first()
+                        .filter(|l| l.0 == 0)
+                        .map(|l| (l.1, RuntimeLoad::Worker)),
+                );
             }
         } else if !after_new && PROCESS_LOADERS.contains(&name) {
             let is_loader = match receiver {
@@ -956,14 +1140,19 @@ fn runtime_loaded_files<'a>(file: &Path, content: &'a str) -> Vec<&'a str> {
             }
             for (_, literal) in literals {
                 if COMMAND_LINE_LOADERS.contains(&name) {
-                    found.extend(literal.split_whitespace().filter(|w| names_source_file(w)));
+                    found.extend(
+                        literal
+                            .split_whitespace()
+                            .filter(|w| names_source_file(w))
+                            .map(|w| (w, RuntimeLoad::Process)),
+                    );
                 } else if names_source_file(literal) {
-                    found.push(literal);
+                    found.push((literal, RuntimeLoad::Process));
                 }
             }
         }
     }
-    found.retain(|literal| names_source_file(literal));
+    found.retain(|(literal, _)| names_source_file(literal));
     found
 }
 
@@ -1156,19 +1345,24 @@ fn declares(code: &str, tokens: &[(usize, usize)], name: &str) -> bool {
 
 /// Extract all single- or double-quoted string values from a line that are
 /// preceded by `from`, `require`, or `import`.
-fn extract_quoted_specifiers(line: &str) -> Vec<&str> {
+fn extract_quoted_specifiers(line: &str) -> Vec<(JsTrigger, &str)> {
     let mut results = Vec::new();
 
     // We scan for from/require/import( patterns then pull the next quoted string.
-    let triggers = ["from ", "require(", "import(", "import "];
+    let triggers = [
+        ("from ", JsTrigger::From),
+        ("require(", JsTrigger::Require),
+        ("import(", JsTrigger::DynamicImport),
+        ("import ", JsTrigger::SideEffect),
+    ];
 
-    for trigger in triggers {
+    for (trigger, kind) in triggers {
         let mut search = line;
         while let Some(pos) = search.find(trigger) {
             let after = &search[pos + trigger.len()..].trim_start();
 
             if let Some(specifier) = extract_first_quoted(after) {
-                results.push(specifier);
+                results.push((kind, specifier));
             }
 
             search = &search[pos + trigger.len()..];
@@ -1253,7 +1447,7 @@ fn append_extension(path: &Path, ext: &str) -> PathBuf {
 // Python parser
 // ---------------------------------------------------------------------------
 
-/// Parse Python imports and return the files they load.
+/// Parse Python imports into dependency facts.
 ///
 /// Patterns matched:
 /// - `from .module import ...` and `from ..module import ...`
@@ -1262,14 +1456,16 @@ fn append_extension(path: &Path, ext: &str) -> PathBuf {
 /// - dotted module paths in string literals, such as Django's
 ///   `ROOT_URLCONF = "project.urls"` or `include("app.urls")`
 ///
-/// Third-party and stdlib imports find no matching file and are ignored.
+/// Third-party and stdlib imports find no matching file and become
+/// `external` facts; local ones that match nothing stay as `unresolved`.
 fn parse_python_imports(
+    file: &Path,
     parent: &Path,
     content: &str,
     python_packages: &HashSet<String>,
     tally: &mut ImportTally,
-) -> Vec<PathBuf> {
-    let mut deps = Vec::new();
+) -> Vec<DependencyFact> {
+    let mut facts = Vec::new();
 
     for (number, line) in python_logical_lines(content) {
         let trimmed = line.trim();
@@ -1279,33 +1475,55 @@ fn parse_python_imports(
             continue;
         }
 
-        let mut imported = Vec::new();
+        let rule = if trimmed.starts_with("from ") {
+            "python.from_import"
+        } else {
+            "python.import"
+        };
         for (module, found) in python_import_modules(parent, trimmed) {
             let local = module.starts_with('.')
                 || python_packages.contains(module.split('.').next().unwrap_or(""));
-            match found {
+            let fact = DependencyFact::new(
+                file,
+                module,
+                DependencyKind::RuntimeImport,
+                Certainty::Direct,
+                rule,
+            )
+            .line(number + 1);
+            facts.push(match found {
                 Some(files) => {
                     tally.resolved += 1;
-                    imported.extend(files);
+                    fact.resolved(files)
                 }
-                None if local => tally.internal(number + 1, module, false),
-                None => tally.external += 1,
-            }
+                None if local => {
+                    tally.internal(number + 1, module, false);
+                    fact.resolution(Resolution::Unresolved)
+                }
+                None => {
+                    tally.external += 1;
+                    fact.resolution(Resolution::External)
+                }
+            });
         }
 
-        let found = imported.into_iter().chain(resolve_python_string_paths(
-            parent,
-            trimmed,
-            python_packages,
-        ));
-        for resolved in found {
-            if !deps.contains(&resolved) {
-                deps.push(resolved);
-            }
+        for (literal, files, rule) in resolve_python_string_paths(parent, trimmed, python_packages)
+        {
+            facts.push(
+                DependencyFact::new(
+                    file,
+                    literal,
+                    DependencyKind::ConfiguredEntry,
+                    Certainty::Inferred,
+                    rule,
+                )
+                .line(number + 1)
+                .resolved(files),
+            );
         }
     }
 
-    deps
+    facts
 }
 
 /// Lines of Python source, numbered from 0, with a parenthesised
@@ -1386,11 +1604,11 @@ fn python_import_modules<'a>(
 /// modules they name. Frameworks load these by name: Django settings,
 /// URL includes, Celery task names. A trailing attribute is dropped when the
 /// full path is not a module.
-fn resolve_python_string_paths(
+fn resolve_python_string_paths<'a>(
     file_parent: &Path,
-    line: &str,
+    line: &'a str,
     python_packages: &HashSet<String>,
-) -> Vec<PathBuf> {
+) -> Vec<(&'a str, Vec<PathBuf>, &'static str)> {
     let mut deps = Vec::new();
     for literal in python_string_literals(line) {
         // A bare package name that is a Django app, as in `INSTALLED_APPS`.
@@ -1400,7 +1618,7 @@ fn resolve_python_string_paths(
                 .iter()
                 .any(|f| f.parent().is_some_and(|dir| is_django_app(dir, is_file)));
             if is_app {
-                deps.extend(found);
+                deps.push((literal, found, "python.installed_app"));
             }
             continue;
         }
@@ -1422,7 +1640,7 @@ fn resolve_python_string_paths(
                 .iter()
                 .any(|f| f.extension().is_some_and(|e| e == "py"))
             {
-                deps.extend(found);
+                deps.push((literal, found, "python.string_path"));
                 break;
             }
         }
@@ -1529,7 +1747,7 @@ fn push_if_file(files: &mut Vec<PathBuf>, candidate: &Path) {
 // Rust parser
 // ---------------------------------------------------------------------------
 
-/// Parse Rust module declarations, returning the files they load.
+/// Parse Rust module declarations into dependency facts.
 ///
 /// Patterns matched:
 /// - `mod name;` with any visibility (`pub`, `pub(crate)`, ...) and
@@ -1543,10 +1761,10 @@ fn parse_rust_imports(
     parent: &Path,
     content: &str,
     tally: &mut ImportTally,
-) -> Vec<PathBuf> {
+) -> Vec<DependencyFact> {
     let module_dir = rust_module_dir(file, parent);
 
-    let mut deps = Vec::new();
+    let mut facts = Vec::new();
     let mut path_attr: Option<String> = None;
 
     for (number, line) in content.lines().enumerate() {
@@ -1568,29 +1786,40 @@ fn parse_rust_imports(
 
         // `mod module_name;`
         if let Some(module_name) = parse_rust_mod_decl(decl) {
-            let resolved = match path_attr.take() {
+            let (resolved, rule) = match path_attr.take() {
                 Some(path) => {
                     let candidate = parent.join(path);
-                    is_file(&candidate).then(|| normalize(&candidate))
+                    (
+                        is_file(&candidate).then(|| normalize(&candidate)),
+                        "rust.mod_path",
+                    )
                 }
-                None => resolve_rust_mod(&module_dir, module_name),
+                None => (resolve_rust_mod(&module_dir, module_name), "rust.mod"),
             };
             tally.internal(
                 number + 1,
                 &format!("mod {module_name};"),
                 resolved.is_some(),
             );
-            if let Some(resolved) = resolved {
-                if !deps.contains(&resolved) {
-                    deps.push(resolved);
-                }
-            }
+            let fact = DependencyFact::new(
+                file,
+                module_name,
+                DependencyKind::RuntimeImport,
+                Certainty::Declaration,
+                rule,
+            )
+            .line(number + 1)
+            .span_in(content, module_name);
+            facts.push(match resolved {
+                Some(resolved) => fact.resolved(vec![resolved]),
+                None => fact.resolution(Resolution::Unresolved),
+            });
         } else {
             path_attr = None;
         }
     }
 
-    deps
+    facts
 }
 
 /// Directory holding the files of the modules a Rust file declares.

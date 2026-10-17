@@ -118,7 +118,9 @@ codedna/
 │   ├── language_detector.rs  # File extension → Language (from rules.toml)
 │   ├── loc_counter.rs        # Non-empty line counter + binary detection
 │   ├── framework_detector.rs # Manifest parser + per-file import scanner
-│   ├── dependency_graph.rs   # Import/require/mod statement parser
+│   ├── dependency_graph.rs   # Import/require/mod parser, emits dependency facts
+│   ├── facts.rs              # Typed dependency facts (kind, resolution, evidence)
+│   ├── graph.rs              # File graph built from resolved facts
 │   ├── dead_code_detector.rs # BFS from entry points → unreachable files
 │   ├── reporter.rs           # CLI report formatter + JSON serialiser
 │   ├── repo_map.rs           # Directory tree renderer
