@@ -31,6 +31,7 @@ use std::path::Path;
 
 mod context;
 mod rules;
+mod usage;
 
 use context::{context_of, is_fixture_data, lower};
 use rules::audit_file;
@@ -108,7 +109,105 @@ pub struct Finding {
     /// Set when the file is a test, doc, example or fixture, e.g. `test`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<&'static str>,
+    /// What the rule saw, apart from how bad it would be (`severity`) and
+    /// how often such a finding is real (`confidence`).
+    pub evidence: Evidence,
+    /// The package and advisories behind a `vulnerable-dependency` finding.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependency: Option<DependencyEvidence>,
 }
+
+/// How much a rule actually saw: `strong` evidence is the pattern itself
+/// (a key in a documented format, decoded data passed to `eval`, a
+/// download piped to a shell), `weak` is a hint that is often innocent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Strength {
+    Weak,
+    Moderate,
+    Strong,
+}
+
+/// The evidence behind a finding.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Evidence {
+    pub strength: Strength,
+    /// Short statements of what raised or lowered the finding, such as
+    /// `format: GitHub token` or `read by src/server.ts`. Never a secret
+    /// value.
+    pub signals: Vec<String>,
+}
+
+/// The package, version and advisories a dependency finding is about.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DependencyEvidence {
+    pub ecosystem: &'static str,
+    pub name: String,
+    pub version: String,
+    /// Advisory ids, worst first.
+    pub advisories: Vec<String>,
+    /// The lowest version that fixes every listed advisory, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fixed: Option<String>,
+}
+
+impl Finding {
+    /// Add a signal to the evidence.
+    pub(crate) fn signal(mut self, signal: impl Into<String>) -> Finding {
+        self.evidence.signals.push(signal.into());
+        self
+    }
+
+    /// Mark the evidence weak, with the reason: such findings are usually
+    /// innocent, so their confidence is low.
+    pub(crate) fn weak(mut self, why: impl Into<String>) -> Finding {
+        self.weaken(why);
+        self
+    }
+
+    pub(crate) fn weaken(&mut self, why: impl Into<String>) {
+        self.evidence.strength = Strength::Weak;
+        self.confidence = Confidence::Low;
+        self.evidence.signals.push(why.into());
+    }
+}
+
+/// One check and whether it ran.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CheckRun {
+    pub check: &'static str,
+    pub ran: bool,
+    /// Findings of this check, before the `MAX_FINDINGS` cap.
+    pub findings: usize,
+    /// What the check covers, or why it did not run.
+    pub note: String,
+}
+
+/// The checks a scan runs, with what each covers.
+const CHECKS: &[(&str, &str)] = &[
+    (
+        SECRET,
+        "documented token formats and PEM private keys in every text file",
+    ),
+    (
+        HIDDEN_UNICODE,
+        "bidirectional controls in every text file, invisible characters in code",
+    ),
+    (
+        OBFUSCATION,
+        "decoded data run as code, hex-escaped strings and encoded blobs in the project's own code",
+    ),
+    (MINIFIED, "very long lines in code"),
+    (BINARY, "executables and libraries checked in as source"),
+    (
+        INSTALL_SCRIPT,
+        "npm lifecycle scripts, setup.py and build.rs",
+    ),
+    (
+        TYPOSQUAT,
+        "package.json and requirements*.txt names against popular packages",
+    ),
+];
 
 /// What the audit does and does not tell you.
 pub const NOTE: &str = "Red flags to review, not a safety verdict. The scan matches known patterns: clean code can trip a check, and code that passes is not proven safe. Findings in tests, docs, examples, fixtures, vendored libraries and translations are lowered one step. Secret values are never included; files are read, never run.";
@@ -128,6 +227,9 @@ pub struct AuditReport {
     pub truncated: bool,
     /// Findings lowered because they are in tests, docs, examples or fixtures.
     pub lowered: usize,
+    /// Each check, whether it ran and what it covers. A check that ran and
+    /// found nothing did not prove anything safe.
+    pub checks: Vec<CheckRun>,
     /// Set when dependencies were checked against OSV.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dependencies: Option<DependencySummary>,
@@ -144,6 +246,13 @@ pub struct DependencySummary {
     pub packages_checked: usize,
     /// Lockfiles read, relative to the audited folder.
     pub lockfiles: Vec<String>,
+    /// The advisory database queried.
+    pub database: &'static str,
+    /// When it was queried (UTC, RFC 3339): advisories published later are
+    /// not covered.
+    pub checked_at: String,
+    /// `checked`, `no-lockfile` or `error`.
+    pub status: &'static str,
     /// Set when the vulnerability database could not be reached.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -175,6 +284,13 @@ impl Scan {
     pub fn report(mut self, baseline: Option<&crate::baseline::Baseline>) -> AuditReport {
         let applied = baseline.map(|b| b.filter_audit(&mut self.findings));
         let mut report = finish(self.files_scanned, self.findings);
+        if let Some(run) = report
+            .checks
+            .iter_mut()
+            .find(|c| c.check == VULNERABLE_DEPENDENCY)
+        {
+            dependency_run(run, self.dependencies.as_ref());
+        }
         report.dependencies = self.dependencies;
         report.baseline = applied;
         report
@@ -207,20 +323,25 @@ pub fn scan(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Sca
             if let Some(context) = context {
                 for f in &mut found {
                     lower(f, context);
-                    // Keys outside the project's own code are almost always
-                    // made up: for a test, or to show the format in docs.
-                    if f.check == SECRET {
-                        f.confidence = Confidence::Low;
-                    }
                 }
             }
             found
         })
         .collect();
     let mut findings = findings;
+    // A key's folder explains it but does not excuse it: what decides is
+    // whether the project's own code uses it.
+    usage::weigh_secrets(root, &files, &mut findings);
     let summary = dependencies.map(|source| {
         let check = crate::vulns::check(root, source);
         findings.extend(check.findings);
+        let status = if check.error.is_some() {
+            "error"
+        } else if check.lockfiles.is_empty() {
+            "no-lockfile"
+        } else {
+            "checked"
+        };
         DependencySummary {
             packages_checked: check.packages,
             lockfiles: check
@@ -228,6 +349,9 @@ pub fn scan(root: &Path, dependencies: Option<&dyn crate::vulns::Source>) -> Sca
                 .iter()
                 .map(|l| crate::analysis::dotted(l))
                 .collect(),
+            database: "osv.dev",
+            checked_at: utc_now(),
+            status,
             error: check.error,
         }
     });
@@ -258,6 +382,24 @@ fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
     let risk_level = findings.first().map_or("none", |f| f.severity.name());
     let total_findings = findings.len();
     let lowered = findings.iter().filter(|f| f.context.is_some()).count();
+    let count = |check: &str| findings.iter().filter(|f| f.check == check).count();
+    let mut checks: Vec<CheckRun> = CHECKS
+        .iter()
+        .map(|&(check, note)| CheckRun {
+            check,
+            ran: true,
+            findings: count(check),
+            note: note.to_string(),
+        })
+        .collect();
+    let mut deps = CheckRun {
+        check: VULNERABLE_DEPENDENCY,
+        ran: false,
+        findings: count(VULNERABLE_DEPENDENCY),
+        note: String::new(),
+    };
+    dependency_run(&mut deps, None);
+    checks.push(deps);
     let truncated = total_findings > MAX_FINDINGS;
     findings.truncate(MAX_FINDINGS);
     AuditReport {
@@ -268,10 +410,61 @@ fn finish(files_scanned: usize, mut findings: Vec<Finding>) -> AuditReport {
         total_findings,
         truncated,
         lowered,
+        checks,
         dependencies: None,
         baseline: None,
         findings,
     }
+}
+
+/// Fill in whether the dependency check ran, from its summary (`None`
+/// when it was not asked for).
+fn dependency_run(run: &mut CheckRun, deps: Option<&DependencySummary>) {
+    let (ran, note) = match deps {
+        None => (
+            false,
+            "not requested: run with --deps to check lockfile versions against osv.dev".to_string(),
+        ),
+        Some(d) if d.error.is_some() => (false, d.error.clone().unwrap_or_default()),
+        Some(d) if d.lockfiles.is_empty() => (false, "no supported lockfile found".to_string()),
+        Some(d) => (
+            true,
+            format!(
+                "{} package versions from {} lockfile{} against {} at {}",
+                d.packages_checked,
+                d.lockfiles.len(),
+                if d.lockfiles.len() == 1 { "" } else { "s" },
+                d.database,
+                d.checked_at
+            ),
+        ),
+    };
+    run.ran = ran;
+    run.note = note;
+}
+
+/// The current time as RFC 3339 UTC, to the second.
+fn utc_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let (days, rest) = (secs / 86_400, secs % 86_400);
+    // Days since 1970-01-01 to a civil date (Howard Hinnant's algorithm).
+    let z = days as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rest / 3_600,
+        rest % 3_600 / 60,
+        rest % 60
+    )
 }
 
 pub(crate) fn finding(
@@ -289,6 +482,23 @@ pub(crate) fn finding(
         line,
         message,
         context: None,
+        evidence: Evidence {
+            strength: base_strength(check, severity),
+            signals: Vec::new(),
+        },
+        dependency: None,
+    }
+}
+
+/// How much each kind of check sees, before anything about the file or
+/// its use is considered.
+fn base_strength(check: &str, severity: Severity) -> Strength {
+    match (check, severity) {
+        (SECRET | VULNERABLE_DEPENDENCY, _) => Strength::Strong,
+        (HIDDEN_UNICODE | INSTALL_SCRIPT | OBFUSCATION, Severity::High) => Strength::Strong,
+        (HIDDEN_UNICODE | INSTALL_SCRIPT | OBFUSCATION, Severity::Medium) => Strength::Moderate,
+        (BINARY | TYPOSQUAT, _) => Strength::Moderate,
+        _ => Strength::Weak,
     }
 }
 
@@ -356,8 +566,14 @@ pub fn render_text(report: &AuditReport) -> String {
         }
     }
     if report.findings.is_empty() {
-        out.push_str("  No red flags found. This is not a safety verdict: the scan only\n");
-        out.push_str("  looks for known patterns.\n\n");
+        out.push_str("  No red flags found by the checks for secrets, hidden Unicode,\n");
+        out.push_str("  obfuscation, minified code, binaries, install scripts and typosquats.\n");
+        if report.dependencies.is_none() {
+            out.push_str("  Dependencies were not checked for known vulnerabilities (--deps).\n");
+        }
+        out.push_str(
+            "  This is not a safety verdict: the checks only look for known patterns.\n\n",
+        );
         return out;
     }
     for f in &report.findings {
@@ -497,12 +713,13 @@ mod tests {
             .iter()
             .map(|f| (f.file.as_str(), f.context, f.confidence))
             .collect();
-        // The bundle's long line is expected, and the docs key is a sample.
+        // The bundle's long line is expected. A key in docs is lowered one
+        // step, never dismissed: docs do leak live keys.
         assert!(
             !files.iter().any(|(f, ..)| f.contains(".yarn")),
             "{files:?}"
         );
-        assert!(files.contains(&("./docs/setup.mdx", Some("docs"), Confidence::Low)));
+        assert!(files.contains(&("./docs/setup.mdx", Some("docs"), Confidence::Medium)));
         // Direction marks in a translation are lowered, never in app code.
         assert!(files
             .iter()
