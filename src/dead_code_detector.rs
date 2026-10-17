@@ -14,6 +14,8 @@ use crate::analysis::is_lockfile;
 use crate::architecture::{is_test, Confidence, Location};
 use crate::cache::Cache;
 use crate::dependency_graph::{follows_imports, normalize};
+use crate::facts::{Certainty, DependencyFact, Resolution};
+use crate::graph::{EdgeKind, TypedGraph};
 use crate::safe_text::sanitize;
 use aho_corasick::{AhoCorasick, AhoCorasickKind};
 use rayon::prelude::*;
@@ -99,68 +101,598 @@ pub fn detect_dead_code(graph: &HashMap<PathBuf, Vec<PathBuf>>) -> Vec<PathBuf> 
 /// [`crate::frameworks`]). In `next_roots` the Next.js adapter decides
 /// which files are routes, so the name heuristics for Next files and
 /// `pages/` folders do not apply there.
+#[cfg(test)]
 pub fn detect_dead_code_from(
     graph: &HashMap<PathBuf, Vec<PathBuf>>,
     extra_entries: &[PathBuf],
     next_roots: &[PathBuf],
 ) -> Vec<PathBuf> {
-    if graph.is_empty() {
-        return Vec::new();
-    }
-
-    let entries: HashSet<PathBuf> = extra_entries.iter().map(|e| normalize(e)).collect();
-    let next_roots: Vec<PathBuf> = next_roots.iter().map(|r| normalize(r)).collect();
-    let all_files: HashSet<&PathBuf> = graph.keys().collect();
-    let entry_points: Vec<&PathBuf> = all_files
+    let typed: TypedGraph = graph
         .iter()
-        .copied()
-        .filter(|f| {
-            let file = normalize(f);
-            let in_next = next_roots.iter().any(|root| file.starts_with(root));
-            is_entry_point(f)
-                || is_loaded_by_tooling(f, in_next)
-                || file.ancestors().any(|a| entries.contains(a))
+        .map(|(from, to)| {
+            let to = to.iter().map(|t| (t.clone(), EdgeKind::Runtime)).collect();
+            (from.clone(), to)
         })
         .collect();
-
-    let reachable = bfs_reachable(graph, &entry_points);
-
-    let mut dead: Vec<PathBuf> = all_files
-        .into_iter()
-        .filter(|f| !reachable.contains(*f))
-        .cloned()
+    let entries: Vec<(PathBuf, Role)> = extra_entries
+        .iter()
+        .map(|e| (e.clone(), Role::Production))
         .collect();
-
-    dead.sort_unstable();
-    dead
+    classify(&typed, &entries, next_roots).unreachable()
 }
 
-/// Return the set of all files reachable from the given entry points via BFS.
-fn bfs_reachable<'a>(
-    graph: &'a HashMap<PathBuf, Vec<PathBuf>>,
-    entry_points: &[&'a PathBuf],
-) -> HashSet<&'a PathBuf> {
-    let mut visited: HashSet<&PathBuf> = HashSet::new();
-    let mut queue: VecDeque<&PathBuf> = VecDeque::new();
+/// What loads an entry point, which decides how the files it reaches are
+/// used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Role {
+    /// The program itself: `main`, package entries, routes, components.
+    Production,
+    /// The type checker: declaration files.
+    Types,
+    /// A test runner: tests, test setup and manual mocks.
+    Test,
+    /// Build and development tooling: configs, stories, task runners.
+    Tooling,
+}
 
-    for &entry in entry_points {
-        if visited.insert(entry) {
-            queue.push_back(entry);
+/// The role of each file an adapter names (see [`crate::frameworks`]):
+/// test-runner entries are tests, tool configs are tooling, the rest is
+/// the program.
+pub fn entry_roles(entries: &[DependencyFact]) -> Vec<(PathBuf, Role)> {
+    entries
+        .iter()
+        .flat_map(|fact| {
+            let rule = fact.evidence.rule.as_str();
+            let role = if rule.starts_with("test.") {
+                Role::Test
+            } else if rule.starts_with("next.config") {
+                Role::Tooling
+            } else {
+                Role::Production
+            };
+            fact.targets.iter().map(move |t| (t.clone(), role))
+        })
+        .collect()
+}
+
+/// How a file is used, by the strongest evidence that reaches it.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageKind {
+    /// Reached from the program's entry points through runtime imports.
+    Confirmed,
+    /// Reached from the program only through an import that may load one of
+    /// several files (an ambiguous import or a lazy pattern).
+    Possible,
+    /// Reached from the program only through type-only imports, or from a
+    /// declaration file: used by the type checker, not at runtime.
+    TypeOnly,
+    /// Reached only from tests.
+    TestOnly,
+    /// Reached only from build or development tooling: configs, stories,
+    /// task runners.
+    ToolingOnly,
+    /// Not reached from any entry point: a dead-code candidate.
+    Unreachable,
+}
+
+/// A file that is reached, but not confirmed: how, and the path from the
+/// entry point that reaches it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct FileUsage {
+    pub file: PathBuf,
+    pub usage: UsageKind,
+    /// The entry point first, then each file it leads through, ending with
+    /// this file.
+    pub path: Vec<PathBuf>,
+}
+
+/// How many files are used in each way.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct UsageSummary {
+    pub confirmed: usize,
+    pub possible: usize,
+    pub type_only: usize,
+    pub test_only: usize,
+    pub tooling_only: usize,
+    pub unreachable: usize,
+}
+
+/// How every analyzed file is used. Confirmed files are only counted;
+/// unreachable files are the dead-code candidates.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct UsageReport {
+    pub summary: UsageSummary,
+    /// Files reached, but not confirmed, sorted by path.
+    pub files: Vec<FileUsage>,
+}
+
+/// The usage of each file, and how it was reached.
+#[derive(Debug, Default)]
+pub struct Classification {
+    /// Every node, with its usage.
+    pub usage: HashMap<PathBuf, UsageKind>,
+    /// The file each reached file was first reached from; entries have none.
+    parent: HashMap<PathBuf, PathBuf>,
+}
+
+impl Classification {
+    /// Files not reached from any entry point, sorted.
+    pub fn unreachable(&self) -> Vec<PathBuf> {
+        let mut dead: Vec<PathBuf> = self
+            .usage
+            .iter()
+            .filter(|(_, u)| **u == UsageKind::Unreachable)
+            .map(|(f, _)| f.clone())
+            .collect();
+        dead.sort_unstable();
+        dead
+    }
+
+    /// Whether `file` is reached from some entry point.
+    pub fn is_live(&self, file: &Path) -> bool {
+        self.usage
+            .get(file)
+            .is_some_and(|u| *u != UsageKind::Unreachable)
+    }
+
+    /// The path from the entry point that first reaches `file` to `file`.
+    pub fn path(&self, file: &Path) -> Vec<PathBuf> {
+        let mut path = vec![file.to_path_buf()];
+        let mut at = file;
+        while let Some(parent) = self.parent.get(at) {
+            if path.len() > self.usage.len() {
+                break;
+            }
+            path.push(parent.clone());
+            at = parent;
+        }
+        path.reverse();
+        path
+    }
+
+    /// The report: counts, and every reached file that is not confirmed,
+    /// with its paths passed through `shown`.
+    pub fn report(&self, shown: impl Fn(&Path) -> PathBuf) -> UsageReport {
+        let mut summary = UsageSummary::default();
+        let mut files = Vec::new();
+        for (file, usage) in &self.usage {
+            match usage {
+                UsageKind::Confirmed => summary.confirmed += 1,
+                UsageKind::Possible => summary.possible += 1,
+                UsageKind::TypeOnly => summary.type_only += 1,
+                UsageKind::TestOnly => summary.test_only += 1,
+                UsageKind::ToolingOnly => summary.tooling_only += 1,
+                UsageKind::Unreachable => summary.unreachable += 1,
+            }
+            if !matches!(usage, UsageKind::Confirmed | UsageKind::Unreachable) {
+                files.push(FileUsage {
+                    file: shown(file),
+                    usage: *usage,
+                    path: self.path(file).iter().map(|p| shown(p)).collect(),
+                });
+            }
+        }
+        files.sort_by(|a, b| a.file.cmp(&b.file));
+        UsageReport { summary, files }
+    }
+}
+
+/// Whether an unreachable file is truly unreachable within what CodeDna
+/// could analyze.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum DeadStatus {
+    /// Nothing the analysis saw could load it.
+    #[default]
+    Unreachable,
+    /// Something reached may load it: a shadowed `require`, a text-scan
+    /// fallback, a computed import whose fixed part points at it, or a file
+    /// that is itself possibly loaded.
+    Possible,
+    /// An import from a reached file could not be resolved and might name
+    /// it, so coverage is incomplete.
+    Unknown,
+}
+
+impl DeadStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DeadStatus::Unreachable => "unreachable",
+            DeadStatus::Possible => "possibly loaded",
+            DeadStatus::Unknown => "unknown",
+        }
+    }
+}
+
+/// Why an unreachable file may still be used.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Uncertainty {
+    pub status: DeadStatus,
+    /// What could reach it, with paths shown as in the report.
+    pub conditions: Vec<String>,
+}
+
+/// The unreachable files that something reached may still load, and why.
+///
+/// - Possible: a possibility from a reached file resolves to it (a shadowed
+///   `require`, a text-scan fallback), a computed import's fixed prefix
+///   (`./locales/${lang}`) contains it, or it is imported by a possible
+///   file.
+/// - Unknown: an unresolved import from a reached file could name it: the
+///   same path without the extension, a file inside the folder it names,
+///   or, for an alias (`@/lib/chart`), a file ending in the same segments.
+///
+/// An unresolved import that could name no candidate changes nothing.
+pub fn uncertainty(
+    facts: &[DependencyFact],
+    class: &Classification,
+    graph: &TypedGraph,
+    shown: impl Fn(&Path) -> PathBuf,
+) -> HashMap<PathBuf, Uncertainty> {
+    let dead = class.unreachable();
+    let mut out: HashMap<PathBuf, Uncertainty> = HashMap::new();
+    if dead.is_empty() {
+        return out;
+    }
+    let dead_set: HashSet<&PathBuf> = dead.iter().collect();
+    let at = |fact: &DependencyFact| {
+        let source = shown(&fact.source);
+        match fact.evidence.line {
+            Some(line) => format!("{}:{line}", source.display()),
+            None => source.display().to_string(),
+        }
+    };
+    let mut note = |file: &PathBuf, status: DeadStatus, condition: String| {
+        let entry = out.entry(file.clone()).or_default();
+        // Possible beats unknown: something does point at the file.
+        if entry.conditions.is_empty() || status == DeadStatus::Possible {
+            if entry.status != status && status == DeadStatus::Possible {
+                entry.conditions.clear();
+            }
+            entry.status = status;
+        }
+        if entry.status == status && !entry.conditions.contains(&condition) {
+            entry.conditions.push(condition);
+        }
+    };
+
+    for fact in facts {
+        if !class.is_live(&fact.source) {
+            continue;
+        }
+        match fact.resolution {
+            Resolution::Resolved | Resolution::Ambiguous
+                if fact.certainty == Certainty::Possibility =>
+            {
+                for target in fact.targets.iter().filter(|t| dead_set.contains(t)) {
+                    let condition = format!(
+                        "{} may load it ({})",
+                        at(fact),
+                        fact.evidence.rule
+                    );
+                    note(target, DeadStatus::Possible, condition);
+                }
+            }
+            Resolution::Unsupported => {
+                let Some(prefix) = computed_prefix(&fact.source, &fact.specifier) else {
+                    continue;
+                };
+                for file in dead.iter().filter(|f| f.to_string_lossy().starts_with(&prefix)) {
+                    let condition = format!(
+                        "{} builds an import path that may name it: {}",
+                        at(fact),
+                        sanitize(&fact.specifier)
+                    );
+                    note(file, DeadStatus::Possible, condition);
+                }
+            }
+            Resolution::Unresolved => {
+                for file in dead.iter().filter(|f| could_name(&fact.source, &fact.specifier, f)) {
+                    let condition = format!(
+                        "{} imports {}, which did not resolve and may name it",
+                        at(fact),
+                        sanitize(&fact.specifier)
+                    );
+                    note(file, DeadStatus::Unknown, condition);
+                }
+            }
+            _ => {}
         }
     }
 
-    while let Some(current) = queue.pop_front() {
-        if let Some(deps) = graph.get(current) {
-            for dep in deps {
-                // Only traverse files that are actually nodes in the graph.
-                if graph.contains_key(dep) && visited.insert(dep) {
-                    queue.push_back(dep);
-                }
+    // What a possible or unknown file imports is as uncertain as it is.
+    let mut queue: VecDeque<PathBuf> = out.keys().cloned().collect::<Vec<_>>().into();
+    let mut sorted: Vec<PathBuf> = queue.drain(..).collect();
+    sorted.sort_unstable();
+    sorted.sort_by_key(|f| out[f].status != DeadStatus::Possible);
+    queue.extend(sorted);
+    while let Some(from) = queue.pop_front() {
+        let status = out[&from].status;
+        for (to, _) in graph.get(&from).into_iter().flatten() {
+            if !dead_set.contains(to) || out.contains_key(to) {
+                continue;
+            }
+            let verb = match status {
+                DeadStatus::Possible => "may be loaded",
+                _ => "may be reached",
+            };
+            let condition = format!("Imported by {}, which {verb}", shown(&from).display());
+            out.insert(
+                to.clone(),
+                Uncertainty {
+                    status,
+                    conditions: vec![condition],
+                },
+            );
+            queue.push_back(to.clone());
+        }
+    }
+    out
+}
+
+/// For a computed import (`./locales/${lang}.json`), the start every path
+/// it can build shares, joined to the importing file's folder; `None` when
+/// the fixed part is not a relative path into a folder.
+fn computed_prefix(source: &Path, specifier: &str) -> Option<String> {
+    let spec = specifier.trim_start_matches(['`', '"', '\'']);
+    let end = spec.find(['$', '*', '{', '`', '+']).unwrap_or(spec.len());
+    let fixed = &spec[..end];
+    if !(fixed.starts_with("./") || fixed.starts_with("../")) {
+        return None;
+    }
+    // Only the folder part: `./icons/icon-` may build `./icons/icon-a.svg`.
+    let (dir, name) = fixed.rsplit_once('/')?;
+    let folder = normalize(&source.parent()?.join(dir));
+    if folder.as_os_str().is_empty() || source.parent().is_some_and(|p| normalize(p) == folder) {
+        // The importing file's own folder: too broad to say anything.
+        return None;
+    }
+    let mut prefix = folder.to_string_lossy().into_owned();
+    prefix.push(std::path::MAIN_SEPARATOR);
+    prefix.push_str(name);
+    Some(prefix)
+}
+
+/// Whether an unresolved `specifier` imported from `source` could name
+/// `file`.
+fn could_name(source: &Path, specifier: &str, file: &Path) -> bool {
+    let without_ext = file.with_extension("");
+    if specifier.starts_with("./") || specifier.starts_with("../") {
+        let Some(dir) = source.parent() else {
+            return false;
+        };
+        let target = normalize(&dir.join(specifier));
+        return without_ext == target || file.starts_with(&target);
+    }
+    // An alias or a module path: compare the last segments. `@/`, `~/` and
+    // `#` aliases point at a folder of their own.
+    let python = source.extension().is_some_and(|e| e == "py");
+    let mut segments: Vec<&str> = if python {
+        specifier.split('.').filter(|s| !s.is_empty()).collect()
+    } else {
+        specifier.split('/').filter(|s| !s.is_empty()).collect()
+    };
+    if segments
+        .first()
+        .is_some_and(|s| matches!(*s, "@" | "~" | "$lib") || s.starts_with('#'))
+    {
+        segments.remove(0);
+    }
+    if segments.is_empty() || segments.iter().any(|s| *s == "." || *s == "..") {
+        return false;
+    }
+    let parts: Vec<String> = without_ext
+        .iter()
+        .map(|c| c.to_string_lossy().into_owned())
+        .collect();
+    let ends_with = |parts: &[String]| {
+        parts.len() >= segments.len()
+            && parts[parts.len() - segments.len()..]
+                .iter()
+                .zip(&segments)
+                .all(|(a, b)| a == b)
+    };
+    ends_with(&parts)
+        || (matches!(parts.last().map(String::as_str), Some("index" | "__init__" | "mod"))
+            && ends_with(&parts[..parts.len() - 1]))
+}
+
+/// Classify every node of `graph` by how it is used.
+///
+/// Entry points are found by name ([`is_entry_point`] and the files tooling
+/// loads) and from `extra_entries`, each with the [`Role`] of what loads
+/// it. Then, in order, each stage claiming only files no earlier stage
+/// reached:
+///
+/// 1. confirmed: from program entries, through runtime edges;
+/// 2. possible: from there through possible edges, then runtime ones;
+/// 3. type-only: from there through type-only edges, and from declaration
+///    files, then through any edge;
+/// 4. test-only: from tests, through any edge;
+/// 5. tooling-only: from tooling, through any edge.
+///
+/// What is left is unreachable: exactly the files nothing reaches through
+/// the graph, whatever the kind of edge.
+pub fn classify(
+    graph: &TypedGraph,
+    extra_entries: &[(PathBuf, Role)],
+    next_roots: &[PathBuf],
+) -> Classification {
+    let mut out = Classification::default();
+    if graph.is_empty() {
+        return out;
+    }
+    let entries: HashMap<PathBuf, Role> = {
+        let mut map: HashMap<PathBuf, Role> = HashMap::new();
+        for (path, role) in extra_entries {
+            let slot = map.entry(normalize(path)).or_insert(*role);
+            *slot = (*slot).min(*role);
+        }
+        map
+    };
+    let next_roots: Vec<PathBuf> = next_roots.iter().map(|r| normalize(r)).collect();
+    let mut nodes: Vec<&PathBuf> = graph.keys().collect();
+    nodes.sort_unstable();
+
+    let mut by_role: HashMap<Role, Vec<&PathBuf>> = HashMap::new();
+    for file in &nodes {
+        let normal = normalize(file);
+        let in_next = next_roots.iter().any(|root| normal.starts_with(root));
+        let named = if is_entry_point(file) {
+            Some(entry_name_role(file))
+        } else {
+            tooling_role(file, in_next)
+        };
+        let configured = normal
+            .ancestors()
+            .filter_map(|a| entries.get(a).copied())
+            .min();
+        if let Some(role) = named.into_iter().chain(configured).min() {
+            by_role.entry(role).or_default().push(file);
+        }
+    }
+    let roles = |role: Role| by_role.get(&role).cloned().unwrap_or_default();
+
+    let mut usage: HashMap<&PathBuf, UsageKind> = HashMap::new();
+    let mut parent: HashMap<&PathBuf, &PathBuf> = HashMap::new();
+    let runtime = |k: EdgeKind| k == EdgeKind::Runtime;
+    let not_type = |k: EdgeKind| k != EdgeKind::Type;
+    let any = |_: EdgeKind| true;
+
+    let seeds: Vec<(&PathBuf, Option<&PathBuf>)> =
+        roles(Role::Production).into_iter().map(|f| (f, None)).collect();
+    spread(graph, seeds, UsageKind::Confirmed, runtime, &mut usage, &mut parent);
+
+    let seeds = crossing(graph, &usage, &[UsageKind::Confirmed], EdgeKind::Possible);
+    spread(graph, seeds, UsageKind::Possible, not_type, &mut usage, &mut parent);
+
+    let mut seeds = crossing(
+        graph,
+        &usage,
+        &[UsageKind::Confirmed, UsageKind::Possible],
+        EdgeKind::Type,
+    );
+    seeds.extend(roles(Role::Types).into_iter().map(|f| (f, None)));
+    spread(graph, seeds, UsageKind::TypeOnly, any, &mut usage, &mut parent);
+
+    let seeds = roles(Role::Test).into_iter().map(|f| (f, None)).collect();
+    spread(graph, seeds, UsageKind::TestOnly, any, &mut usage, &mut parent);
+
+    let seeds = roles(Role::Tooling).into_iter().map(|f| (f, None)).collect();
+    spread(graph, seeds, UsageKind::ToolingOnly, any, &mut usage, &mut parent);
+
+    out.usage = nodes
+        .iter()
+        .map(|f| {
+            let kind = usage.get(f).copied().unwrap_or(UsageKind::Unreachable);
+            ((*f).clone(), kind)
+        })
+        .collect();
+    out.parent = parent
+        .into_iter()
+        .map(|(f, p)| (f.clone(), p.clone()))
+        .collect();
+    out
+}
+
+/// Targets of `kind` edges from files already classified as one of `from`,
+/// not yet classified, each with the file it is reached from.
+fn crossing<'a>(
+    graph: &'a TypedGraph,
+    usage: &HashMap<&'a PathBuf, UsageKind>,
+    from: &[UsageKind],
+    kind: EdgeKind,
+) -> Vec<(&'a PathBuf, Option<&'a PathBuf>)> {
+    let mut sources: Vec<&PathBuf> = usage
+        .iter()
+        .filter(|(_, u)| from.contains(u))
+        .map(|(f, _)| *f)
+        .collect();
+    sources.sort_unstable();
+    let mut seeds = Vec::new();
+    for source in sources {
+        let Some((key, deps)) = graph.get_key_value(source) else {
+            continue;
+        };
+        for (target, k) in deps {
+            if *k == kind && !usage.contains_key(target) {
+                seeds.push((target, Some(key)));
             }
         }
     }
+    seeds
+}
 
-    visited
+/// Breadth-first from `seeds` through edges `follow` accepts, marking each
+/// unclassified node reached as `kind` and remembering where it was reached
+/// from. Only nodes of the graph are visited.
+fn spread<'a>(
+    graph: &'a TypedGraph,
+    seeds: Vec<(&'a PathBuf, Option<&'a PathBuf>)>,
+    kind: UsageKind,
+    follow: impl Fn(EdgeKind) -> bool,
+    usage: &mut HashMap<&'a PathBuf, UsageKind>,
+    parent: &mut HashMap<&'a PathBuf, &'a PathBuf>,
+) {
+    let mut queue: VecDeque<&PathBuf> = VecDeque::new();
+    for (file, from) in seeds {
+        let Some((file, _)) = graph.get_key_value(file) else {
+            continue;
+        };
+        if usage.contains_key(file) {
+            continue;
+        }
+        usage.insert(file, kind);
+        if let Some(from) = from {
+            parent.insert(file, from);
+        }
+        queue.push_back(file);
+    }
+    while let Some(current) = queue.pop_front() {
+        let Some(deps) = graph.get(current) else {
+            continue;
+        };
+        for (dep, k) in deps {
+            if !follow(*k) {
+                continue;
+            }
+            let Some((dep, _)) = graph.get_key_value(dep) else {
+                continue;
+            };
+            if usage.contains_key(dep) {
+                continue;
+            }
+            usage.insert(dep, kind);
+            parent.insert(dep, current);
+            queue.push_back(dep);
+        }
+    }
+}
+
+/// The role of a file named in [`ENTRY_POINT_NAMES`]: tool configs are
+/// tooling, the rest is the program.
+fn entry_name_role(path: &Path) -> Role {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if name.contains(".config.") {
+        Role::Tooling
+    } else {
+        Role::Production
+    }
 }
 
 /// Return `true` if the file's name matches a known entry point pattern.
@@ -211,24 +743,33 @@ const TASK_RUNNER_STEMS: &[&str] = &[
 /// imports it: tests, declaration files, Cargo targets, tool configs and
 /// file-based routes. `in_next_root`: the file is in a package where the
 /// Next.js adapter decides what `pages/` holds.
+#[cfg(test)]
 fn is_loaded_by_tooling(path: &Path, in_next_root: bool) -> bool {
-    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-        return false;
-    };
+    tooling_role(path, in_next_root).is_some()
+}
+
+/// What loads the file without an import, if anything: a test runner
+/// (tests, test setup, mocks), the type checker (declaration files), build
+/// tooling (configs, stories, task runners, benches) or the program's own
+/// framework (routes, migrations, Cargo binaries, components).
+fn tooling_role(path: &Path, in_next_root: bool) -> Option<Role> {
+    let name = path.file_name().and_then(|n| n.to_str())?;
     if name.contains(".test.")
         || name.contains(".spec.")
-        || name.contains(".stories.")
-        || name.contains(".config.")
-        || name.ends_with(".d.ts")
         // Type tests that `tsd` and `vitest --typecheck` run.
         || name.contains(".test-d.")
         || name == "conftest.py"
         || (name.starts_with("test_") && name.ends_with(".py"))
         || name.ends_with("_test.py")
         || name == "tests.py"
-        || name == "conf.py"
     {
-        return true;
+        return Some(Role::Test);
+    }
+    if name.ends_with(".d.ts") {
+        return Some(Role::Types);
+    }
+    if name.contains(".stories.") || name.contains(".config.") || name == "conf.py" {
+        return Some(Role::Tooling);
     }
 
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -240,24 +781,25 @@ fn is_loaded_by_tooling(path: &Path, in_next_root: bool) -> bool {
     // Migration and seed runners (Alembic, Django, Knex, TypeORM, Sequelize)
     // load every file in these directories.
     if dirs.iter().any(|d| matches!(*d, "migrations" | "seeders")) {
-        return true;
+        return Some(Role::Production);
     }
 
     if ext == "rs" {
         // Cargo compiles every file in these directories as its own crate.
         let target_dir = dirs.last().copied().unwrap_or("");
-        let in_target_dir = matches!(
-            target_dir,
-            "tests" | "benches" | "examples" | "fuzz_targets"
-        );
-        let in_bin = dirs.ends_with(&["src", "bin"]);
-        return in_target_dir || in_bin;
+        if target_dir == "tests" {
+            return Some(Role::Test);
+        }
+        if matches!(target_dir, "benches" | "examples" | "fuzz_targets") {
+            return Some(Role::Tooling);
+        }
+        return dirs.ends_with(&["src", "bin"]).then_some(Role::Production);
     }
 
     // Components are used from templates, routers and auto-imports, which
     // the import graph does not follow.
     if matches!(ext, "vue" | "svelte" | "astro") {
-        return true;
+        return Some(Role::Production);
     }
 
     if matches!(
@@ -265,25 +807,32 @@ fn is_loaded_by_tooling(path: &Path, in_next_root: bool) -> bool {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "mts" | "cts"
     ) {
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        // Manual mocks that Jest and Vitest swap in by path.
+        if is_module_mock(path) {
+            return Some(Role::Test);
+        }
+        // Dotfile configs (`.eslintrc.js`), task runners and Storybook setup.
+        if TASK_RUNNER_STEMS.contains(&stem)
+            || name.starts_with('.')
+            || dirs.contains(&".storybook")
+        {
+            return Some(Role::Tooling);
+        }
         // `pages/` routes for Astro, Gatsby, Docusaurus and Nuxt; in a
         // Next.js package the adapter names them.
         let file_routes = (!in_next_root && dirs.contains(&"pages"))
             || dirs.windows(2).any(|w| w == ["app", "routes"]);
-        // SvelteKit routes (`+page.ts`, `+server.js`), dotfile configs
-        // (`.eslintrc.js`), Stimulus controllers, Storybook setup and
-        // Docusaurus theme overrides.
+        // SvelteKit routes (`+page.ts`, `+server.js`), Stimulus controllers
+        // and Docusaurus theme overrides.
         let by_name = name.starts_with('+')
-            || TASK_RUNNER_STEMS.contains(&stem)
-            || name.starts_with('.')
             || stem.ends_with("_controller")
-            || dirs.contains(&".storybook")
-            // Manual mocks that Jest and Vitest swap in by path.
-            || is_module_mock(path)
             || dirs.windows(2).any(|w| w == ["src", "theme"]);
-        return CONVENTION_STEMS.contains(&stem) || file_routes || by_name;
+        if CONVENTION_STEMS.contains(&stem) || file_routes || by_name {
+            return Some(Role::Production);
+        }
     }
 
-    false
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -300,6 +849,13 @@ pub struct DeadCodeCandidate {
     /// dynamic loader that may load the file.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<Location>,
+    /// Whether it is unreachable within what was analyzed, possibly loaded,
+    /// or unknown because an unresolved import may name it.
+    #[serde(default)]
+    pub status: DeadStatus,
+    /// What may still load it, for a possible or unknown candidate.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<String>,
 }
 
 /// Candidates with confidence, falling back to the plain list for results
@@ -314,6 +870,8 @@ pub fn candidates_of(dead: &[PathBuf], details: &[DeadCodeCandidate]) -> Vec<Dea
             confidence: Confidence::Medium,
             reason: "Nothing imports it; no confidence was recorded".to_string(),
             evidence: Vec::new(),
+            status: DeadStatus::Unreachable,
+            conditions: Vec::new(),
         })
         .collect()
 }
@@ -451,7 +1009,7 @@ struct Loader {
 /// and for each candidate's name.
 #[cfg(test)]
 pub fn assess(root: &Path, dead: &[PathBuf], files: &[PathBuf]) -> Vec<DeadCodeCandidate> {
-    assess_with(root, dead, files, &HashMap::new(), &Cache::off())
+    assess_with(root, dead, files, &HashMap::new(), &HashMap::new(), &Cache::off())
 }
 
 /// [`assess`], reusing the mentions `cache` holds for files that have not
@@ -461,6 +1019,7 @@ pub fn assess_with(
     dead: &[PathBuf],
     files: &[PathBuf],
     graph: &HashMap<PathBuf, Vec<PathBuf>>,
+    uncertain: &HashMap<PathBuf, Uncertainty>,
     cache: &Cache,
 ) -> Vec<DeadCodeCandidate> {
     cache.set_dead(dead);
@@ -655,6 +1214,8 @@ pub fn assess_with(
                     .iter()
                     .map(|(path, line)| Location::read(root, path, *line))
                     .collect(),
+                status: DeadStatus::Unreachable,
+                conditions: Vec::new(),
             }
         })
         .collect();
@@ -676,6 +1237,19 @@ pub fn assess_with(
         }
     }
     follow_users(&mut candidates, &users);
+    for candidate in &mut candidates {
+        if let Some(u) = uncertain.get(&candidate.file) {
+            candidate.status = u.status;
+            candidate.conditions = u.conditions.clone();
+            candidate.confidence = Confidence::Low;
+            candidate.reason = match u.status {
+                DeadStatus::Possible => {
+                    "Not imported, but something reachable may load it".to_string()
+                }
+                _ => "Not imported, but an import that did not resolve may name it".to_string(),
+            };
+        }
+    }
     // Most certain first, then by path.
     candidates.sort_by(|a, b| b.confidence.cmp(&a.confidence).then(a.file.cmp(&b.file)));
     candidates
@@ -1503,7 +2077,7 @@ mod tests {
         );
         let mut graph = make_graph(&[]);
         graph.insert(normalize(&files[0]), vec![normalize(&files[1])]);
-        let c = assess_with(&root, &files, &files, &graph, &Cache::off());
+        let c = assess_with(&root, &files, &files, &graph, &HashMap::new(), &Cache::off());
 
         let card = rated(&c, &root, "ui/Card.tsx");
         assert_eq!(card.confidence, Confidence::Low);

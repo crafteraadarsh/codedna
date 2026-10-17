@@ -550,7 +550,7 @@ mod tests {
         tallies.sort_by(|a, b| a.0.cmp(&b.0));
         let graph_map = graph.iter().cloned().collect();
         let dead = dead_code_detector::detect_dead_code(&graph_map);
-        let assessed = dead_code_detector::assess_with(root, &dead, &files, &graph_map, cache);
+        let assessed = dead_code_detector::assess_with(root, &dead, &files, &graph_map, &Default::default(), cache);
         format!("{loc:?}\n{graph:?}\n{tallies:?}\n{assessed:?}")
     }
 

@@ -339,6 +339,8 @@ mod tests {
             architecture_details: Default::default(),
             dead_code_details: Vec::new(),
             circular_imports: Vec::new(),
+            cycle_details: Vec::new(),
+            usage: Default::default(),
             workspaces: Vec::new(),
             languages: HashMap::new(),
             frameworks: vec![],

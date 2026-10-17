@@ -9,10 +9,14 @@
 //! src/a.ts → src/b.ts → src/c.ts → src/a.ts
 //! ```
 //!
-//! Only the imports the dependency graph tracks are seen, and type-only
-//! imports count too, so a finding is something to check, not proof of a
-//! runtime problem.
+//! Only the imports the dependency graph tracks are seen. Type-only imports
+//! count too, but each cycle says whether runtime imports alone close it, it
+//! needs an import that may load one of several files, or it needs a
+//! type-only import (erased when the code runs). A finding is something to
+//! check, not proof of a runtime problem.
 
+use crate::graph::{EdgeKind, TypedGraph};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 
@@ -23,40 +27,153 @@ use std::path::PathBuf;
 /// file imports the first. A file that imports itself is a cycle of one.
 /// Cycles are sorted shortest first, then by path, so output is stable.
 pub fn find_cycles(graph: &HashMap<PathBuf, Vec<PathBuf>>) -> Vec<Vec<PathBuf>> {
+    let typed: TypedGraph = graph
+        .iter()
+        .map(|(from, to)| {
+            let to = to.iter().map(|t| (t.clone(), EdgeKind::Runtime)).collect();
+            (from.clone(), to)
+        })
+        .collect();
+    find_typed_cycles(&typed)
+        .into_iter()
+        .map(|c| c.files)
+        .collect()
+}
+
+/// What it takes to close a cycle.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum CycleKind {
+    /// Runtime imports only: the files load each other when they run.
+    Runtime,
+    /// Needs an import that may load one of several files.
+    Possible,
+    /// Needs a type-only import, erased at runtime: harmless when the code
+    /// runs, though it still ties the files together.
+    TypeOnly,
+}
+
+impl CycleKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            CycleKind::Runtime => "runtime",
+            CycleKind::Possible => "possible",
+            CycleKind::TypeOnly => "type-only",
+        }
+    }
+}
+
+/// One group of files that import each other.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct Cycle {
+    /// The files in import order; the last imports the first.
+    pub files: Vec<PathBuf>,
+    pub kind: CycleKind,
+}
+
+/// [`find_cycles`] on typed edges, with the kind of each cycle.
+///
+/// Each group of files that reach each other through any edge is one
+/// cycle. When runtime imports alone close a cycle inside the group, it is
+/// a runtime cycle, shown as the shortest such cycle; otherwise, when
+/// runtime and possible edges do, it is possible; otherwise it needs a
+/// type-only import and is shown as the group's shortest cycle.
+pub fn find_typed_cycles(graph: &TypedGraph) -> Vec<Cycle> {
     // Index nodes in sorted order so the result does not depend on hash order.
     let nodes: BTreeSet<&PathBuf> = graph
         .iter()
-        .flat_map(|(from, to)| std::iter::once(from).chain(to.iter()))
+        .flat_map(|(from, to)| std::iter::once(from).chain(to.iter().map(|(t, _)| t)))
         .collect();
     let nodes: Vec<&PathBuf> = nodes.into_iter().collect();
     let index: HashMap<&PathBuf, usize> = nodes.iter().enumerate().map(|(i, p)| (*p, i)).collect();
-    let edges: Vec<Vec<usize>> = nodes
-        .iter()
-        .map(|p| {
-            let mut out: Vec<usize> = graph
-                .get(*p)
-                .map(|to| to.iter().map(|t| index[t]).collect())
-                .unwrap_or_default();
-            out.sort_unstable();
-            out.dedup();
-            out
-        })
-        .collect();
+    let edges_where = |keep: &dyn Fn(EdgeKind) -> bool| -> Vec<Vec<usize>> {
+        nodes
+            .iter()
+            .map(|p| {
+                let mut out: Vec<usize> = graph
+                    .get(*p)
+                    .map(|to| {
+                        to.iter()
+                            .filter(|(_, k)| keep(*k))
+                            .map(|(t, _)| index[t])
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                out.sort_unstable();
+                out.dedup();
+                out
+            })
+            .collect()
+    };
+    let all = edges_where(&|_| true);
+    let runtime = edges_where(&|k| k == EdgeKind::Runtime);
+    let not_type = edges_where(&|k| k != EdgeKind::Type);
+    // The groups under the narrower edges that hold a cycle, and for each
+    // node the index of its group.
+    let cyclic_groups = |edges: &[Vec<usize>]| -> (Vec<Vec<usize>>, HashMap<usize, usize>) {
+        let mut groups = Vec::new();
+        let mut of = HashMap::new();
+        for group in strongly_connected(edges) {
+            let first = group[0];
+            if group.len() == 1 && !edges[first].contains(&first) {
+                continue;
+            }
+            for &member in &group {
+                of.insert(member, groups.len());
+            }
+            groups.push(group);
+        }
+        (groups, of)
+    };
+    let runtime_groups = cyclic_groups(&runtime);
+    let possible_groups = cyclic_groups(&not_type);
 
-    let mut cycles: Vec<Vec<PathBuf>> = strongly_connected(&edges)
+    let mut cycles: Vec<Cycle> = strongly_connected(&all)
         .into_iter()
         .filter_map(|group| {
             let start = *group.iter().min()?;
-            if group.len() == 1 && !edges[start].contains(&start) {
+            if group.len() == 1 && !all[start].contains(&start) {
                 return None;
             }
-            let members: HashSet<usize> = group.into_iter().collect();
-            let path = shortest_cycle(&edges, &members, start)?;
-            Some(path.into_iter().map(|i| nodes[i].clone()).collect())
+            let narrowest = [
+                (CycleKind::Runtime, &runtime_groups, &runtime),
+                (CycleKind::Possible, &possible_groups, &not_type),
+            ]
+            .into_iter()
+            .find_map(|(kind, groups, edges)| {
+                // The narrower group with the lowest-sorted file.
+                let (groups, of) = groups;
+                let sub = group
+                    .iter()
+                    .filter_map(|m| of.get(m))
+                    .map(|&g| &groups[g])
+                    .min_by_key(|g| g.iter().min())?;
+                let start = *sub.iter().min()?;
+                let members: HashSet<usize> = sub.iter().copied().collect();
+                Some((kind, shortest_cycle(edges, &members, start)?))
+            });
+            let (kind, path) = match narrowest {
+                Some(found) => found,
+                None => {
+                    let members: HashSet<usize> = group.into_iter().collect();
+                    (CycleKind::TypeOnly, shortest_cycle(&all, &members, start)?)
+                }
+            };
+            Some(Cycle {
+                files: path.into_iter().map(|i| nodes[i].clone()).collect(),
+                kind,
+            })
         })
         .collect();
 
-    cycles.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+    cycles.sort_by(|a, b| {
+        a.files
+            .len()
+            .cmp(&b.files.len())
+            .then_with(|| a.files.cmp(&b.files))
+    });
     cycles
 }
 
