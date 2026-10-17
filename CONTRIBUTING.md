@@ -119,6 +119,9 @@ codedna/
 │   ├── loc_counter.rs        # Non-empty line counter + binary detection
 │   ├── framework_detector.rs # Manifest parser + per-file import scanner
 │   ├── dependency_graph.rs   # Import/require/mod parser, emits dependency facts
+│   ├── parsers/
+│   │   ├── mod.rs            # Parse status and diagnostics shared by parsers
+│   │   └── javascript.rs     # JS/TS/Vue/Svelte/Astro import scan on the Oxc syntax tree
 │   ├── facts.rs              # Typed dependency facts (kind, resolution, evidence)
 │   ├── graph.rs              # File graph built from resolved facts
 │   ├── dead_code_detector.rs # BFS from entry points → unreachable files
@@ -186,6 +189,17 @@ codedna/
        assert_eq!(detect_language(&p("Main.kt")), Some(Language("Kotlin")));
    }
    ```
+
+### Changing JavaScript and TypeScript Import Rules
+
+JS/TS imports are read from an [Oxc](https://oxc.rs) syntax tree in `src/parsers/javascript.rs`, never from lines of text. The README's "How it works" section lists every syntax that counts and its rule id; keep that table in step with the code.
+
+1. Add a `RefKind` for the new syntax and recognise it in the `Collector` visitor, using syntax nodes and, where a name could be shadowed (`require`, `Worker`, loader functions), the semantic scope model.
+2. Map it to a fact kind, certainty and rule id in `js_fact_kind` in `src/dependency_graph.rs`. Anything that is not proven to name one file is a `possibility` and must not add a graph edge.
+3. Add a positive and a negative CLI test in `tests/cli_js_parser.rs`, and check the output with the cache on and off.
+4. Bump `RULES_VERSION` in `src/facts.rs` and `FORMAT` in `src/cache.rs`, since cached results from the old rules are no longer valid.
+
+Oxc crates are pinned to an exact version in `Cargo.toml`; upgrade them together and run the whole test suite.
 
 ### Adding Infrastructure Detection
 

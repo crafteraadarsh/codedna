@@ -18,11 +18,11 @@ extensions = ["rs"]
 
 [[language]]
 name = "TypeScript"
-extensions = ["ts", "tsx"]
+extensions = ["ts", "tsx", "mts", "cts"]
 
 [[language]]
 name = "JavaScript"
-extensions = ["js", "jsx", "mjs"]
+extensions = ["js", "jsx", "mjs", "cjs"]
 
 [[language]]
 name = "Python"
@@ -79,6 +79,10 @@ extensions = ["vue"]
 [[language]]
 name = "Svelte"
 extensions = ["svelte"]
+
+[[language]]
+name = "Astro"
+extensions = ["astro"]
 
 [[language]]
 name = "Solidity"

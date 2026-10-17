@@ -377,7 +377,10 @@ fn is_loaded_by_tooling(path: &Path) -> bool {
         return true;
     }
 
-    if matches!(ext, "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs") {
+    if matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "mts" | "cts"
+    ) {
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
         let file_routes =
             dirs.contains(&"pages") || dirs.windows(2).any(|w| w == ["app", "routes"]);
@@ -1222,7 +1225,7 @@ fn find_loaders(file: &Path, text: &str) -> Vec<Loader> {
     let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("");
     let js = matches!(
         ext,
-        "js" | "jsx" | "mjs" | "cjs" | "ts" | "tsx" | "mts" | "cts" | "vue" | "svelte"
+        "js" | "jsx" | "mjs" | "cjs" | "ts" | "tsx" | "mts" | "cts" | "vue" | "svelte" | "astro"
     );
     let py = ext == "py";
     if !js && !py {

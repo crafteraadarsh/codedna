@@ -14,6 +14,8 @@
 use crate::cache::Cache;
 use crate::facts::{Certainty, DependencyFact, DependencyKind, Resolution};
 use crate::graph;
+use crate::parsers::javascript::{self, RefKind as JsRefKind};
+use crate::parsers::ParseStatus;
 use rayon::prelude::*;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -59,6 +61,10 @@ pub struct ImportTally {
     /// Imports of packages from outside the repository (npm packages, the
     /// standard library, ...).
     pub external: usize,
+    /// How far the file got through its syntax parser.
+    pub parse: ParseStatus,
+    /// The first syntax errors, as `(line, message)`.
+    pub parse_errors: Vec<(usize, String)>,
 }
 
 impl ImportTally {
@@ -749,7 +755,7 @@ fn drop_trailing_commas(json: &str) -> String {
 /// Extensions whose imports CodeDna can follow.
 /// Vue, Svelte and Astro components count for the scripts they hold.
 const SOURCE_EXTENSIONS: &[&str] = &[
-    "ts", "tsx", "js", "jsx", "mjs", "vue", "svelte", "astro", "py", "rs",
+    "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "vue", "svelte", "astro", "py", "rs",
 ];
 
 /// Whether `file` is a source file the dependency graph understands.
@@ -796,9 +802,8 @@ fn parse_dependencies_with(
     tally.readable = true;
 
     match ext.as_str() {
-        "ts" | "tsx" | "js" | "jsx" | "mjs" | "vue" | "svelte" | "astro" => {
-            parse_js_ts_imports(file, parent, &content, aliases, tally)
-        }
+        "ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+        | "astro" => parse_js_ts_imports(file, parent, &ext, &content, aliases, tally),
         "py" => parse_python_imports(file, parent, &content, python_packages, tally),
         "rs" => parse_rust_imports(file, parent, &content, tally),
         _ => Vec::new(),
@@ -809,567 +814,130 @@ fn parse_dependencies_with(
 // JavaScript / TypeScript parser
 // ---------------------------------------------------------------------------
 
-/// Parse `import` and `require` statements and return resolved paths.
+/// The dependency facts of a JavaScript, TypeScript or component file.
 ///
-/// Patterns matched:
-/// - `import ... from './path'`
-/// - `import ... from "../path"`
-/// - `require('./path')`
-/// - `import('./path')` and `import './path'`
-/// - aliased paths such as `@/components/x`, via `tsconfig.json` /
-///   `jsconfig.json` `paths` and `baseUrl`
+/// The file is parsed by [`javascript::scan`]; this turns each reference it
+/// found into a fact, resolving relative paths on disk and aliases through
+/// `tsconfig.json` / `jsconfig.json` `paths` and `baseUrl`. Only confirmed
+/// imports are counted in `tally`; possibilities are reported but neither
+/// counted nor drawn as edges.
 fn parse_js_ts_imports(
     file: &Path,
     parent: &Path,
+    ext: &str,
     content: &str,
     aliases: &Aliases,
     tally: &mut ImportTally,
 ) -> Vec<DependencyFact> {
+    let scan = javascript::scan(ext, content);
+    tally.parse = scan.status;
+    tally.parse_errors = scan
+        .diagnostics
+        .iter()
+        .map(|d| (d.line, d.message.clone()))
+        .collect();
+
     let mut facts = Vec::new();
     let mut seen: HashSet<&str> = HashSet::new();
     let mut seen_facts: HashSet<(&str, DependencyKind, &str)> = HashSet::new();
-
-    // Set when a line ends in `import(` or `require(`, so the path on the
-    // next line belongs to it.
-    let mut open_call: Option<JsTrigger> = None;
-    // The `import {` or `export {` whose `from` is on a later line.
-    let mut open_list: Option<JsStatement> = None;
-    for (number, line) in content.lines().enumerate() {
-        let mut trimmed = line.trim();
-        // A leading `/* webpackChunkName: "x" */` hint is not the path.
-        if let Some(rest) = trimmed.strip_prefix("/*") {
-            if let Some(end) = rest.find("*/") {
-                trimmed = rest[end + 2..].trim_start();
-            }
+    for found in &scan.refs {
+        let specifier = found.specifier.as_str();
+        if specifier.is_empty() {
+            continue;
         }
+        let (kind, certainty, rule) = js_fact_kind(found.kind);
+        if !seen_facts.insert((specifier, kind, rule)) {
+            continue;
+        }
+        let mut fact = DependencyFact::new(file, specifier, kind, certainty, rule).line(found.line);
+        fact.evidence.span = Some(found.span);
 
-        // Skip comments
-        if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+        // Built at runtime: nothing to resolve.
+        if kind == DependencyKind::PossibleDynamicLoad {
+            facts.push(fact.resolution(Resolution::Unsupported));
+            continue;
+        }
+        // Worker, process and URL loads name files by path, relative to
+        // the file, and only count when that file exists.
+        if found.kind.is_runtime_load() {
+            if let Some(resolved) = resolve_js_ts_path(parent, specifier) {
+                facts.push(fact.resolved(vec![resolved]));
+            }
             continue;
         }
 
-        let continued = open_call
-            .take()
-            .and_then(|trigger| Some((trigger, extract_first_quoted(trimmed)?)));
-        open_call = if trimmed.ends_with("import(") {
-            Some(JsTrigger::DynamicImport)
-        } else if trimmed.ends_with("require(") {
-            Some(JsTrigger::Require)
-        } else {
-            None
-        };
-
-        // The statement a `from "x"` on this line belongs to.
-        let statement = JsStatement::starting(trimmed).or(open_list);
-        if trimmed.contains('}') {
-            open_list = None;
-        }
-        if let Some(started) = JsStatement::starting(trimmed) {
-            if trimmed.contains('{') && !trimmed.contains('}') {
-                open_list = Some(started);
-            }
-        }
-
-        // Collect all quoted string literals on this line that look like
-        // relative paths.
-        for (trigger, specifier) in continued
-            .into_iter()
-            .chain(extract_quoted_specifiers(trimmed))
-        {
-            if specifier.is_empty() {
-                continue;
-            }
-            let line = number + 1;
-            // Template literals with `${...}` are built at runtime.
-            if specifier.contains("${") {
-                let kind = DependencyKind::PossibleDynamicLoad;
-                if seen_facts.insert((specifier, kind, "js.template_import")) {
-                    facts.push(
-                        DependencyFact::new(
-                            file,
-                            specifier,
-                            kind,
-                            Certainty::Possibility,
-                            "js.template_import",
-                        )
-                        .line(line)
-                        .span_in(content, specifier)
-                        .resolution(Resolution::Unsupported),
-                    );
-                }
-                continue;
-            }
+        // A type named in a documentation comment is a weaker signal than an
+        // import statement: comments go stale and often name generated
+        // types (`./$types`). Keep it only when it reaches a real file other
+        // than this one, or a package.
+        if found.kind == JsRefKind::JsDocImport {
             let resolved = if is_relative(specifier) {
                 resolve_js_ts_path(parent, specifier)
+                    .or_else(|| resolve_declaration(parent, specifier))
             } else {
                 aliases.resolve(file, specifier)
             };
-            let internal =
-                resolved.is_some() || is_relative(specifier) || aliases.is_local(file, specifier);
-            if seen.insert(specifier) {
-                if internal {
-                    tally.internal(line, specifier, resolved.is_some());
-                } else {
-                    tally.external += 1;
-                }
+            match resolved {
+                Some(target) if target == normalize(file) => {}
+                Some(target) => facts.push(fact.resolved(vec![target])),
+                None if is_relative(specifier) || aliases.is_local(file, specifier) => {}
+                None => facts.push(fact.resolution(Resolution::External)),
             }
-
-            let (kind, rule) = trigger.kind(statement);
-            if !seen_facts.insert((specifier, kind, rule)) {
-                continue;
-            }
-            let mut fact = DependencyFact::new(file, specifier, kind, Certainty::Direct, rule)
-                .line(line)
-                .span_in(content, specifier);
-            if trigger == JsTrigger::DynamicImport {
-                fact = fact.condition("dynamic");
-            }
-            facts.push(match resolved {
-                Some(resolved) => fact.resolved(vec![resolved]),
-                None if internal => fact.resolution(Resolution::Unresolved),
-                None => fact.resolution(Resolution::External),
-            });
+            continue;
         }
-    }
 
-    for (literal, load) in runtime_loaded_files(file, content) {
-        if let Some(resolved) = resolve_js_ts_path(parent, literal) {
-            let (kind, rule) = match load {
-                RuntimeLoad::Url => (DependencyKind::ResourceReference, "js.new_url"),
-                RuntimeLoad::Worker => (DependencyKind::WorkerEntry, "js.worker"),
-                RuntimeLoad::Process => (DependencyKind::ProcessEntry, "js.process"),
-            };
-            let mut fact = DependencyFact::new(file, literal, kind, Certainty::Inferred, rule)
-                .span_in(content, literal)
-                .resolved(vec![resolved]);
-            if let Some([start, _]) = fact.evidence.span {
-                fact = fact.line(content[..start].matches('\n').count() + 1);
+        let resolved = if is_relative(specifier) {
+            resolve_js_ts_path(parent, specifier)
+        } else {
+            aliases.resolve(file, specifier)
+        };
+        let internal =
+            resolved.is_some() || is_relative(specifier) || aliases.is_local(file, specifier);
+        if certainty == Certainty::Direct && seen.insert(specifier) {
+            if internal {
+                tally.internal(found.line, specifier, resolved.is_some());
+            } else {
+                tally.external += 1;
             }
-            facts.push(fact);
         }
+        if found.kind == JsRefKind::DynamicImport {
+            fact = fact.condition("dynamic");
+        }
+        facts.push(match resolved {
+            Some(resolved) => fact.resolved(vec![resolved]),
+            None if internal => fact.resolution(Resolution::Unresolved),
+            None => fact.resolution(Resolution::External),
+        });
     }
-
     facts
 }
 
-/// What introduced a quoted specifier on a JS/TS line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum JsTrigger {
-    /// `... from "x"`
-    From,
-    /// `require("x")`
-    Require,
-    /// `import("x")`
-    DynamicImport,
-    /// `import "x"`
-    SideEffect,
-}
-
-/// The statement a `from "x"` closes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum JsStatement {
-    Import,
-    ImportType,
-    Export,
-    ExportType,
-}
-
-impl JsStatement {
-    /// The statement `line` starts, if it starts an import or export.
-    fn starting(line: &str) -> Option<Self> {
-        let keyword = |rest: &str| rest.starts_with([' ', '{', '*', '\t']);
-        if let Some(rest) = line.strip_prefix("import") {
-            if let Some(after) = rest.trim_start().strip_prefix("type") {
-                if keyword(after) && rest.starts_with(char::is_whitespace) {
-                    return Some(JsStatement::ImportType);
-                }
-            }
-            return keyword(rest).then_some(JsStatement::Import);
-        }
-        if let Some(rest) = line.strip_prefix("export") {
-            if let Some(after) = rest.trim_start().strip_prefix("type") {
-                if keyword(after) && rest.starts_with(char::is_whitespace) {
-                    return Some(JsStatement::ExportType);
-                }
-            }
-            return keyword(rest).then_some(JsStatement::Export);
-        }
-        None
+/// The fact kind, certainty and rule id of a JS/TS reference.
+fn js_fact_kind(kind: JsRefKind) -> (DependencyKind, Certainty, &'static str) {
+    use Certainty::{Direct, Inferred, Possibility};
+    use DependencyKind as K;
+    match kind {
+        JsRefKind::Import => (K::RuntimeImport, Direct, "js.import"),
+        JsRefKind::ImportType => (K::TypeOnlyImport, Direct, "js.import_type"),
+        JsRefKind::SideEffect => (K::RuntimeImport, Direct, "js.side_effect_import"),
+        JsRefKind::ExportFrom => (K::ReExport, Direct, "js.export_from"),
+        JsRefKind::ExportTypeFrom => (K::TypeOnlyImport, Direct, "js.export_type_from"),
+        JsRefKind::ImportTypeExpression => (K::TypeOnlyImport, Direct, "js.import_type_expression"),
+        JsRefKind::JsDocImport => (K::TypeOnlyImport, Direct, "js.jsdoc_import"),
+        JsRefKind::ImportEquals => (K::RuntimeImport, Direct, "js.import_equals"),
+        JsRefKind::ImportTypeEquals => (K::TypeOnlyImport, Direct, "js.import_equals"),
+        JsRefKind::Require => (K::RuntimeImport, Direct, "js.require"),
+        JsRefKind::RequireShadowed => (K::RuntimeImport, Possibility, "js.require_shadowed"),
+        JsRefKind::DynamicImport => (K::RuntimeImport, Direct, "js.dynamic_import"),
+        JsRefKind::TemplateImport => (K::PossibleDynamicLoad, Possibility, "js.template_import"),
+        JsRefKind::ComputedImport => (K::PossibleDynamicLoad, Possibility, "js.computed_import"),
+        JsRefKind::ComputedRequire => (K::PossibleDynamicLoad, Possibility, "js.computed_require"),
+        JsRefKind::Url => (K::ResourceReference, Inferred, "js.new_url"),
+        JsRefKind::Worker => (K::WorkerEntry, Inferred, "js.worker"),
+        JsRefKind::WorkerShadowed => (K::WorkerEntry, Possibility, "js.worker_shadowed"),
+        JsRefKind::Process => (K::ProcessEntry, Inferred, "js.process"),
+        JsRefKind::TextScan => (K::RuntimeImport, Possibility, "js.text_scan"),
     }
-}
-
-impl JsTrigger {
-    /// The kind of dependency and the rule id for a specifier this trigger
-    /// introduced, inside `statement`.
-    fn kind(self, statement: Option<JsStatement>) -> (DependencyKind, &'static str) {
-        match self {
-            JsTrigger::Require => (DependencyKind::RuntimeImport, "js.require"),
-            JsTrigger::DynamicImport => (DependencyKind::RuntimeImport, "js.dynamic_import"),
-            JsTrigger::SideEffect => (DependencyKind::RuntimeImport, "js.side_effect_import"),
-            JsTrigger::From => match statement {
-                Some(JsStatement::ImportType) => (DependencyKind::TypeOnlyImport, "js.import_type"),
-                Some(JsStatement::ExportType) => {
-                    (DependencyKind::TypeOnlyImport, "js.export_type_from")
-                }
-                Some(JsStatement::Export) => (DependencyKind::ReExport, "js.export_from"),
-                Some(JsStatement::Import) | None => (DependencyKind::RuntimeImport, "js.import"),
-            },
-        }
-    }
-}
-
-/// How a JS/TS file starts another file at runtime.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RuntimeLoad {
-    /// `new URL("./w.ts", import.meta.url)`
-    Url,
-    /// `new Worker("./w.js")`
-    Worker,
-    /// `spawn("tsx", ["job.ts"])`
-    Process,
-}
-
-/// Modules whose exports start a file in another process or thread.
-const LOADER_MODULES: &[&str] = &[
-    "child_process",
-    "node:child_process",
-    "worker_threads",
-    "node:worker_threads",
-    "execa",
-    "cross-spawn",
-];
-
-/// Calls that run a file in another process: `spawn("tsx", ["w.ts"])`.
-const PROCESS_LOADERS: &[&str] = &[
-    "spawn",
-    "spawnSync",
-    "fork",
-    "exec",
-    "execSync",
-    "execFile",
-    "execFileSync",
-    "execa",
-    "execaSync",
-    "execaNode",
-    "execaCommand",
-    "execaCommandSync",
-];
-
-/// Process loaders that take one command line rather than an argument list.
-const COMMAND_LINE_LOADERS: &[&str] = &["exec", "execSync", "execaCommand", "execaCommandSync"];
-
-/// Constructors that run a file in a worker thread: `new Worker("./w.js")`.
-const WORKER_CONSTRUCTORS: &[&str] = &["Worker", "SharedWorker"];
-
-/// Source files a JS/TS file loads at runtime by name rather than by import:
-///
-/// - `new URL("./w.ts", import.meta.url)`, the bundler form for workers
-/// - `new Worker("./w.js")` and `new SharedWorker(...)`, unless the file
-///   defines or imports its own `Worker` from elsewhere
-/// - `spawn`, `fork`, `exec` and the rest imported from `child_process`,
-///   `execa` or `cross-spawn` (or called on a binding of those modules, or
-///   `Bun.spawn`), with the file among their arguments:
-///   `spawn("tsx", ["worker.ts"])`, `exec("tsx worker.ts")`
-///
-/// Calls are found in code only, so a path in a log message, a comment or
-/// any other string is not a dependency, and neither is a call to a local
-/// function that happens to share a loader's name.
-fn runtime_loaded_files<'a>(file: &Path, content: &'a str) -> Vec<(&'a str, RuntimeLoad)> {
-    let ext = file
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    let code = crate::code_text::code_only(&ext, content);
-    let (loader_names, other_names) = imported_names(&code, content);
-    let tokens = identifiers(&code);
-    let bytes = code.as_bytes();
-
-    let mut found = Vec::new();
-    for (index, &(start, end)) in tokens.iter().enumerate() {
-        let name = &code[start..end];
-        let Some(open) = next_non_space(bytes, end).filter(|&i| bytes[i] == b'(') else {
-            continue;
-        };
-        let args = open + 1..closing_paren(bytes, open);
-        let receiver = receiver(&code, &tokens, index);
-        // `new` before the callee, or before its receiver in `new wt.Worker(`.
-        let callee = match receiver {
-            Some(r) if !r.is_empty() => index - 1,
-            _ => index,
-        };
-        let after_new = callee > 0 && {
-            let (s, e) = tokens[callee - 1];
-            &code[s..e] == "new" && code[e..tokens[callee].0].trim().is_empty()
-        };
-
-        let literals = string_literals(&code, content, args.clone());
-        if after_new && name == "URL" && receiver.is_none() {
-            if code[args].contains("import.meta.url") {
-                found.extend(
-                    literals
-                        .first()
-                        .filter(|l| l.0 == 0)
-                        .map(|l| (l.1, RuntimeLoad::Url)),
-                );
-            }
-        } else if after_new && WORKER_CONSTRUCTORS.contains(&name) {
-            let is_loader = match receiver {
-                Some(r) => loader_names.contains(r),
-                None => {
-                    loader_names.contains(name)
-                        || !(other_names.contains(name) || declares(&code, &tokens, name))
-                }
-            };
-            if is_loader {
-                found.extend(
-                    literals
-                        .first()
-                        .filter(|l| l.0 == 0)
-                        .map(|l| (l.1, RuntimeLoad::Worker)),
-                );
-            }
-        } else if !after_new && PROCESS_LOADERS.contains(&name) {
-            let is_loader = match receiver {
-                Some("Bun") => name == "spawn" || name == "spawnSync",
-                Some(r) => loader_names.contains(r),
-                None => loader_names.contains(name),
-            };
-            if !is_loader {
-                continue;
-            }
-            for (_, literal) in literals {
-                if COMMAND_LINE_LOADERS.contains(&name) {
-                    found.extend(
-                        literal
-                            .split_whitespace()
-                            .filter(|w| names_source_file(w))
-                            .map(|w| (w, RuntimeLoad::Process)),
-                    );
-                } else if names_source_file(literal) {
-                    found.push((literal, RuntimeLoad::Process));
-                }
-            }
-        }
-    }
-    found.retain(|(literal, _)| names_source_file(literal));
-    found
-}
-
-/// A JS/TS source file named by its extension: `"./worker.ts"` or
-/// `'jobs/sync.mjs'`, but not URLs, absolute paths or command lines.
-fn names_source_file(literal: &str) -> bool {
-    let is_source = Path::new(literal)
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| ["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx"].contains(&e));
-    is_source
-        && !literal.contains("://")
-        && !literal.contains("${")
-        && !literal.contains(char::is_whitespace)
-        && !literal.starts_with('/')
-}
-
-/// Byte ranges of the identifiers in `code`.
-fn identifiers(code: &str) -> Vec<(usize, usize)> {
-    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
-    let bytes = code.as_bytes();
-    let mut tokens = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        if is_ident(bytes[i]) && !bytes[i].is_ascii_digit() {
-            let start = i;
-            while i < bytes.len() && is_ident(bytes[i]) {
-                i += 1;
-            }
-            tokens.push((start, i));
-        } else {
-            i += 1;
-        }
-    }
-    tokens
-}
-
-fn next_non_space(bytes: &[u8], from: usize) -> Option<usize> {
-    (from..bytes.len()).find(|&i| !bytes[i].is_ascii_whitespace())
-}
-
-/// Index of the `)` closing the `(` at `open`, or the end of the text. String
-/// contents are already blanked, so every parenthesis left is code.
-fn closing_paren(bytes: &[u8], open: usize) -> usize {
-    let mut depth = 0usize;
-    for (i, &b) in bytes.iter().enumerate().skip(open) {
-        match b {
-            b'(' => depth += 1,
-            b')' => {
-                depth -= 1;
-                if depth == 0 {
-                    return i;
-                }
-            }
-            _ => {}
-        }
-    }
-    bytes.len()
-}
-
-/// `cp` in `cp.spawn(` or `cp?.spawn(`; `""` for a method on anything other
-/// than a plain name (`/re/.exec(`, `a.b.exec(`); `None` for a bare call.
-fn receiver<'a>(code: &'a str, tokens: &[(usize, usize)], index: usize) -> Option<&'a str> {
-    let (start, _) = tokens[index];
-    let before = code[..start].trim_end();
-    let before = before.strip_suffix('.')?.trim_end();
-    let before = before.strip_suffix('?').unwrap_or(before);
-    let plain = index.checked_sub(1).and_then(|i| {
-        let (s, e) = tokens[i];
-        let start_of_chain = code[..s].trim_end();
-        (e == before.len() && !start_of_chain.ends_with('.')).then(|| &code[s..e])
-    });
-    Some(plain.unwrap_or(""))
-}
-
-/// String literals inside `range` of `code`, as (offset of the opening quote
-/// from the first non-space character, contents taken from `content`).
-fn string_literals<'a>(
-    code: &str,
-    content: &'a str,
-    range: std::ops::Range<usize>,
-) -> Vec<(usize, &'a str)> {
-    let bytes = code.as_bytes();
-    let first = next_non_space(bytes, range.start).unwrap_or(range.start);
-    let mut found = Vec::new();
-    let mut i = range.start;
-    while i < range.end.min(bytes.len()) {
-        let quote = bytes[i];
-        if matches!(quote, b'"' | b'\'' | b'`') {
-            let Some(close) = (i + 1..range.end).find(|&j| bytes[j] == quote) else {
-                break;
-            };
-            if let Some(text) = content.get(i + 1..close) {
-                found.push((i - first, text));
-            }
-            i = close + 1;
-        } else {
-            i += 1;
-        }
-    }
-    found
-}
-
-/// Names bound by imports, split into those from [`LOADER_MODULES`] and those
-/// from anywhere else: `import { spawn } from "node:child_process"`,
-/// `const cp = require("child_process")`, `import { Worker } from "./pool"`.
-fn imported_names<'a>(code: &'a str, content: &str) -> (HashSet<&'a str>, HashSet<&'a str>) {
-    let tokens = identifiers(code);
-    let bytes = code.as_bytes();
-    let mut loaders = HashSet::new();
-    let mut others = HashSet::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        let quote = bytes[i];
-        if !matches!(quote, b'"' | b'\'') {
-            i += 1;
-            continue;
-        }
-        let Some(close) = (i + 1..bytes.len()).find(|&j| bytes[j] == quote) else {
-            break;
-        };
-        let module = content.get(i + 1..close).unwrap_or("");
-        let before = code[..i].trim_end();
-        // The keyword that starts the statement, and where the names end.
-        let names = if before.ends_with("from") {
-            let end = before.len() - 4;
-            last_token(code, &tokens, end, &["import"]).map(|start| start..end)
-        } else if let Some(call) = before.strip_suffix('(') {
-            let call = call.trim_end();
-            call.strip_suffix("require").and_then(|rest| {
-                let end = rest.trim_end().strip_suffix('=')?.len();
-                last_token(code, &tokens, end, &["const", "let", "var"]).map(|start| start..end)
-            })
-        } else {
-            None
-        };
-        if let Some(range) = names {
-            let target = if LOADER_MODULES.contains(&module) {
-                &mut loaders
-            } else {
-                &mut others
-            };
-            for &(s, e) in tokens
-                .iter()
-                .filter(|t| t.0 >= range.start && t.1 <= range.end)
-            {
-                let name = &code[s..e];
-                if !matches!(
-                    name,
-                    "import" | "const" | "let" | "var" | "type" | "typeof" | "as" | "default"
-                ) {
-                    target.insert(name);
-                }
-            }
-        }
-        i = close + 1;
-    }
-    (loaders, others)
-}
-
-/// Start of the last token before `end` that is one of `keywords`, if it
-/// comes within a statement's reach (no `;` in between).
-fn last_token(
-    code: &str,
-    tokens: &[(usize, usize)],
-    end: usize,
-    keywords: &[&str],
-) -> Option<usize> {
-    let &(start, _) = tokens
-        .iter()
-        .rev()
-        .filter(|t| t.1 <= end)
-        .find(|t| keywords.contains(&&code[t.0..t.1]))?;
-    (!code[start..end].contains(';')).then_some(start)
-}
-
-/// Whether the file declares `name` itself: `class Worker`,
-/// `function Worker`, `const Worker = ...`.
-fn declares(code: &str, tokens: &[(usize, usize)], name: &str) -> bool {
-    tokens.windows(2).any(|pair| {
-        let (keyword, ident) = (pair[0], pair[1]);
-        &code[ident.0..ident.1] == name
-            && matches!(
-                &code[keyword.0..keyword.1],
-                "class" | "function" | "const" | "let" | "var"
-            )
-            && code[keyword.1..ident.0].trim().is_empty()
-    })
-}
-
-/// Extract all single- or double-quoted string values from a line that are
-/// preceded by `from`, `require`, or `import`.
-fn extract_quoted_specifiers(line: &str) -> Vec<(JsTrigger, &str)> {
-    let mut results = Vec::new();
-
-    // We scan for from/require/import( patterns then pull the next quoted string.
-    let triggers = [
-        ("from ", JsTrigger::From),
-        ("require(", JsTrigger::Require),
-        ("import(", JsTrigger::DynamicImport),
-        ("import ", JsTrigger::SideEffect),
-    ];
-
-    for (trigger, kind) in triggers {
-        let mut search = line;
-        while let Some(pos) = search.find(trigger) {
-            let after = &search[pos + trigger.len()..].trim_start();
-
-            if let Some(specifier) = extract_first_quoted(after) {
-                results.push((kind, specifier));
-            }
-
-            search = &search[pos + trigger.len()..];
-        }
-    }
-
-    results
 }
 
 /// Extract the first single- or double-quoted string at the beginning of `s`.
@@ -1384,6 +952,24 @@ fn extract_first_quoted(s: &str) -> Option<&str> {
     let inner = &s[1..];
     let end = inner.find(quote)?;
     Some(&inner[..end])
+}
+
+/// A TypeScript declaration file standing for `specifier`: `./types` or
+/// `./types.js` → `types.d.ts`, `./dir` → `dir/index.d.ts`.
+fn resolve_declaration(parent: &Path, specifier: &str) -> Option<PathBuf> {
+    let base = parent.join(specifier);
+    let stem = match base.extension().and_then(|e| e.to_str()) {
+        Some("js" | "mjs" | "cjs" | "ts" | "mts" | "cts") => base.with_extension(""),
+        _ => base.clone(),
+    };
+    [
+        append_extension(&stem, "d.ts"),
+        append_extension(&base, "d.ts"),
+        base.join("index.d.ts"),
+    ]
+    .into_iter()
+    .find(|candidate| is_file(candidate))
+    .map(|candidate| normalize(&candidate))
 }
 
 /// Resolve a JS/TS relative import specifier to an absolute path on disk.
@@ -1403,7 +989,7 @@ fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
     }
 
     // 2. With extension appended
-    for ext in &["ts", "tsx", "js", "jsx", "mjs"] {
+    for ext in &["ts", "tsx", "js", "jsx", "mjs", "mts", "cts", "cjs"] {
         let candidate = append_extension(&base, ext);
         if is_file(&candidate) {
             return Some(normalize(&candidate));
@@ -1421,6 +1007,18 @@ fn resolve_js_ts_path(parent: &Path, specifier: &str) -> Option<PathBuf> {
             if is_file(&candidate) {
                 return Some(normalize(&candidate));
             }
+        }
+    }
+    // `./x.mjs` → `x.mts`, `./x.cjs` → `x.cts`
+    let module_ts = match base.extension().and_then(|e| e.to_str()) {
+        Some("mjs") => Some("mts"),
+        Some("cjs") => Some("cts"),
+        _ => None,
+    };
+    if let Some(ext) = module_ts {
+        let candidate = base.with_extension(ext);
+        if is_file(&candidate) {
+            return Some(normalize(&candidate));
         }
     }
 
@@ -2726,7 +2324,7 @@ mod tests {
              import b from '@/missing';\n\
              import ui from '@acme/ui/button';\n\
              import React from 'react';\n\
-             import x from `./${name}`;\n",
+             const x = import(`./${name}`);\n",
         );
         let files = [app.clone(), util, pkg];
         let (_, tallies) = build_with_tallies(&files);
