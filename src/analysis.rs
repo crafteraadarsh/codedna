@@ -11,6 +11,7 @@ use crate::dead_code_detector::{self, DeadCodeCandidate};
 use crate::dependency_graph;
 use crate::facts::{self, DependencyFact, DependencyFacts};
 use crate::framework_detector;
+use crate::frameworks;
 use crate::language_detector;
 use crate::loc_counter;
 use crate::scanner;
@@ -263,8 +264,12 @@ pub fn analyze(root: &Path) -> AnalysisResult {
     let coverage = coverage::measure(root, &files, &import_tallies);
 
     // ── 6. Dead code ──────────────────────────────────────────────────────────
-    let entries = dead_code_detector::manifest_entries(&files);
-    let dead_code = dead_code_detector::detect_dead_code_from(&dep_graph, &entries);
+    let adapters = frameworks::detect(&files);
+    let dead_code = dead_code_detector::detect_dead_code_from(
+        &dep_graph,
+        &adapters.entry_files(),
+        &adapters.next_roots,
+    );
 
     // ── 7. Inference ──────────────────────────────────────────────────────────
     let project_type = infer_project_type(
@@ -315,9 +320,21 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         .map(|f| f.map_paths(make_relative))
         .collect();
     facts::sort(&mut facts);
+    let mut entries: Vec<DependencyFact> = adapters
+        .entries
+        .into_iter()
+        .map(|f| f.map_paths(make_relative))
+        .collect();
+    facts::sort(&mut entries);
     let dependencies = DependencyFacts {
         rules_version: facts::RULES_VERSION,
         facts,
+        entries,
+        adapters: adapters
+            .active
+            .into_iter()
+            .map(|a| a.map_paths(make_relative))
+            .collect(),
     };
     let circular_imports = cycles::find_cycles(&dependency_graph);
 

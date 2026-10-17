@@ -127,6 +127,7 @@ codedna/
 │   │   └── javascript.rs     # JS/TS resolution: package.json exports/imports, tsconfig, workspaces
 │   ├── facts.rs              # Typed dependency facts (kind, resolution, evidence)
 │   ├── graph.rs              # File graph built from resolved facts
+│   ├── frameworks/           # Adapters: files Next.js, Expo Router, package.json and test runners load
 │   ├── dead_code_detector.rs # BFS from entry points → unreachable files
 │   ├── reporter.rs           # CLI report formatter + JSON serialiser
 │   ├── repo_map.rs           # Directory tree renderer
@@ -203,6 +204,16 @@ JS/TS imports are read from an [Oxc](https://oxc.rs) syntax tree in `src/parsers
 4. Bump `RULES_VERSION` in `src/facts.rs` and `FORMAT` in `src/cache.rs`, since cached results from the old rules are no longer valid.
 
 Oxc crates are pinned to an exact version in `Cargo.toml`; upgrade them together and run the whole test suite.
+
+### Adding or Changing a Framework Adapter
+
+Adapters live in `src/frameworks/`, one file per framework, and name the files a framework loads without an import. The README's "How it works" section has the adapter matrix; keep it in step with the code.
+
+1. Activate only on evidence in the package itself: its own `package.json` dependency, or its own config file. A dependency elsewhere in the repository (an example, a dev-only workspace) must not make files live.
+2. Emit `configured_entry` facts through `Package::entry` with a versioned rule (`next.app_router@v1`), and register the adapter with `Package::adapter` so it appears in `dependencies.adapters`. Read only literal config values; never run a config file.
+3. Write the tests first in `tests/cli_framework_adapters.rs`, as a pair: a file the adapter makes live, and the same file where the adapter is not active, which stays dead.
+4. If a dead-code heuristic in `src/dead_code_detector.rs` covers the same files, make it defer to the adapter where the adapter is active.
+5. Bump the rule's version when its meaning changes, bump `RULES_VERSION` and the cache `FORMAT`, check the output with the cache on and off, and measure dead code on a few real repositories before and after.
 
 ### Changing JavaScript and TypeScript Resolution
 

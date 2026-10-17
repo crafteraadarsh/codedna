@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// Version of the extraction rules. It goes up when a rule starts or stops
 /// producing facts, or a rule id changes meaning, so consumers can tell
 /// reports made with different rules apart.
-pub const RULES_VERSION: u32 = 3;
+pub const RULES_VERSION: u32 = 4;
 
 /// What kind of dependency a fact records.
 #[derive(
@@ -157,6 +157,49 @@ pub struct DependencyFacts {
     /// Sorted by source, line, span, specifier and kind.
     #[serde(default)]
     pub facts: Vec<DependencyFact>,
+    /// Files a framework, a package manifest or a test runner loads without
+    /// an import: one `configured_entry` fact per file, whose source and
+    /// evidence are the manifest declaring it. Kept apart from `facts`, which
+    /// `dependency_graph` projects, because a manifest is not a graph node.
+    /// Sorted like `facts`.
+    #[serde(default)]
+    pub entries: Vec<DependencyFact>,
+    /// The framework adapters active in each package.
+    #[serde(default)]
+    pub adapters: Vec<FrameworkAdapter>,
+}
+
+/// A framework adapter active in one package, and why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct FrameworkAdapter {
+    /// The package directory.
+    pub package: PathBuf,
+    /// `next`, `expo_router`, `node`, `vitest`, `jest`, `playwright`,
+    /// `mocha` or `tsd`.
+    pub adapter: String,
+    /// Version of the adapter's rules; its facts carry rule ids ending in
+    /// `@v<version>`.
+    pub version: u32,
+    /// The package manifest that activates it.
+    pub manifest: PathBuf,
+    /// The manifest line declaring the dependency, when there is one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+    /// Config files the adapter read.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub config: Vec<PathBuf>,
+}
+
+impl FrameworkAdapter {
+    /// The same adapter with every path passed through `f`.
+    pub fn map_paths(self, f: impl Fn(&Path) -> PathBuf) -> Self {
+        FrameworkAdapter {
+            package: f(&self.package),
+            manifest: f(&self.manifest),
+            config: self.config.iter().map(|c| f(c)).collect(),
+            ..self
+        }
+    }
 }
 
 impl DependencyFact {

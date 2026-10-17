@@ -14,6 +14,7 @@ mod dependency_graph;
 mod diff;
 mod facts;
 mod framework_detector;
+mod frameworks;
 mod git_handler;
 mod graph;
 mod hotspots;

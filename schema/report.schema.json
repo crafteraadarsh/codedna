@@ -103,6 +103,8 @@
       "description": "Typed dependency facts: every import, re-export, worker, process,\nconfigured entry and possible dynamic load found, with its kind,\nresolution, certainty and evidence. Unresolved and external imports\nare kept too. Sorted by source file and position.",
       "$ref": "#/$defs/DependencyFacts",
       "default": {
+        "adapters": [],
+        "entries": [],
         "facts": [],
         "rules_version": 0
       }
@@ -444,6 +446,22 @@
       "description": "Every dependency fact in a report.",
       "type": "object",
       "properties": {
+        "adapters": {
+          "description": "The framework adapters active in each package.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FrameworkAdapter"
+          }
+        },
+        "entries": {
+          "description": "Files a framework, a package manifest or a test runner loads without\nan import: one `configured_entry` fact per file, whose source and\nevidence are the manifest declaring it. Kept apart from `facts`, which\n`dependency_graph` projects, because a manifest is not a graph node.\nSorted like `facts`.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DependencyFact"
+          }
+        },
         "facts": {
           "description": "Sorted by source, line, span, specifier and kind.",
           "type": "array",
@@ -570,6 +588,52 @@
         "file",
         "loc",
         "language"
+      ]
+    },
+    "FrameworkAdapter": {
+      "description": "A framework adapter active in one package, and why.",
+      "type": "object",
+      "properties": {
+        "adapter": {
+          "description": "`next`, `expo_router`, `node`, `vitest`, `jest`, `playwright`,\n`mocha` or `tsd`.",
+          "type": "string"
+        },
+        "config": {
+          "description": "Config files the adapter read.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "line": {
+          "description": "The manifest line declaring the dependency, when there is one.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
+        },
+        "manifest": {
+          "description": "The package manifest that activates it.",
+          "type": "string"
+        },
+        "package": {
+          "description": "The package directory.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Version of the adapter's rules; its facts carry rule ids ending in\n`@v<version>`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "package",
+        "adapter",
+        "version",
+        "manifest"
       ]
     },
     "ImportCounts": {
