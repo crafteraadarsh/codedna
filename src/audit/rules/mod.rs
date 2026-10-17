@@ -2,6 +2,9 @@
 //! sees in one file and states how strong that evidence is; the file's
 //! context and the shared confidence model live in the parent module.
 
+/// Smallest file treated as a generated bundle.
+const BUNDLE_SIZE: usize = 64 * 1024;
+
 pub(crate) mod binary;
 pub(crate) mod install;
 pub(crate) mod minified;
@@ -62,13 +65,23 @@ pub(crate) fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
     let mut blob_reported = false;
     let mut long_line_reported = false;
     let lines: Vec<&str> = text.lines().collect();
+    // A long line near the top of a large file marks a generated bundle;
+    // a small hand-packed script is one long line too, and is not one.
+    let bundle =
+        text.len() >= BUNDLE_SIZE && lines.iter().take(5).any(|l| l.len() >= minified::LONG_LINE);
 
     for (index, &line) in lines.iter().enumerate() {
         let n = Some(index + 1);
 
         out.extend(unicode::check_line(file, index, line, code));
 
-        let secrets = secrets::check_line(file, n, line, lines.get(index + 1).copied());
+        let secrets = secrets::check_line(
+            file,
+            n,
+            line,
+            lines.get(index + 1).copied(),
+            &lines[index.saturating_sub(3)..index],
+        );
         let secret_on_line = !secrets.is_empty();
         out.extend(secrets);
 
@@ -85,6 +98,7 @@ pub(crate) fn audit_file(file: &str, bytes: &[u8]) -> Vec<Finding> {
             file,
             n,
             line,
+            bundle,
             secret_on_line,
             &mut blob_reported,
             &mut blob_on_line,

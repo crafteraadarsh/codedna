@@ -97,4 +97,7 @@ pub(super) fn lower(f: &mut Finding, context: &'static str) {
         _ => Confidence::Low,
     };
     f.context = Some(context);
+    f.evidence
+        .signals
+        .push(format!("in a {context} file: lowered one step"));
 }

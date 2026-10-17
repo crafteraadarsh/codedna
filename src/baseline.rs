@@ -228,6 +228,11 @@ mod tests {
             line: Some(3),
             message: message.to_string(),
             context: None,
+            evidence: crate::audit::Evidence {
+                strength: crate::audit::Strength::Strong,
+                signals: Vec::new(),
+            },
+            dependency: None,
         }
     }
 

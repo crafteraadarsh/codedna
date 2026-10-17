@@ -12,7 +12,9 @@
 //! `composer.lock`.
 
 use crate::architecture::Confidence;
-use crate::audit::{Finding, Severity, VULNERABLE_DEPENDENCY};
+use crate::audit::{
+    DependencyEvidence, Evidence, Finding, Severity, Strength, VULNERABLE_DEPENDENCY,
+};
 use crate::safe_text::sanitize;
 use rayon::prelude::*;
 use serde_json::{json, Value};
@@ -705,6 +707,23 @@ fn finding(
         line: None,
         message,
         context: None,
+        evidence: Evidence {
+            strength: Strength::Strong,
+            signals: vec![
+                format!(
+                    "{} matches a published advisory",
+                    sanitize(&package.version)
+                ),
+                "reachability of the vulnerable code is not checked".to_string(),
+            ],
+        },
+        dependency: Some(DependencyEvidence {
+            ecosystem: package.ecosystem,
+            name: sanitize(&package.name),
+            version: sanitize(&package.version),
+            advisories: ordered.iter().map(|(id, _)| sanitize(id)).collect(),
+            fixed: upgrade.map(|v| sanitize(v)),
+        }),
     })
 }
 
