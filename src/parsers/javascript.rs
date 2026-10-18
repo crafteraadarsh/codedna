@@ -32,10 +32,18 @@ use oxc_parser::{ParseOptions, Parser};
 use oxc_semantic::{Scoping, SemanticBuilder, SymbolFlags, SymbolId};
 use oxc_span::{GetSpan, SourceType, Span};
 
+use serde::{Deserialize, Serialize};
+
 use super::{ParseDiagnostic, ParseStatus};
 
+/// The parser behind [`scan`] and the version of the scan itself. Cached
+/// scans made under another value are parsed again: bump the scan number
+/// whenever [`scan`] finds something different in the same text, and keep the
+/// Oxc version in step with `Cargo.toml` (a test checks it).
+pub const PARSER_VERSION: &str = "oxc 0.154.0; scan 1";
+
 /// How a reference loads its target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RefKind {
     /// `import x from "y"`, `import {} from "y"`
     Import,
@@ -100,7 +108,7 @@ impl RefKind {
 }
 
 /// One dependency reference in a file.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsRef {
     /// The specifier as the code means it: the string's value, a folded
     /// constant, a template's text without the backticks, or the source of
@@ -114,7 +122,7 @@ pub struct JsRef {
 }
 
 /// Everything read from one file.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsScan {
     /// References in source order, runtime loads last.
     pub refs: Vec<JsRef>,
@@ -1354,6 +1362,19 @@ impl LineIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parser_version_names_the_oxc_in_use() {
+        let manifest = include_str!("../../Cargo.toml");
+        let oxc = PARSER_VERSION
+            .strip_prefix("oxc ")
+            .and_then(|v| v.split(';').next())
+            .unwrap();
+        assert!(
+            manifest.contains(&format!("oxc_parser = {{ version = \"={oxc}\"")),
+            "PARSER_VERSION names oxc {oxc}; update it with Cargo.toml"
+        );
+    }
 
     fn found(ext: &str, content: &str) -> Vec<(String, RefKind)> {
         scan(ext, content)

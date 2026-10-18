@@ -44,7 +44,7 @@ impl ParseStatus {
 }
 
 /// One syntax error, for the report.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParseDiagnostic {
     /// Line number, from 1.
     pub line: usize,

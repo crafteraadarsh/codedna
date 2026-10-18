@@ -14,6 +14,7 @@
 //! scanner listed. The scanner does not follow symbolic links, so a
 //! configuration file cannot lead resolution outside the repository.
 
+pub mod deps;
 pub mod javascript;
 
 use crate::facts::{Certainty, Resolution};
