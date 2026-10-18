@@ -34,6 +34,8 @@ This prints a short Markdown briefing: project type, stack, architecture, monore
 | What deployment files run: Kubernetes, Helm, Compose, serverless | `get_topology` | `codedna topology .` |
 | Monorepo packages: size, stack, which packages use which | `list_packages` | `codedna packages .` |
 | What my change affects: importers, layers, routes, tests to run | `get_impact` | `codedna impact .` (branch: `--base origin/main`) |
+| Why is this file used or flagged dead? Entry point, import chain, evidence | `explain` | `codedna explain <file> .` (`dead:<file>`, `cycle:<file>`) |
+| Who imports a file, what it imports, the import chain between two files, entry points, unresolved imports | `query` | `codedna query references <file> .` (also `imports`, `path <from> <to>`, `entrypoints`, `unresolved`) |
 | What changed between two versions | — | `codedna diff before.json .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
@@ -48,6 +50,8 @@ Repeat runs reuse cached results for unchanged files, so running CodeDna again a
 After editing, or before reviewing a branch, check the impact: the files that import the changed code, the API routes involved and the tests to run. It only sees imports CodeDna follows, so treat the list as a starting point.
 
 Before running, configuring or calling a project, check the runbook: its scripts and targets, the environment variables it reads (names only; values are never read) and the HTTP routes it declares. Nothing is run, and the route list can be incomplete.
+
+Before deleting a file flagged as unused, or when unsure why a file counts as used, run `codedna explain <file> .`. It shows the entry point and why it counts as one, each import step with its line, the finding, and the assumptions behind it (only static imports CodeDna follows). Use `codedna query` for single facts; lists are capped by `--limit` and say when they are truncated.
 
 Before changing deployment files, or when asked how a service is deployed or reached, check the topology: each Deployment, Compose service or function, its image, ports and schedule, what reaches it (Services, Ingress, HTTP and queue events) and the code folder behind it. It reads the files as written, so Helm values are not applied.
 

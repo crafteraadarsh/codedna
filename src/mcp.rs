@@ -380,6 +380,46 @@ impl Server {
                     "workspaces": result.workspaces,
                 })))
             }
+            "explain" => {
+                let target = str_arg(args, "target")?
+                    .ok_or("Missing required argument: target".to_string())?;
+                let (result, class) = analysis::analyze_detailed(&root);
+                let explainer = crate::explain::Explainer::new(&root, &result, class);
+                Ok(pretty(
+                    &serde_json::to_value(explainer.explain(target)?).map_err(|e| e.to_string())?,
+                ))
+            }
+            "query" => {
+                let op = str_arg(args, "op")?.ok_or("Missing required argument: op".to_string())?;
+                let file = str_arg(args, "file")?;
+                let limit = usize_arg(args, "limit")?
+                    .unwrap_or(crate::explain::DEFAULT_LIMIT)
+                    .clamp(1, crate::explain::MAX_LIMIT);
+                if !["references", "imports", "path", "entrypoints", "unresolved"].contains(&op) {
+                    return Err(format!(
+                        "Unknown op '{}': use references, imports, path, entrypoints or unresolved.",
+                        sanitize(op)
+                    ));
+                }
+                let (result, class) = analysis::analyze_detailed(&root);
+                let explainer = crate::explain::Explainer::new(&root, &result, class);
+                let value = match op {
+                    "references" => serde_json::to_value(
+                        explainer.query_references(required(file, op, "file")?, limit)?,
+                    ),
+                    "imports" => serde_json::to_value(
+                        explainer.query_imports(required(file, op, "file")?, limit)?,
+                    ),
+                    "path" => serde_json::to_value(explainer.query_path(
+                        required(file, op, "file")?,
+                        required(str_arg(args, "to")?, op, "to")?,
+                    )?),
+                    "entrypoints" => serde_json::to_value(explainer.query_entrypoints(limit)),
+                    _ => serde_json::to_value(explainer.query_unresolved(file, limit)?),
+                }
+                .map_err(|e| e.to_string())?;
+                Ok(pretty(&value))
+            }
             "repo_map" => {
                 let depth = usize_arg(args, "depth")?
                     .unwrap_or(DEFAULT_MAP_DEPTH)
@@ -471,6 +511,8 @@ const TOOL_NAMES: &[&str] = &[
     "get_topology",
     "list_packages",
     "get_impact",
+    "explain",
+    "query",
 ];
 
 /// Longest time window `find_hotspots` accepts, in days.
@@ -622,6 +664,35 @@ fn tool_definitions() -> Value {
                 }
             },
             "annotations": read_only,
+        },
+        {
+            "name": "explain",
+            "description": "Why CodeDna says what it says about a file or finding: its usage (confirmed, possible, type_only, test_only, tooling_only, unreachable), the entry point that reaches it and why that file is an entry point, the first path from it with the dependency fact behind each step (file, line, rule), the dead-code finding with its status and conditions, its cycle, the files it imports and is imported by, the assumptions the answer rests on, and provenance (analyzer, schema and rules versions, Git revision, content snapshot). Use before deleting or moving a file, or to check a dead-code or cycle finding. Quote these facts; do not invent edges.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": path,
+                    "target": { "type": "string", "description": "A file relative to the folder (src/a.ts), or an id: file:<path>, dead:<path> (a dead-code finding) or cycle:<path> (a cycle, named by its first file)." }
+                },
+                "required": ["target"]
+            },
+            "annotations": read_only,
+        },
+        {
+            "name": "query",
+            "description": "Small questions to the dependency graph; every fact cites file, line and rule. op references: what resolves to file (and manifests naming it as an entry). imports: file's own dependencies. path: the shortest chain of dependencies from file to to. entrypoints: every entry point by role, with why. unresolved: dependencies that resolve to no file (optionally only file's).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": path,
+                    "op": { "type": "string", "enum": ["references", "imports", "path", "entrypoints", "unresolved"] },
+                    "file": { "type": "string", "description": "File relative to the folder; for path, the start." },
+                    "to": { "type": "string", "description": "For path: the end file." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": crate::explain::MAX_LIMIT, "description": "Maximum number of facts to return (default 50)." }
+                },
+                "required": ["op"]
+            },
+            "annotations": read_only,
         }
     ])
 }
@@ -654,6 +725,11 @@ fn usize_arg(args: &Value, key: &str) -> Result<Option<usize>, String> {
             .map(|n| Some(usize::try_from(n).unwrap_or(usize::MAX)))
             .ok_or(format!("Argument '{key}' must be a positive integer.")),
     }
+}
+
+/// A query argument the op needs.
+fn required<'a>(value: Option<&'a str>, op: &str, name: &str) -> Result<&'a str, String> {
+    value.ok_or(format!("Missing required argument for op {op}: {name}"))
 }
 
 fn limit_arg(args: &Value) -> Result<usize, String> {
@@ -1051,6 +1127,95 @@ mod tests {
         assert_eq!(r["result"]["isError"], true);
     }
 
+    /// A path value with forward slashes, as Windows shows paths with `\\`.
+    fn slashed(v: &Value) -> String {
+        v.as_str().unwrap_or_default().replace('\\', "/")
+    }
+
+    fn text_json(r: &Value) -> Value {
+        let text = r["result"]["content"][0]["text"].as_str().unwrap();
+        serde_json::from_str(text).unwrap_or_else(|_| panic!("not JSON: {text}"))
+    }
+
+    #[test]
+    fn explain_shows_root_witness_and_provenance() {
+        let dir = project();
+        let s = server(dir.path());
+        let path = dir.path().to_string_lossy().to_string();
+        let r = tool(
+            &s,
+            "explain",
+            json!({ "path": path, "target": "src/util.rs" }),
+        );
+        assert_eq!(r["result"]["isError"], false, "{r}");
+        let v = text_json(&r);
+        assert_eq!(v["id"], "file:./src/util.rs", "{v}");
+        assert_eq!(v["usage"], "confirmed", "{v}");
+        assert_eq!(slashed(&v["root"]["file"]), "./src/main.rs", "{v}");
+        assert_eq!(v["witness"][0]["evidence"]["line"], 1, "{v}");
+        assert_eq!(v["witness"][0]["evidence"]["rule"], "rust.mod", "{v}");
+        assert!(!v["assumptions"].as_array().unwrap().is_empty(), "{v}");
+        assert_eq!(v["provenance"]["analysis"], "static", "{v}");
+
+        let r = tool(
+            &s,
+            "explain",
+            json!({ "path": path, "target": "src/nope.rs" }),
+        );
+        assert_eq!(r["result"]["isError"], true, "{r}");
+        let r = tool(&s, "explain", json!({ "path": path }));
+        assert_eq!(r["result"]["isError"], true, "{r}");
+    }
+
+    #[test]
+    fn query_answers_each_op_with_evidence() {
+        let dir = project();
+        let s = server(dir.path());
+        let path = dir.path().to_string_lossy().to_string();
+        let v = text_json(&tool(
+            &s,
+            "query",
+            json!({ "path": path, "op": "references", "file": "src/util.rs" }),
+        ));
+        assert_eq!(v["total"], 1, "{v}");
+        assert_eq!(slashed(&v["facts"][0]["source"]), "./src/main.rs", "{v}");
+        let v = text_json(&tool(
+            &s,
+            "query",
+            json!({ "path": path, "op": "path", "file": "src/main.rs", "to": "src/util.rs" }),
+        ));
+        assert_eq!(v["found"], true, "{v}");
+        let v = text_json(&tool(
+            &s,
+            "query",
+            json!({ "path": path, "op": "entrypoints" }),
+        ));
+        assert_eq!(
+            slashed(&v["entrypoints"][0]["file"]),
+            "./src/main.rs",
+            "{v}"
+        );
+        let v = text_json(&tool(
+            &s,
+            "query",
+            json!({ "path": path, "op": "imports", "file": "src/main.rs", "limit": 1 }),
+        ));
+        assert_eq!(v["facts"].as_array().unwrap().len(), 1, "{v}");
+        let v = text_json(&tool(
+            &s,
+            "query",
+            json!({ "path": path, "op": "unresolved" }),
+        ));
+        assert_eq!(v["total"], 0, "{v}");
+        let r = tool(&s, "query", json!({ "path": path, "op": "guess" }));
+        assert_eq!(r["result"]["isError"], true, "{r}");
+        let r = tool(
+            &s,
+            "query",
+            json!({ "path": path, "op": "path", "file": "src/main.rs" }),
+        );
+        assert_eq!(r["result"]["isError"], true, "{r}");
+    }
     #[test]
     fn caps_long_output() {
         let long = "x".repeat(MAX_OUTPUT_CHARS + 10);

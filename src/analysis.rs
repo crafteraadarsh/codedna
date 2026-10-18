@@ -233,6 +233,13 @@ pub(crate) fn is_lockfile(file: &Path) -> bool {
 /// 8. List workspace packages declared at the root, each with its own
 ///    size, languages, stack, dead files and links to other packages
 pub fn analyze(root: &Path) -> AnalysisResult {
+    analyze_detailed(root).0
+}
+
+/// [`analyze`], with how each file was classified: the entry points, why
+/// each is one, and the path that reaches every reached file. Paths are
+/// relative, as in the report. `explain` and `query` use it.
+pub fn analyze_detailed(root: &Path) -> (AnalysisResult, dead_code_detector::Classification) {
     // ── 1. Scan ──────────────────────────────────────────────────────────────
     let files = scanner::scan_repository(root);
     let cache = Cache::open(root, &files);
@@ -326,7 +333,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
 
     let uncertain =
         dead_code_detector::uncertainty(&dependency_facts, &usage, &typed_graph, make_relative);
-    let usage = usage.report(make_relative);
+    let report = usage.report(make_relative);
     let dead_code_details =
         dead_code_detector::assess_with(root, &dead_code, &files, &dep_graph, &uncertain, &cache)
             .into_iter()
@@ -336,6 +343,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
             })
             .collect();
     cache.save();
+    let classification = usage.map_paths(make_relative);
+    let usage = report;
     let dead_code = dead_code
         .into_iter()
         .map(|p| make_relative(&p))
@@ -404,7 +413,7 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         );
     }
 
-    AnalysisResult {
+    let result = AnalysisResult {
         schema_version: SCHEMA_VERSION,
         analyzer: Analyzer::current(),
         project_type,
@@ -427,7 +436,8 @@ pub fn analyze(root: &Path) -> AnalysisResult {
         dependencies,
         coverage,
         file_breakdown,
-    }
+    };
+    (result, classification)
 }
 
 // ---------------------------------------------------------------------------
