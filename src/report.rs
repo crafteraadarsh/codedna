@@ -12,7 +12,7 @@
 use crate::analysis::AnalysisResult;
 use crate::architecture::Confidence;
 use crate::context::{self, ContextPack};
-use crate::dead_code_detector::confidence_summary;
+use crate::dead_code_detector::{confidence_summary, DeadStatus};
 use crate::hotspots::HotspotReport;
 use crate::safe_text::sanitize;
 use std::fmt::Write as FmtWrite;
@@ -33,6 +33,8 @@ pub struct DeadFile {
     pub file: String,
     pub confidence: Confidence,
     pub reason: String,
+    /// Unreachable, possibly loaded, or unknown.
+    pub status: DeadStatus,
 }
 
 /// Everything a report shows.
@@ -44,6 +46,8 @@ pub struct Report {
     pub dead_summary: String,
     /// Files that change often and are large; `None` without Git history.
     pub hotspots: Option<HotspotReport>,
+    /// What the analysis assumed and what limits its answers.
+    pub assumptions: Vec<String>,
 }
 
 /// Build a report from an analysis and a rendered directory map.
@@ -56,6 +60,7 @@ pub fn build(name: &str, result: &AnalysisResult, tree: &str) -> Report {
         .map(|c| DeadFile {
             file: sanitize(&c.file.to_string_lossy()),
             confidence: c.confidence,
+            status: c.status,
             reason: match c.evidence.first() {
                 Some(at)
                     if !c.reason.contains(&format!(
@@ -77,7 +82,24 @@ pub fn build(name: &str, result: &AnalysisResult, tree: &str) -> Report {
         dead_code,
         dead_summary,
         hotspots: None,
+        assumptions: assumptions(result),
     }
+}
+
+/// The analysis assumptions plus what limits this report.
+fn assumptions(result: &AnalysisResult) -> Vec<String> {
+    let mut notes: Vec<String> = crate::explain::assumptions(result)
+        .into_iter()
+        .map(|n| sanitize(&n))
+        .collect();
+    notes.push(format!(
+        "Possibly unused files are candidates to check, not proof; at most {DEAD_CODE_LIMIT} are listed. \
+         \"codedna explain dead:<file>\" shows the evidence for one."
+    ));
+    notes.push(
+        "Hotspots and change coupling need Git history; without it they are left out.".to_string(),
+    );
+    notes
 }
 
 /// A display name for the analysed project: the repository name for a Git
@@ -214,10 +236,12 @@ pub fn render_markdown(report: &Report) -> String {
         for f in &report.dead_code {
             let _ = writeln!(
                 out,
-                "- {} ({}): {}",
+                "- {} ({}, {}): {} Check: {}",
                 md_code(&f.file),
                 f.confidence.as_str(),
-                md_text(&f.reason)
+                f.status.as_str(),
+                md_text(&f.reason),
+                md_code(&format!("codedna explain dead:{}", f.file))
             );
         }
         if p.dead_code_candidates > report.dead_code.len() {
@@ -241,6 +265,13 @@ pub fn render_markdown(report: &Report) -> String {
                 "- …and {} more",
                 p.circular_import_count - p.circular_imports.len()
             );
+        }
+    }
+
+    if !report.assumptions.is_empty() {
+        let _ = writeln!(out, "\n## Assumptions and limits\n");
+        for a in &report.assumptions {
+            let _ = writeln!(out, "- {}", md_text(a));
         }
     }
 
@@ -526,9 +557,11 @@ pub fn render_html(report: &Report) -> String {
         for f in &report.dead_code {
             let _ = writeln!(
                 out,
-                "<li><span class=\"conf {level}\">{level}</span> <code>{}</code><br><span class=\"note\">{}</span></li>",
+                "<li><span class=\"conf {level}\">{level}</span> <code>{}</code> ({})<br><span class=\"note\">{} Check: <code>codedna explain dead:{}</code></span></li>",
                 esc(&f.file),
+                esc(f.status.as_str()),
                 esc(&f.reason),
+                esc(&f.file),
                 level = f.confidence.as_str(),
             );
         }
@@ -561,6 +594,15 @@ pub fn render_html(report: &Report) -> String {
                 p.circular_import_count - p.circular_imports.len()
             );
         }
+    }
+
+    if !report.assumptions.is_empty() {
+        let _ = writeln!(out, "<h2>Assumptions and limits</h2>");
+        let _ = writeln!(out, "<ul>");
+        for a in &report.assumptions {
+            let _ = writeln!(out, "<li>{}</li>", esc(a));
+        }
+        let _ = writeln!(out, "</ul>");
     }
 
     if !p.map.is_empty() {

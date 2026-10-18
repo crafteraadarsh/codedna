@@ -82,7 +82,13 @@ fn strings(value: &Value) -> Vec<String> {
         .as_array()
         .unwrap_or_else(|| panic!("not a list: {value}"))
         .iter()
-        .map(|v| v.as_str().unwrap().replace("./", ""))
+        // Paths may be shown as ./src/x.ts; import specifiers keep their ./
+        .map(|v| {
+            let v = v.as_str().unwrap();
+            v.strip_prefix("./")
+                .unwrap_or(v)
+                .replace(" ./src/", " src/")
+        })
         .collect()
 }
 
@@ -144,7 +150,10 @@ fn task_files_carry_evidence() {
 fn markdown_briefing_says_its_limits() {
     let dir = tempfile::tempdir().unwrap();
     widget_repo(dir.path());
-    let md = run(dir.path(), &["context", ".", "--task", "render the widget zebra"]);
+    let md = run(
+        dir.path(),
+        &["context", ".", "--task", "render the widget zebra"],
+    );
     let section = &md[md.find("## Relevant to the task").expect(&md)..];
     assert!(section.contains("Limits:"), "{section}");
     assert!(section.contains("zebra"), "{section}");
