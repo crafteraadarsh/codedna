@@ -377,3 +377,82 @@ fn trusting_timestamps_is_an_explicit_faster_mode() {
     let strict = assert_matches_fresh(dir.path(), cache.path());
     assert_eq!(edges(&strict.report, "./src/index.ts"), ["./src/b.ts"]);
 }
+
+fn certainty<'a>(report: &'a Value, source: &str) -> Vec<&'a str> {
+    report["dependencies"]["facts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|f| f["source"] == source)
+        .map(|f| f["certainty"].as_str().unwrap())
+        .collect()
+}
+
+#[test]
+fn a_resolver_mode_change_is_seen() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        &[
+            ("package.json", "{\"name\":\"app\",\"type\":\"module\"}\n"),
+            (
+                "tsconfig.json",
+                "{\"compilerOptions\":{\"module\":\"esnext\",\"moduleResolution\":\"bundler\"}}\n",
+            ),
+            ("src/util.ts", "export const u = 1;\n"),
+            (
+                "src/main.ts",
+                "import { u } from \"./util\";\nconsole.log(u);\n",
+            ),
+        ],
+    );
+    let cold = run(dir.path(), Some(cache.path()));
+    assert_eq!(certainty(&cold.report, "./src/main.ts"), ["direct"]);
+
+    // Under nodenext an extensionless relative ES import is not how Node
+    // resolves it: the edge stays, but only inferred.
+    write(
+        dir.path(),
+        &[(
+            "tsconfig.json",
+            "{\"compilerOptions\":{\"module\":\"nodenext\",\"moduleResolution\":\"nodenext\"}}\n",
+        )],
+    );
+    let warm = assert_matches_fresh(dir.path(), cache.path());
+    assert_eq!(certainty(&warm.report, "./src/main.ts"), ["inferred"]);
+}
+
+#[test]
+fn a_framework_config_added_is_seen() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        &[
+            ("package.json", "{\"name\":\"root\",\"private\":true}\n"),
+            ("src/lib/util.ts", "export const a = 1;\n"),
+            ("apps/web/src/lib/util.ts", "export const b = 1;\n"),
+            (
+                "apps/web/src/routes/page.ts",
+                "import { b } from \"$lib/util\";\nconsole.log(b);\n",
+            ),
+        ],
+    );
+    let cold = run(dir.path(), Some(cache.path()));
+    assert_eq!(
+        edges(&cold.report, "./apps/web/src/routes/page.ts"),
+        ["./src/lib/util.ts"]
+    );
+
+    // A SvelteKit config pins `$lib` to its own `src/lib`.
+    write(
+        dir.path(),
+        &[("apps/web/svelte.config.js", "export default {};\n")],
+    );
+    let warm = assert_matches_fresh(dir.path(), cache.path());
+    assert_eq!(
+        edges(&warm.report, "./apps/web/src/routes/page.ts"),
+        ["./apps/web/src/lib/util.ts"]
+    );
+}
