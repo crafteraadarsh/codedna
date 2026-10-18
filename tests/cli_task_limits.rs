@@ -73,7 +73,14 @@ fn entry<'a>(task: &'a Value, file: &str) -> &'a Value {
         .unwrap()
         .iter()
         .chain(task["tests"].as_array().unwrap())
-        .find(|f| f["file"].as_str().unwrap().trim_start_matches("./") == file)
+        .find(|f| {
+            f["file"]
+                .as_str()
+                .unwrap()
+                .replace('\\', "/")
+                .trim_start_matches("./")
+                == file
+        })
         .unwrap_or_else(|| panic!("{file} is not listed: {task}"))
 }
 
@@ -84,9 +91,10 @@ fn strings(value: &Value) -> Vec<String> {
         .iter()
         // Paths may be shown as ./src/x.ts; import specifiers keep their ./
         .map(|v| {
-            let v = v.as_str().unwrap();
+            // Windows shows paths with backslashes.
+            let v = v.as_str().unwrap().replace('\\', "/");
             v.strip_prefix("./")
-                .unwrap_or(v)
+                .unwrap_or(&v)
                 .replace(" ./src/", " src/")
         })
         .collect()
