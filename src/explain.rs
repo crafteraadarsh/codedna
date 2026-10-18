@@ -39,7 +39,8 @@ pub struct Provenance {
     pub rules_version: u32,
     /// Always `static`: files were read, never run.
     pub analysis: &'static str,
-    /// Active framework adapters as `adapter@version (manifest)`.
+    /// Framework adapters active in any manifest, as `adapter@version`;
+    /// a configured entry point cites the manifest line that names it.
     pub adapters: Vec<String>,
     /// The Git commit checked out, if the folder is in a Git repository.
     /// Uncommitted changes are not part of it; `snapshot` covers them.
@@ -252,14 +253,7 @@ pub fn provenance(root: &Path, result: &AnalysisResult) -> Provenance {
         .dependencies
         .adapters
         .iter()
-        .map(|a| {
-            format!(
-                "{}@{} ({})",
-                a.adapter,
-                a.version,
-                key(&a.manifest).replace('\\', "/")
-            )
-        })
+        .map(|a| format!("{}@{}", a.adapter, a.version))
         .collect();
     adapters.sort();
     adapters.dedup();

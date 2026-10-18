@@ -141,6 +141,8 @@ codedna runbook .                              # scripts, env var names, API rou
 codedna topology .                             # what deployment files run, how it is reached, which code
 codedna packages .                             # monorepo packages: size, stack, who uses whom
 codedna impact . --base origin/main            # what your branch affects: importers, layers, routes, tests
+codedna explain src/app.ts .                   # why a file counts as used or dead, with the import chain
+codedna query references src/db.ts .           # who imports a file, each with its line
 
 codedna report . --format html -o report.html  # shareable report (print to PDF)
 codedna json . > before.json                   # save a snapshot...
@@ -156,7 +158,7 @@ CodeDna works with any agent that can run a shell command, and connects natively
 **2. MCP server.** `codedna mcp` serves read-only tools over stdio:
 
 <p>
-<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code> · <code>get_topology</code> · <code>list_packages</code> · <code>get_impact</code>
+<code>get_context</code> · <code>analyze_repo</code> · <code>get_stack</code> · <code>list_files</code> · <code>find_framework_usage</code> · <code>find_dead_code</code> · <code>find_circular_imports</code> · <code>repo_map</code> · <code>find_hotspots</code> · <code>audit_repo</code> · <code>get_runbook</code> · <code>get_topology</code> · <code>list_packages</code> · <code>get_impact</code> · <code>explain</code> · <code>query</code>
 </p>
 
 | Agent | Setup |
@@ -232,6 +234,8 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna topology [path\|url]` | What the deployment files say will run: Kubernetes, Helm, Skaffold, Docker Compose, Serverless Framework, AWS SAM and CloudFormation, Vercel, Netlify, Cloudflare Workers, Fly.io, Render, App Engine and Procfile. Each unit with its image, ports, replicas, schedule, what reaches it (Services, Ingress, HTTP and queue events) and the code it runs (`--json`) |
 | `codedna packages [path\|url]` | Monorepo packages with size, languages, stack, dead files and the packages each one uses and is used by (`--json`) |
 | `codedna impact [path]` | What a change affects: changed files, the files that import them, layers, API routes and tests to run. Compares uncommitted work with `HEAD`, or a branch with `--base origin/main` from where it left it (`--json`, `--markdown`) |
+| `codedna explain <file\|id> [path]` | Why a file is used, unused or in a cycle: its entry point and why that counts as one, the import chain that reaches it with the line of each step, its dead-code finding, importers, imports, the assumptions behind the answer and provenance (analyzer and rules version, git revision, snapshot hash). Accepts a file path, `dead:<file>` or `cycle:<file>` (`--json`) |
+| `codedna query <op> … [path]` | Import facts with evidence: `references <file>` (who imports it), `imports <file>`, `path <from> <to>` (shortest import chain), `entrypoints` (each root with its reason), `unresolved [--file F]` (imports that did not resolve). `--json`, `--limit N` (default 50) |
 | `codedna report [path\|url] -o FILE` | Shareable Markdown report (`--format html` for a self-contained page) |
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |

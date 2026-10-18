@@ -220,6 +220,21 @@ codedna diff old.json new.json --json
 
 Compares two versions of a project. Each side is a snapshot saved with `codedna json`, a folder or a Git URL (the second defaults to `.`). It shows lines of code and file counts before and after, project type and architecture changes, frameworks, databases and infrastructure added or removed, per-language line changes, files added, removed or resized (25 of each, largest first, with totals) and files that newly look unused. Snapshot files over 64 MB are refused, and every name read from one is sanitized before it is printed.
 
+### Explain and Query
+
+```bash
+codedna explain src/app.ts .
+codedna explain dead:src/old.ts . --json
+codedna explain cycle:src/a.ts .
+codedna query references src/db.ts .
+codedna query imports src/app.ts .
+codedna query path src/index.ts src/db.ts .
+codedna query entrypoints . --limit 20
+codedna query unresolved . --file src/app.ts --json
+```
+
+`explain` says why a file is used, unused or in a cycle: its entry point and the reason it counts as one (a name like `index.ts`, a convention, or a configured entry with the manifest line), the shortest import chain from it with the file, line and specifier of each step, the dead-code finding with its confidence, importers and imports, the assumptions the answer rests on, and provenance (analyzer, schema and rules versions, adapters, git revision and a snapshot hash of file contents). `query` returns single facts with the same evidence. Lists default to 50 items (`--limit`, max 1000) and report `total` and `truncated`. Only static imports CodeDna follows count; Rust `use` statements are not listed as imports. MCP: `explain` (`target`) and `query` (`op`, `file`, `to`, `limit`).
+
 ### MCP Server
 
 ```bash
@@ -227,7 +242,7 @@ codedna mcp
 codedna mcp --root ~/code
 ```
 
-Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`, `get_topology`, `list_packages`, `get_impact`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
+Serves read-only tools over stdio (JSON-RPC 2.0): `get_context`, `analyze_repo`, `get_stack`, `list_files`, `find_framework_usage`, `find_dead_code`, `find_circular_imports`, `repo_map`, `find_hotspots`, `audit_repo`, `get_runbook`, `get_topology`, `list_packages`, `get_impact`, `explain`, `query`. Local paths must be inside the start directory or a `--root`; remote repositories must be public `https://` URLs. Output is size-capped, and file names are returned as data.
 
 ### Full Intelligence Analysis
 
