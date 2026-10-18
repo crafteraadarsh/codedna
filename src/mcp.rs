@@ -1127,6 +1127,11 @@ mod tests {
         assert_eq!(r["result"]["isError"], true);
     }
 
+    /// A path value with forward slashes, as Windows shows paths with `\\`.
+    fn slashed(v: &Value) -> String {
+        v.as_str().unwrap_or_default().replace('\\', "/")
+    }
+
     fn text_json(r: &Value) -> Value {
         let text = r["result"]["content"][0]["text"].as_str().unwrap();
         serde_json::from_str(text).unwrap_or_else(|_| panic!("not JSON: {text}"))
@@ -1146,7 +1151,7 @@ mod tests {
         let v = text_json(&r);
         assert_eq!(v["id"], "file:./src/util.rs", "{v}");
         assert_eq!(v["usage"], "confirmed", "{v}");
-        assert_eq!(v["root"]["file"], "./src/main.rs", "{v}");
+        assert_eq!(slashed(&v["root"]["file"]), "./src/main.rs", "{v}");
         assert_eq!(v["witness"][0]["evidence"]["line"], 1, "{v}");
         assert_eq!(v["witness"][0]["evidence"]["rule"], "rust.mod", "{v}");
         assert!(!v["assumptions"].as_array().unwrap().is_empty(), "{v}");
@@ -1173,7 +1178,7 @@ mod tests {
             json!({ "path": path, "op": "references", "file": "src/util.rs" }),
         ));
         assert_eq!(v["total"], 1, "{v}");
-        assert_eq!(v["facts"][0]["source"], "./src/main.rs", "{v}");
+        assert_eq!(slashed(&v["facts"][0]["source"]), "./src/main.rs", "{v}");
         let v = text_json(&tool(
             &s,
             "query",
@@ -1185,7 +1190,11 @@ mod tests {
             "query",
             json!({ "path": path, "op": "entrypoints" }),
         ));
-        assert_eq!(v["entrypoints"][0]["file"], "./src/main.rs", "{v}");
+        assert_eq!(
+            slashed(&v["entrypoints"][0]["file"]),
+            "./src/main.rs",
+            "{v}"
+        );
         let v = text_json(&tool(
             &s,
             "query",
