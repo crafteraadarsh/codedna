@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn one_large_repository_widens_the_bootstrap() {
         // Same pooled precision, but almost all from one repository.
-        let spread: Vec<(usize, usize)> = (0..20).map(|_| (9, 10)).collect();
+        let spread: Vec<(usize, usize)> = (0..20).map(|i| (9 + i % 2, 10)).collect();
         let mut lumped = vec![(170, 180)];
         lumped.extend((0..19).map(|_| (1, 1)));
         lumped.push((0, 1));
@@ -215,8 +215,13 @@ mod tests {
             let (lo, hi) = bootstrap(r);
             hi - lo
         };
-        assert!(width(&lumped) > 0.0);
         assert!(width(&spread) > 0.0);
+        assert!(
+            width(&lumped) > width(&spread),
+            "{} {}",
+            width(&lumped),
+            width(&spread)
+        );
     }
 
     #[test]

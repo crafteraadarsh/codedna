@@ -110,6 +110,7 @@ pub struct SetEntry {
     pub name: String,
     pub role: String,
     pub about: String,
+    #[allow(dead_code)] // checked by tests; kept as a record
     pub labelled_with: String,
     pub exposure: Vec<Exposure>,
 }
@@ -385,8 +386,7 @@ impl Set {
             .map(|x| format!("; last read {} with {}", x.date, x.version))
             .unwrap_or_default();
         format!(
-            "labelled with {}; read {} time{}, {} used for tuning{last}",
-            e.labelled_with,
+            "labels read {} time{}, {} of them to tune detectors{last}",
             e.exposure.len(),
             if e.exposure.len() == 1 { "" } else { "s" },
             tuned

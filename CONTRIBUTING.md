@@ -295,11 +295,16 @@ cargo test -p codedna detects_react_from_package_json
 cargo test -- --nocapture
 ```
 
-The test suite currently has **370+ tests** across all modules. All tests must pass before a PR is merged.
+The test suite currently has **590+ tests** across all modules. All tests must pass before a PR is merged.
 
-If you change how dead code, audit findings or architecture are rated, check the measured confidence too. There are three labelled sets: `calibration/` (original), `calibration/fresh/` and `calibration/third/`, each with a `corpus.json` of pinned repositories and a `labels.json` of hand-checked results. Clone a set's repositories at their pinned commits into one folder, then run `codedna calibration --set original --corpus DIR` with your build. It scores those labels against what your build reports now.
+If you change how dead code, audit findings or architecture are rated, check the measured confidence too. There are three labelled sets: `calibration/` (original), `calibration/fresh/` and `calibration/third/`, each with a `corpus.json` of pinned repositories and a `labels.json` of hand-checked results. `calibration/protocol.json` gives each its role.
 
-The third set is the held-out one: tune and debug against the original and fresh sets only, and do not read `calibration/third/labels.json` while changing a detector. If a change is made after reading the third labels, say so in the PR and in the set's description in `src/calibration.rs`, because those numbers then stop being independent, and a new set is needed for an honest figure.
+- Run `codedna calibration --fixtures --check` first; it needs no clones.
+- Clone the development sets at their pinned commits into one folder (keep each `.git`), then run `codedna calibration --role development --corpus DIR --baseline calibration/baseline/development.json`. It fails when a labelled result got worse. CI runs the same check.
+- If a change is meant to move results, explain the differences in the PR, re-check any architecture label shown as stale, and record a new baseline with `--write-baseline`.
+- `--queue FILE` samples unlabelled results to label next; add them to a development set's `labels.json`.
+
+The third set is sealed: tune and debug against the development sets only, and do not read `calibration/third/labels.json` or its detailed results. It is measured once per release with `codedna calibration --set third --corpus DIR --release`, which shows aggregates only. If its details are ever read, record that in `calibration/protocol.json` as an exposure with `details_used_for_tuning` set, and change its role to development: its numbers then stop being independent, and a new sealed set is needed for an honest figure.
 
 ---
 
