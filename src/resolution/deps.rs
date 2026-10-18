@@ -77,9 +77,19 @@ pub fn recording<T>(f: impl FnOnce() -> T) -> (T, HashSet<Dep>) {
     (value, deps)
 }
 
-/// A stable 64-bit fingerprint of a value's debug form. The resolver's
-/// types keep maps as ordered lists, so the form does not depend on hash
-/// order.
-pub fn fingerprint(value: &impl std::fmt::Debug) -> u64 {
+/// A 64-bit fingerprint of a value. It is the same from run to run for a
+/// given build; another build may give other values, which only makes the
+/// cache recompute.
+pub fn fingerprint(value: &impl std::hash::Hash) -> u64 {
+    use std::hash::Hasher;
+    let mut hasher = xxhash_rust::xxh3::Xxh3Default::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// A fingerprint of a value's debug form, for parsed configs that hold
+/// JSON. The resolver's types keep maps as ordered lists, so the form does
+/// not depend on hash order.
+pub fn fingerprint_debug(value: &impl std::fmt::Debug) -> u64 {
     xxhash_rust::xxh3::xxh3_64(format!("{value:?}").as_bytes())
 }

@@ -155,6 +155,7 @@ pub fn build_facts(
     };
 
     // Each file is parsed independently — no shared mutable state needed.
+    cache.prepare(observe);
     let parsed: Vec<(PathBuf, Vec<DependencyFact>, ImportTally)> = files
         .par_iter()
         .filter(|file| is_source_file(file))

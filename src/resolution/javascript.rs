@@ -27,16 +27,17 @@
 //!   `pnpm-workspace.yaml`) do not compete: the importer's own, innermost
 //!   workspace decides.
 
-use super::deps::{fingerprint, record, Dep};
+use super::deps::{fingerprint, fingerprint_debug, record, Dep};
 use super::{Json, Outcome, Target, MAX_CONFIG_BYTES};
 use crate::dependency_graph::normalize;
 use crate::facts::{Certainty, DependencyFact, DependencyKind, Resolution};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Whether a file runs as an ES module or as CommonJS.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Format {
     Esm,
     Cjs,
@@ -290,6 +291,25 @@ pub struct Resolver {
     sorted: Vec<PathBuf>,
     /// Fingerprint of the files directly in each folder, made on first use.
     children: std::sync::OnceLock<HashMap<PathBuf, u64>>,
+    /// Fingerprint of each package and each config, made on first use.
+    fingerprints: std::sync::OnceLock<Fingerprints>,
+    /// Each folder of known files → its nearest package directory and
+    /// nearest config file, made on first use.
+    nearest: std::sync::OnceLock<HashMap<PathBuf, Nearest>>,
+}
+
+/// The nearest package directory and project config above a folder.
+#[derive(Debug, Default, Clone)]
+struct Nearest {
+    package: Option<PathBuf>,
+    project: Option<PathBuf>,
+}
+
+/// Fingerprints of the parsed packages and configs, by directory and file.
+#[derive(Debug, Default)]
+struct Fingerprints {
+    packages: HashMap<PathBuf, u64>,
+    configs: HashMap<PathBuf, u64>,
 }
 
 /// What an `import.meta.glob` expands to.
@@ -540,8 +560,11 @@ impl Resolver {
     pub fn context<'r>(&'r self, file: &'r Path) -> Context<'r> {
         record(|| Dep::Context(file.to_path_buf()));
         let dir = file.parent().unwrap_or(Path::new(""));
-        let package = dir.ancestors().find_map(|d| self.packages.get(d));
-        let config = self.config_for(file);
+        let near = self.nearest(dir);
+        let package = near.package.as_ref().and_then(|d| self.packages.get(d));
+        let config = self
+            .config_path_in(file, near.project.as_ref())
+            .and_then(|p| self.configs.get(p));
         let ext = file
             .extension()
             .and_then(|e| e.to_str())
@@ -569,22 +592,36 @@ impl Resolver {
         };
         Some(match dep {
             Dep::Dir(dir) => self.children(dir),
-            Dep::Context(file) => fingerprint(&self.context(file)),
-            Dep::Name(name) => fingerprint(&self.by_name.get(name).map(|dirs| {
-                dirs.iter()
-                    .map(|d| (d, self.packages.get(d), self.members.get(d)))
-                    .collect::<Vec<_>>()
-            })),
+            Dep::Context(file) => {
+                let fp = self.fingerprints();
+                let near = self.nearest(file.parent().unwrap_or(Path::new("")));
+                let package = near.package.as_ref().and_then(|d| fp.packages.get(d));
+                let config = self
+                    .config_path_in(file, near.project.as_ref())
+                    .and_then(|c| fp.configs.get(c));
+                let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("");
+                fingerprint(&(package, config, ext.to_ascii_lowercase()))
+            }
+            Dep::Name(name) => {
+                let fp = self.fingerprints();
+                fingerprint(&self.by_name.get(name).map(|dirs| {
+                    dirs.iter()
+                        .map(|d| (d, fp.packages.get(d), self.members.get(d)))
+                        .collect::<Vec<_>>()
+                }))
+            }
             Dep::Members(dir) => fingerprint(&self.members.get(dir)),
             Dep::Built(dir) => {
-                let project = self.projects.get(dir).and_then(|p| self.configs.get(p));
+                let fp = self.fingerprints();
+                let path = self.projects.get(dir);
+                let project = path.and_then(|p| self.configs.get(p));
                 let references = project.map(|p| {
                     p.references
                         .iter()
-                        .map(|r| (r, self.configs.get(r)))
+                        .map(|r| (r, fp.configs.get(r)))
                         .collect::<Vec<_>>()
                 });
-                fingerprint(&(project, references))
+                fingerprint(&(path.and_then(|p| fp.configs.get(p)), references))
             }
             Dep::Svelte(dir) => nearest(&self.svelte, dir),
             Dep::Docusaurus(dir) => nearest(&self.docusaurus, dir),
@@ -633,24 +670,83 @@ impl Resolver {
             .unwrap_or_else(|| fingerprint(&Vec::<&PathBuf>::new()))
     }
 
-    /// The config TypeScript uses for `file`: the nearest `tsconfig.json`
-    /// (else `jsconfig.json`) above it, or, for a solution config, the
-    /// referenced config that includes the file.
-    fn config_for(&self, file: &Path) -> Option<&TsConfig> {
-        let path = file
-            .ancestors()
-            .skip(1)
-            .find_map(|d| self.projects.get(d))?;
+    /// The config TypeScript uses for `file`, given `project`, the nearest
+    /// `tsconfig.json` (else `jsconfig.json`) above it: that config, or, for
+    /// a solution config, the referenced config that includes the file.
+    fn config_path_in<'r>(
+        &'r self,
+        file: &Path,
+        project: Option<&'r PathBuf>,
+    ) -> Option<&'r PathBuf> {
+        let path = project?;
         let config = self.configs.get(path)?;
         if config.includes(file) || config.references.is_empty() {
-            return Some(config);
+            return Some(path);
         }
         config
             .references
             .iter()
-            .filter_map(|r| self.configs.get(r))
-            .find(|r| r.includes(file))
-            .or(Some(config))
+            .find(|r| self.configs.get(*r).is_some_and(|c| c.includes(file)))
+            .or(Some(path))
+    }
+
+    /// The nearest package and config above `dir`. Folders of known files
+    /// are worked out once; any other folder walks its ancestors.
+    fn nearest(&self, dir: &Path) -> std::borrow::Cow<'_, Nearest> {
+        let walk = |dir: &Path, memo: Option<&HashMap<PathBuf, Nearest>>| {
+            let mut near = Nearest::default();
+            for d in dir.ancestors() {
+                if near.package.is_none() && self.packages.contains_key(d) {
+                    near.package = Some(d.to_path_buf());
+                }
+                if near.project.is_none() {
+                    near.project = self.projects.get(d).cloned();
+                }
+                if near.package.is_some() && near.project.is_some() {
+                    break;
+                }
+                if d != dir {
+                    if let Some(above) = memo.and_then(|m| m.get(d)) {
+                        near.package = near.package.or_else(|| above.package.clone());
+                        near.project = near.project.or_else(|| above.project.clone());
+                        break;
+                    }
+                }
+            }
+            near
+        };
+        let memo = self.nearest.get_or_init(|| {
+            let mut memo = HashMap::new();
+            let mut dirs: Vec<&Path> = self.sorted.iter().filter_map(|p| p.parent()).collect();
+            dirs.dedup();
+            dirs.sort();
+            dirs.dedup();
+            for dir in dirs {
+                let near = walk(dir, Some(&memo));
+                memo.insert(dir.to_path_buf(), near);
+            }
+            memo
+        });
+        match memo.get(dir) {
+            Some(near) => std::borrow::Cow::Borrowed(near),
+            None => std::borrow::Cow::Owned(walk(dir, Some(memo))),
+        }
+    }
+
+    /// Fingerprints of every package and config, made once.
+    fn fingerprints(&self) -> &Fingerprints {
+        self.fingerprints.get_or_init(|| Fingerprints {
+            packages: self
+                .packages
+                .par_iter()
+                .map(|(d, p)| (d.clone(), fingerprint_debug(&(d, p))))
+                .collect(),
+            configs: self
+                .configs
+                .par_iter()
+                .map(|(f, c)| (f.clone(), fingerprint_debug(&(f, c))))
+                .collect(),
+        })
     }
 
     /// Resolve `request` made by the file `ctx` describes.

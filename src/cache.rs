@@ -253,6 +253,9 @@ struct Inner {
     new_deps: Mutex<HashMap<PathBuf, Vec<(Dep, u64)>>>,
     /// Current fingerprints of the lookups checked this run.
     observed: Mutex<HashMap<Dep, u64>>,
+    /// Current fingerprint of each stored lookup, by its index, when
+    /// [`Cache::prepare`] worked them out up front.
+    current: OnceLock<Vec<u64>>,
     stats: Stats,
 }
 
@@ -405,6 +408,7 @@ impl Cache {
                 new: Mutex::new(HashMap::new()),
                 new_deps: Mutex::new(HashMap::new()),
                 observed: Mutex::new(HashMap::new()),
+                current: OnceLock::new(),
                 stats: Stats::default(),
             }),
         }
@@ -502,6 +506,21 @@ impl Cache {
         )
     }
 
+    /// Work out the current fingerprint of every stored lookup at once, in
+    /// parallel, before files ask for their dependency facts.
+    pub fn prepare(&self, observe: impl Fn(&Dep) -> u64 + Sync) {
+        use rayon::prelude::*;
+        if let Some(inner) = &self.inner {
+            let current = inner
+                .old
+                .deps
+                .par_iter()
+                .map(|(dep, _)| observe(dep))
+                .collect();
+            let _ = inner.current.set(current);
+        }
+    }
+
     /// The dependency facts of `file` and what happened to its imports.
     /// `observe` gives the current fingerprint of a lookup the resolution
     /// made; stored facts are reused only while every lookup they were
@@ -523,7 +542,11 @@ impl Cache {
                 let i = e.imports.as_ref()?;
                 for &index in &i.deps {
                     let (dep, then) = inner.old.deps.get(index as usize)?;
-                    if inner.observe(dep, &observe) != *then {
+                    let now = match inner.current.get() {
+                        Some(current) => *current.get(index as usize)?,
+                        None => inner.observe(dep, &observe),
+                    };
+                    if now != *then {
                         return None;
                     }
                 }
