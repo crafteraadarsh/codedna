@@ -249,14 +249,7 @@ fn snapshot(root: &Path, result: &AnalysisResult) -> String {
 
 /// Provenance of `result`, analyzed from `root`.
 pub fn provenance(root: &Path, result: &AnalysisResult) -> Provenance {
-    let mut adapters: Vec<String> = result
-        .dependencies
-        .adapters
-        .iter()
-        .map(|a| format!("{}@{}", a.adapter, a.version))
-        .collect();
-    adapters.sort();
-    adapters.dedup();
+    let adapters = adapter_names(result);
     Provenance {
         analyzer: result.analyzer.clone(),
         schema_version: result.schema_version,
@@ -266,6 +259,50 @@ pub fn provenance(root: &Path, result: &AnalysisResult) -> Provenance {
         revision: revision(root),
         snapshot: snapshot(root, result),
     }
+}
+
+/// Active framework adapters as `adapter@version`, each once, sorted.
+fn adapter_names(result: &AnalysisResult) -> Vec<String> {
+    let mut adapters: Vec<String> = result
+        .dependencies
+        .adapters
+        .iter()
+        .map(|a| format!("{}@{}", a.adapter, a.version))
+        .collect();
+    adapters.sort();
+    adapters.dedup();
+    adapters
+}
+
+/// What every graph answer about `result` rests on: static reading, how
+/// entry points are chosen, and how much of the import graph was followed.
+pub fn assumptions(result: &AnalysisResult) -> Vec<String> {
+    let mut out = vec![
+        "Static analysis: files were read, never run. Only dependencies CodeDna reads are \
+         edges; code loaded by a name built at runtime (reflection, plugin loaders, computed \
+         paths) is not followed."
+            .to_string(),
+    ];
+    let adapters = adapter_names(result);
+    let adapters = if adapters.is_empty() {
+        "none active".to_string()
+    } else {
+        adapters.join(", ")
+    };
+    out.push(format!(
+        "Entry points are files named like entry points, files loaded by convention (tests, \
+         configs, routes, declaration files) and files framework adapters name (adapters: \
+         {adapters})."
+    ));
+    let coverage = &result.coverage;
+    if coverage.is_partial() {
+        out.push(format!(
+            "Coverage is partial: {}. Files reached only through what was not followed look \
+             less used than they are.",
+            coverage.summary.trim_end_matches('.')
+        ));
+    }
+    out
 }
 
 impl<'a> Explainer<'a> {
@@ -552,31 +589,7 @@ impl<'a> Explainer<'a> {
 
     /// What every graph answer rests on.
     fn common_assumptions(&self) -> Vec<String> {
-        let mut out = vec![
-            "Static analysis: files were read, never run. Only dependencies CodeDna reads are \
-             edges; code loaded by a name built at runtime (reflection, plugin loaders, computed \
-             paths) is not followed."
-                .to_string(),
-        ];
-        let adapters = if self.provenance.adapters.is_empty() {
-            "none active".to_string()
-        } else {
-            self.provenance.adapters.join(", ")
-        };
-        out.push(format!(
-            "Entry points are files named like entry points, files loaded by convention (tests, \
-             configs, routes, declaration files) and files framework adapters name (adapters: \
-             {adapters})."
-        ));
-        let coverage = &self.result.coverage;
-        if coverage.is_partial() {
-            out.push(format!(
-                "Coverage is partial: {}. Files reached only through what was not followed look \
-                 less used than they are.",
-                coverage.summary.trim_end_matches('.')
-            ));
-        }
-        out
+        assumptions(self.result)
     }
 
     fn file_assumptions(

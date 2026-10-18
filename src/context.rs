@@ -421,10 +421,14 @@ fn render_task(out: &mut String, task: &crate::task::TaskContext) {
         let tests: Vec<String> = task.tests.iter().map(|t| code(&t.file)).collect();
         let _ = writeln!(out, "- Tests: {}", tests.join(", "));
     }
-    let _ = writeln!(
-        out,
-        "\nMatched by name and wording, not meaning; check before relying on it."
-    );
+    if task.limits.notes.is_empty() {
+        let _ = writeln!(
+            out,
+            "\nMatched by name and wording, not meaning; check before relying on it."
+        );
+    } else {
+        let _ = writeln!(out, "\nLimits: {}", task.limits.notes.join(" "));
+    }
 }
 
 /// A cycle as `a → b → a`, with long cycles shortened to their first files.
@@ -636,8 +640,10 @@ mod tests {
                 score: 100,
                 reasons: vec!["name matches \"cli\"".to_string()],
                 usage: None,
+                evidence: vec![],
             }],
             tests: vec![],
+            limits: Default::default(),
         };
         let pack = build_with_task(&sample(), TREE, DEFAULT_MAX_TOKENS, Some(task));
         let md = render_markdown(&pack);

@@ -101,9 +101,12 @@ All commands accept either a **local path** or a **Git URL**.
 codedna context .
 codedna context . --max-tokens 1000
 codedna context . --format json
+codedna context . --task "add rate limiting"
 ```
 
 A short Markdown briefing sized for a context window: project type, architecture, size, stack, entry points, most imported files, largest files and a trimmed directory map. Default budget: 2000 tokens (minimum 300).
+
+With `--task`, the briefing opens with the files that matter for that task: files whose names or code mention its words, their import neighbours and related tests. Each has a reason and `evidence` (`src/widget.ts:3 mentions "render"`, `src/widget.ts:2 imports './paint'`). The `limits` block reports `matching` (`lexical`), `considered`, `candidates`, `shown`, `truncated`, `unmatched_terms`, `ignored_terms`, `large_files` (over 512 KiB), `path_only_files` (prose and data), `unreadable_files`, `coverage` and plain-language `notes`; the Markdown shows the notes as a `Limits:` line.
 
 ### Shareable Report
 
@@ -112,7 +115,7 @@ codedna report . -o report.md
 codedna report . --format html -o report.html
 ```
 
-A document for people: summary, stack, languages, entry points, most imported and largest files, hotspots, possibly unused files (up to 50) and a directory map. The HTML file is self-contained (no scripts or external resources) and has a print stylesheet, so a browser can save it as PDF. Everything taken from the repository is escaped.
+A document for people: summary, stack, languages, entry points, most imported and largest files, hotspots, possibly unused files (up to 50, each with its status, `unreachable`, `possibly loaded` or `unknown`, and a `codedna explain dead:<file>` hint), an "Assumptions and limits" section (static analysis, how entry points were found, import coverage, what the list leaves out) and a directory map. The HTML file is self-contained (no scripts or external resources) and has a print stylesheet, so a browser can save it as PDF. Everything taken from the repository is escaped.
 
 ### Hotspots
 

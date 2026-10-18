@@ -73,9 +73,45 @@ pub struct TaskFile {
     /// for a confirmed file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<UsageKind>,
+    /// Lines behind the reasons: `src/auth.ts:12 mentions "rate"` for the
+    /// first mention of each word, `src/app.ts:3 imports './auth'` for the
+    /// import that links a neighbour to a match.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<String>,
 }
 
-/// Files that matter for a task.
+/// What limited a task answer.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct TaskLimits {
+    /// Always `lexical`: files are matched by wording, not meaning.
+    pub matching: &'static str,
+    /// Files looked at.
+    pub considered: usize,
+    /// Files that matched the task, directly or as a strong enough neighbour.
+    pub candidates: usize,
+    /// Files and tests listed.
+    pub shown: usize,
+    /// Whether matching files were left out by the list limits.
+    pub truncated: bool,
+    /// Task words no file name, folder or code mentions.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unmatched_terms: Vec<String>,
+    /// Task words ignored because most paths contain them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ignored_terms: Vec<String>,
+    /// Code files over 512 KiB, searched by path only (content not read).
+    pub large_files: usize,
+    /// Prose, data and unrecognised files, searched by path only (content not read).
+    pub path_only_files: usize,
+    /// Code files that could not be read, searched by path only.
+    pub unreadable_files: usize,
+    /// How much of the import graph was followed, when not all of it was:
+    /// neighbours and tests are found through imports.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<String>,
+    /// The limits above as sentences for people.
+    pub notes: Vec<String>,
+}
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskContext {
     pub task: String,
@@ -83,24 +119,42 @@ pub struct TaskContext {
     pub terms: Vec<String>,
     pub files: Vec<TaskFile>,
     pub tests: Vec<TaskFile>,
+    /// What limited this answer.
+    #[serde(default)]
+    pub limits: TaskLimits,
+}
+
+/// A file's contents as the ranking sees them.
+pub enum Text {
+    Code(String),
+    /// Over `MAX_READ_BYTES`.
+    TooLarge,
+    Unreadable,
+}
+
+impl From<Option<String>> for Text {
+    fn from(text: Option<String>) -> Self {
+        text.map_or(Text::Unreadable, Text::Code)
+    }
 }
 
 /// Rank the files of an analysed repository at `root` for `task`.
 pub fn find(root: &Path, result: &AnalysisResult, task: &str) -> TaskContext {
     rank(result, task, |file| {
         let path = root.join(file);
-        let meta = std::fs::metadata(&path).ok()?;
-        if !meta.is_file() || meta.len() > MAX_READ_BYTES {
-            return None;
+        match std::fs::metadata(&path) {
+            Ok(meta) if meta.is_file() && meta.len() > MAX_READ_BYTES => Text::TooLarge,
+            Ok(meta) if meta.is_file() => std::fs::read_to_string(&path).ok().into(),
+            _ => Text::Unreadable,
         }
-        std::fs::read_to_string(&path).ok()
     })
 }
 
 /// Rank with file contents supplied by `read`, so tests need no files.
-fn rank<F>(result: &AnalysisResult, task: &str, read: F) -> TaskContext
+fn rank<F, T>(result: &AnalysisResult, task: &str, read: F) -> TaskContext
 where
-    F: Fn(&Path) -> Option<String> + Sync,
+    F: Fn(&Path) -> T + Sync,
+    T: Into<Text>,
 {
     let task: String = task.chars().take(MAX_TASK_CHARS).collect();
     let found = terms(&task);
@@ -113,36 +167,63 @@ where
         terms: found.iter().map(|(_, word)| sanitize(word)).collect(),
         files: Vec::new(),
         tests: Vec::new(),
+        limits: TaskLimits {
+            matching: "lexical",
+            considered: result.file_breakdown.len(),
+            ..TaskLimits::default()
+        },
     };
     if found.is_empty() {
+        context.limits.notes = limit_notes(&context.limits);
         return context;
     }
 
     // Count each term in every file's code, in parallel.
-    let counts: Vec<(&PathBuf, HashMap<String, usize>)> = result
+    let scanned: Vec<(&PathBuf, Mentions, Read)> = result
         .file_breakdown
         .par_iter()
         .map(|f| {
-            let mut counts = HashMap::new();
+            let mut counts: Mentions = HashMap::new();
             if PATH_ONLY.contains(&f.language.as_str()) {
-                return (&f.file, counts);
+                return (&f.file, counts, Read::PathOnly);
             }
-            if let Some(text) = read(&f.file) {
-                let ext = f
-                    .file
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("")
-                    .to_ascii_lowercase();
-                let code = crate::code_text::code_only(&ext, &text);
-                for word in words(&code) {
+            let text = match read(&f.file).into() {
+                Text::Code(text) => text,
+                Text::TooLarge => return (&f.file, counts, Read::TooLarge),
+                Text::Unreadable => return (&f.file, counts, Read::Unreadable),
+            };
+            let ext = f
+                .file
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let code = crate::code_text::code_only(&ext, &text);
+            for (line, text) in code.lines().enumerate() {
+                for word in words(text) {
                     if label.contains_key(word.as_str()) {
-                        *counts.entry(word).or_insert(0) += 1;
+                        counts.entry(word).or_insert((0, line + 1)).0 += 1;
                     }
                 }
             }
-            (&f.file, counts)
+            (&f.file, counts, Read::Code)
         })
+        .collect();
+    for (_, _, read) in &scanned {
+        match read {
+            Read::PathOnly => context.limits.path_only_files += 1,
+            Read::TooLarge => context.limits.large_files += 1,
+            Read::Unreadable => context.limits.unreadable_files += 1,
+            Read::Code => {}
+        }
+    }
+    let first_line: HashMap<(&PathBuf, &str), usize> = scanned
+        .iter()
+        .flat_map(|(file, c, _)| c.iter().map(move |(t, (_, l))| ((*file, t.as_str()), *l)))
+        .collect();
+    let counts: Vec<(&PathBuf, HashMap<String, usize>)> = scanned
+        .iter()
+        .map(|(file, c, _)| (*file, c.iter().map(|(t, (n, _))| (t.clone(), *n)).collect()))
         .collect();
 
     // Rarer terms say more: weight each by inverse document frequency.
@@ -186,10 +267,20 @@ where
         })
         .collect();
 
+    let mut matched_terms: HashSet<&str> = HashSet::new();
+    let mut evidence: HashMap<&PathBuf, Vec<String>> = HashMap::new();
     let mut scores: HashMap<&PathBuf, (f64, Vec<String>)> = HashMap::new();
     for ((file, mentions), (name_words, dir_words)) in counts.iter().zip(&paths) {
         let mut score = 0.0;
         let mut reasons = Vec::new();
+        for term in label.keys() {
+            if name_words.contains(*term)
+                || dir_words.contains(*term)
+                || mentions.contains_key(*term)
+            {
+                matched_terms.insert(term);
+            }
+        }
         for (term, word) in found.iter().filter(|(t, _)| !common.contains(t.as_str())) {
             if name_words.contains(term) {
                 score += 6.0 * idf(term).max(1.0);
@@ -204,6 +295,13 @@ where
         for (term, n) in mentioned {
             score += idf(term) * (1.0 + (*n as f64).ln()).min(4.0);
             reasons.push(format!("mentions \"{}\" {n}×", label[term.as_str()]));
+            if let Some(line) = first_line.get(&(*file, term.as_str())) {
+                evidence.entry(*file).or_default().push(format!(
+                    "{}:{line} mentions \"{}\"",
+                    show(file),
+                    label[term.as_str()]
+                ));
+            }
         }
         if score > 0.0 {
             scores.insert(file, (score, reasons));
@@ -235,43 +333,69 @@ where
         _ => (1.0, ""),
     };
     let usage = usage_by_file(result);
+    // The import line behind `importer → imported`, for evidence.
+    let mut lines: HashMap<(String, String), String> = HashMap::new();
+    for fact in &result.dependencies.facts {
+        let Some(line) = fact.evidence.line else {
+            continue;
+        };
+        for target in &fact.targets {
+            lines
+                .entry((key(&fact.source), key(target)))
+                .or_insert_with(|| {
+                    format!(
+                        "{}:{line} imports '{}'",
+                        show(&fact.source),
+                        sanitize(&fact.specifier)
+                    )
+                });
+        }
+    }
+    let import_line = |importer: &PathBuf, imported: &PathBuf| {
+        lines.get(&(key(importer), key(imported))).cloned()
+    };
     let mut seeds: Vec<(&PathBuf, f64)> = scores.iter().map(|(f, (s, _))| (*f, *s)).collect();
     seeds.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(b.0)));
     seeds.truncate(FILE_LIMIT);
-    let mut passed: HashMap<&PathBuf, (f64, String)> = HashMap::new();
+    let mut passed: HashMap<&PathBuf, (f64, String, Option<String>)> = HashMap::new();
     for (seed, score) in &seeds {
         let imports = result.dependency_graph.get(*seed).into_iter().flatten();
         let imported_by = importers.get(seed).into_iter().flatten().copied();
         let neighbours = imports
             .map(|n| {
                 let (weight, note) = link(seed, n);
-                (n, weight, format!("imported by {}{note}", show(seed)))
+                let reason = format!("imported by {}{note}", show(seed));
+                (n, weight, reason, import_line(seed, n))
             })
             .chain(imported_by.map(|n| {
                 let (weight, note) = link(n, seed);
-                (n, weight, format!("imports {}{note}", show(seed)))
+                let reason = format!("imports {}{note}", show(seed));
+                (n, weight, reason, import_line(n, seed))
             }));
         // A file that imports everything (`main.rs`, an index) passes on
         // little to each.
         let degree = result.dependency_graph.get(*seed).map_or(0, Vec::len)
             + importers.get(seed).map_or(0, BTreeSet::len);
         let share = score * NEIGHBOUR_SHARE * (5.0 / degree.max(1) as f64).min(1.0);
-        for (neighbour, weight, reason) in neighbours {
+        for (neighbour, weight, reason, line) in neighbours {
             if neighbour == *seed {
                 continue;
             }
             let share = share * weight;
-            let entry = passed.entry(neighbour).or_insert((0.0, String::new()));
+            let entry = passed
+                .entry(neighbour)
+                .or_insert((0.0, String::new(), None));
             if share > entry.0 {
-                *entry = (share, reason);
+                *entry = (share, reason, line);
             }
         }
     }
     let direct: HashSet<&PathBuf> = scores.keys().copied().collect();
-    for (file, (share, reason)) in passed {
+    for (file, (share, reason, line)) in passed {
         let entry = scores.entry(file).or_insert((0.0, Vec::new()));
         entry.0 += share;
         entry.1.push(reason);
+        evidence.entry(file).or_default().extend(line);
     }
 
     let mut ranked: Vec<(&PathBuf, f64, Vec<String>)> =
@@ -280,17 +404,22 @@ where
     let top = ranked.first().map(|r| r.1).unwrap_or(1.0).max(f64::EPSILON);
     let mut chosen: Vec<(&PathBuf, u32)> = Vec::new();
     let mut listed_tests: HashSet<&PathBuf> = HashSet::new();
+    let mut candidates = 0;
     for (file, score, mut reasons) in ranked {
         // A file found only through a weak link is noise.
         if !direct.contains(file) && score < top * NEIGHBOUR_FLOOR {
             continue;
         }
+        candidates += 1;
         reasons.truncate(REASON_LIMIT);
+        let mut lines = evidence.remove(file).unwrap_or_default();
+        lines.truncate(REASON_LIMIT);
         let entry = TaskFile {
             file: show(file),
             score: ((score / top) * 100.0).round().max(1.0) as u32,
             reasons,
             usage: usage.get(&key(file)).copied(),
+            evidence: lines,
         };
         if is_test(file) {
             if context.tests.len() < TEST_LIMIT {
@@ -309,21 +438,23 @@ where
         if context.tests.len() >= TEST_LIMIT {
             break;
         }
-        let mut near: Vec<(&PathBuf, String, u32)> = Vec::new();
+        let mut near: Vec<(&PathBuf, String, u32, Option<String>)> = Vec::new();
         for direct in importers.get(file).into_iter().flatten().copied() {
             if is_test(direct) {
-                near.push((direct, format!("imports {}", show(file)), 2));
+                let line = import_line(direct, file);
+                near.push((direct, format!("imports {}", show(file)), 2, line));
                 continue;
             }
             for test in importers.get(direct).into_iter().flatten().copied() {
                 if is_test(test) {
                     let reason = format!("imports {} via {}", show(file), show(direct));
-                    near.push((test, reason, 3));
+                    let line = import_line(test, direct);
+                    near.push((test, reason, 3, line));
                 }
             }
         }
         near.sort_by(|a, b| a.2.cmp(&b.2).then_with(|| a.0.cmp(b.0)));
-        for (test, reason, divisor) in near {
+        for (test, reason, divisor, line) in near {
             if context.tests.len() >= TEST_LIMIT {
                 break;
             }
@@ -333,11 +464,117 @@ where
                     score: (score / divisor).max(1),
                     reasons: vec![reason],
                     usage: usage.get(&key(test)).copied(),
+                    evidence: line.into_iter().collect(),
                 });
             }
         }
     }
+
+    let limits = &mut context.limits;
+    limits.shown = context.files.len() + context.tests.len();
+    limits.candidates = candidates.max(limits.shown);
+    limits.truncated = limits.candidates > limits.shown;
+    limits.unmatched_terms = found
+        .iter()
+        .filter(|(stem, _)| !matched_terms.contains(stem.as_str()))
+        .map(|(_, word)| sanitize(word))
+        .collect();
+    limits.ignored_terms = found
+        .iter()
+        .filter(|(stem, _)| common.contains(stem.as_str()))
+        .map(|(_, word)| sanitize(word))
+        .collect();
+    if result.coverage.is_partial() {
+        limits.coverage = Some(sanitize(&result.coverage.summary));
+    }
+    limits.notes = limit_notes(limits);
     context
+}
+
+/// Words, with their first line, mentioned in one file's code.
+type Mentions = HashMap<String, (usize, usize)>;
+
+/// How a file's contents were used.
+enum Read {
+    Code,
+    PathOnly,
+    TooLarge,
+    Unreadable,
+}
+
+/// Sentences for people about what limited a task answer.
+fn limit_notes(limits: &TaskLimits) -> Vec<String> {
+    let mut notes = vec![
+        "Matched by wording, not meaning: files that do the job under other names are missed."
+            .to_string(),
+    ];
+    if limits.truncated {
+        notes.push(format!(
+            "{} of {} matching files listed.",
+            limits.shown, limits.candidates
+        ));
+    }
+    if !limits.unmatched_terms.is_empty() {
+        notes.push(format!(
+            "Nothing mentions {}.",
+            quoted(&limits.unmatched_terms)
+        ));
+    }
+    if !limits.ignored_terms.is_empty() {
+        notes.push(format!(
+            "Ignored {}: most paths contain it.",
+            quoted(&limits.ignored_terms)
+        ));
+    }
+    if limits.large_files > 0 {
+        notes.push(format!(
+            "{} {} over 512 KiB searched by {} path only.",
+            limits.large_files,
+            plural(limits.large_files, "file"),
+            if limits.large_files == 1 {
+                "its"
+            } else {
+                "their"
+            }
+        ));
+    }
+    if limits.path_only_files > 0 {
+        notes.push(format!(
+            "{} prose, data or unrecognised {} searched by path only, not content.",
+            limits.path_only_files,
+            plural(limits.path_only_files, "file")
+        ));
+    }
+    if limits.unreadable_files > 0 {
+        notes.push(format!(
+            "{} {} could not be read.",
+            limits.unreadable_files,
+            plural(limits.unreadable_files, "file")
+        ));
+    }
+    if let Some(coverage) = &limits.coverage {
+        notes.push(format!(
+            "Neighbours and tests come from imports: {}",
+            coverage
+        ));
+    }
+    notes
+}
+
+fn quoted(words: &[String]) -> String {
+    words
+        .iter()
+        .map(|w| format!("\"{w}\""))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn plural(n: usize, word: &str) -> String {
+    if n == 1 {
+        word.to_string()
+    } else {
+        format!("{word}s")
+    }
 }
 
 /// The task's meaningful words as `(stem, word)`, in order, without repeats.
