@@ -16,6 +16,7 @@ use crate::facts::{Certainty, DependencyFact, DependencyKind, Resolution};
 use crate::graph;
 use crate::parsers::javascript::{self, RefKind as JsRefKind};
 use crate::parsers::ParseStatus;
+use crate::resolution::deps::{self, Dep};
 use crate::resolution::javascript::{GlobMatch, Request, Resolver, Syntax};
 use crate::resolution::{self, Outcome, Target};
 use rayon::prelude::*;
@@ -140,16 +141,30 @@ pub fn build_facts(
     BUILD.fetch_add(1, Ordering::Relaxed);
     let resolver = Resolver::from_files(files);
     let python_packages = python_packages(files);
+    let packages_fingerprint = {
+        let mut names: Vec<&String> = python_packages.iter().collect();
+        names.sort();
+        deps::fingerprint(&names)
+    };
+    // The current value of something a resolution looked at, for the cache
+    // to compare with what the stored facts saw.
+    let observe = |dep: &Dep| match dep {
+        Dep::Path(path) => deps::fingerprint(&path_kind(path)),
+        Dep::PythonPackages => packages_fingerprint,
+        other => resolver.observe(other).unwrap_or(0),
+    };
 
     // Each file is parsed independently — no shared mutable state needed.
+    cache.prepare(observe);
     let parsed: Vec<(PathBuf, Vec<DependencyFact>, ImportTally)> = files
         .par_iter()
         .filter(|file| is_source_file(file))
         .map(|file| {
             let key = normalize(file);
-            let (facts, tally) = cache.imports(file, || {
+            let (facts, tally) = cache.imports(file, observe, || {
                 let mut tally = ImportTally::default();
-                let facts = parse_dependencies_with(&key, &resolver, &python_packages, &mut tally);
+                let facts =
+                    parse_dependencies_with(&key, &resolver, &python_packages, cache, &mut tally);
                 (facts, tally)
             });
             (key, facts, tally)
@@ -308,6 +323,7 @@ thread_local! {
 
 /// What `path` is on disk, cached for the current build.
 fn path_kind(path: &Path) -> Option<bool> {
+    deps::record(|| Dep::Path(path.to_path_buf()));
     let build = BUILD.load(Ordering::Relaxed);
     KINDS.with(|cell| {
         let mut cache = cell.borrow_mut();
@@ -363,6 +379,7 @@ fn parse_dependencies(file: &Path) -> Vec<PathBuf> {
         file,
         &Resolver::from_files(&[]),
         &HashSet::new(),
+        &Cache::off(),
         &mut ImportTally::default(),
     );
     graph::from_facts([], &facts)
@@ -376,6 +393,7 @@ fn parse_dependencies_with(
     file: &Path,
     resolver: &Resolver,
     python_packages: &HashSet<String>,
+    cache: &Cache,
     tally: &mut ImportTally,
 ) -> Vec<DependencyFact> {
     let ext = file
@@ -394,7 +412,10 @@ fn parse_dependencies_with(
 
     match ext.as_str() {
         "ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
-        | "astro" => parse_js_ts_imports(file, &ext, &content, resolver, tally),
+        | "astro" => {
+            let scan = cache.scan(file, || javascript::scan(&ext, &content));
+            parse_js_ts_imports(file, scan, resolver, tally)
+        }
         "py" => parse_python_imports(file, parent, &content, python_packages, tally),
         "rs" => parse_rust_imports(file, parent, &content, tally),
         _ => Vec::new(),
@@ -416,12 +437,10 @@ fn parse_dependencies_with(
 /// neither counted nor drawn as edges.
 fn parse_js_ts_imports(
     file: &Path,
-    ext: &str,
-    content: &str,
+    scan: javascript::JsScan,
     resolver: &Resolver,
     tally: &mut ImportTally,
 ) -> Vec<DependencyFact> {
-    let scan = javascript::scan(ext, content);
     tally.parse = scan.status;
     tally.parse_errors = scan
         .diagnostics
@@ -631,6 +650,7 @@ fn parse_python_imports(
     python_packages: &HashSet<String>,
     tally: &mut ImportTally,
 ) -> Vec<DependencyFact> {
+    deps::record(|| Dep::PythonPackages);
     let mut facts = Vec::new();
 
     for (number, line) in python_logical_lines(content) {

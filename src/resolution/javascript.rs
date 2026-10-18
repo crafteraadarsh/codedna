@@ -27,15 +27,17 @@
 //!   `pnpm-workspace.yaml`) do not compete: the importer's own, innermost
 //!   workspace decides.
 
+use super::deps::{fingerprint, fingerprint_debug, record, Dep};
 use super::{Json, Outcome, Target, MAX_CONFIG_BYTES};
 use crate::dependency_graph::normalize;
 use crate::facts::{Certainty, DependencyFact, DependencyKind, Resolution};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Whether a file runs as an ES module or as CommonJS.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Format {
     Esm,
     Cjs,
@@ -67,6 +69,11 @@ enum Mode {
 
 /// The `${configDir}` template in config paths.
 const CONFIG_DIR: &str = "${configDir}";
+
+/// Version of the resolution rules in this file. Bump it whenever a change
+/// here can resolve the same import differently, so cached results made by
+/// the old rules are not reused.
+pub const RESOLVER_VERSION: u32 = 1;
 
 /// `paths` patterns and their targets, in the order written.
 type PathPatterns = Vec<(String, Vec<String>)>;
@@ -282,6 +289,27 @@ pub struct Resolver {
     vite: HashSet<PathBuf>,
     /// The known files in path order, for glob expansion.
     sorted: Vec<PathBuf>,
+    /// Fingerprint of the files directly in each folder, made on first use.
+    children: std::sync::OnceLock<HashMap<PathBuf, u64>>,
+    /// Fingerprint of each package and each config, made on first use.
+    fingerprints: std::sync::OnceLock<Fingerprints>,
+    /// Each folder of known files → its nearest package directory and
+    /// nearest config file, made on first use.
+    nearest: std::sync::OnceLock<HashMap<PathBuf, Nearest>>,
+}
+
+/// The nearest package directory and project config above a folder.
+#[derive(Debug, Default, Clone)]
+struct Nearest {
+    package: Option<PathBuf>,
+    project: Option<PathBuf>,
+}
+
+/// Fingerprints of the parsed packages and configs, by directory and file.
+#[derive(Debug, Default)]
+struct Fingerprints {
+    packages: HashMap<PathBuf, u64>,
+    configs: HashMap<PathBuf, u64>,
 }
 
 /// What an `import.meta.glob` expands to.
@@ -524,14 +552,19 @@ impl Resolver {
     }
 
     fn exists(&self, path: &Path) -> bool {
+        record(|| Dep::Dir(path.parent().unwrap_or(Path::new("")).to_path_buf()));
         self.known.contains(path) || (self.disk && fs::metadata(path).is_ok_and(|m| m.is_file()))
     }
 
     /// What resolution needs to know about `file`, the importer.
     pub fn context<'r>(&'r self, file: &'r Path) -> Context<'r> {
+        record(|| Dep::Context(file.to_path_buf()));
         let dir = file.parent().unwrap_or(Path::new(""));
-        let package = dir.ancestors().find_map(|d| self.packages.get(d));
-        let config = self.config_for(file);
+        let near = self.nearest(dir);
+        let package = near.package.as_ref().and_then(|d| self.packages.get(d));
+        let config = self
+            .config_path_in(file, near.project.as_ref())
+            .and_then(|p| self.configs.get(p));
         let ext = file
             .extension()
             .and_then(|e| e.to_str())
@@ -551,24 +584,169 @@ impl Resolver {
         }
     }
 
-    /// The config TypeScript uses for `file`: the nearest `tsconfig.json`
-    /// (else `jsconfig.json`) above it, or, for a solution config, the
-    /// referenced config that includes the file.
-    fn config_for(&self, file: &Path) -> Option<&TsConfig> {
-        let path = file
-            .ancestors()
-            .skip(1)
-            .find_map(|d| self.projects.get(d))?;
+    /// The current fingerprint of what `dep` names, for the lookups this
+    /// resolver makes. Call it outside a [`super::deps::recording`].
+    pub fn observe(&self, dep: &Dep) -> Option<u64> {
+        let nearest = |set: &HashSet<PathBuf>, dir: &Path| {
+            fingerprint(&dir.ancestors().find(|d| set.contains(*d)))
+        };
+        Some(match dep {
+            Dep::Dir(dir) => self.children(dir),
+            Dep::Context(file) => {
+                let fp = self.fingerprints();
+                let near = self.nearest(file.parent().unwrap_or(Path::new("")));
+                let package = near.package.as_ref().and_then(|d| fp.packages.get(d));
+                let config = self
+                    .config_path_in(file, near.project.as_ref())
+                    .and_then(|c| fp.configs.get(c));
+                let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("");
+                fingerprint(&(package, config, ext.to_ascii_lowercase()))
+            }
+            Dep::Name(name) => {
+                let fp = self.fingerprints();
+                fingerprint(&self.by_name.get(name).map(|dirs| {
+                    dirs.iter()
+                        .map(|d| (d, fp.packages.get(d), self.members.get(d)))
+                        .collect::<Vec<_>>()
+                }))
+            }
+            Dep::Members(dir) => fingerprint(&self.members.get(dir)),
+            Dep::Built(dir) => {
+                let fp = self.fingerprints();
+                let path = self.projects.get(dir);
+                let project = path.and_then(|p| self.configs.get(p));
+                let references = project.map(|p| {
+                    p.references
+                        .iter()
+                        .map(|r| (r, fp.configs.get(r)))
+                        .collect::<Vec<_>>()
+                });
+                fingerprint(&(path.and_then(|p| fp.configs.get(p)), references))
+            }
+            Dep::Svelte(dir) => nearest(&self.svelte, dir),
+            Dep::Docusaurus(dir) => nearest(&self.docusaurus, dir),
+            Dep::Vite(dir) => nearest(&self.vite, dir),
+            Dep::Glob(base) => {
+                let start = self.sorted.partition_point(|p| p < base);
+                let below: Vec<&PathBuf> = self.sorted[start..]
+                    .iter()
+                    .take_while(|p| p.starts_with(base))
+                    .collect();
+                fingerprint(&below)
+            }
+            Dep::Path(_) | Dep::PythonPackages => return None,
+        })
+    }
+
+    /// Fingerprint of the files directly in `dir`.
+    fn children(&self, dir: &Path) -> u64 {
+        if self.disk {
+            let mut names: Vec<String> = fs::read_dir(dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            return fingerprint(&names);
+        }
+        let by_dir = self.children.get_or_init(|| {
+            let mut grouped: HashMap<&Path, Vec<&PathBuf>> = HashMap::new();
+            for path in &self.sorted {
+                grouped
+                    .entry(path.parent().unwrap_or(Path::new("")))
+                    .or_default()
+                    .push(path);
+            }
+            grouped
+                .into_iter()
+                .map(|(dir, files)| (dir.to_path_buf(), fingerprint(&files)))
+                .collect()
+        });
+        by_dir
+            .get(dir)
+            .copied()
+            .unwrap_or_else(|| fingerprint(&Vec::<&PathBuf>::new()))
+    }
+
+    /// The config TypeScript uses for `file`, given `project`, the nearest
+    /// `tsconfig.json` (else `jsconfig.json`) above it: that config, or, for
+    /// a solution config, the referenced config that includes the file.
+    fn config_path_in<'r>(
+        &'r self,
+        file: &Path,
+        project: Option<&'r PathBuf>,
+    ) -> Option<&'r PathBuf> {
+        let path = project?;
         let config = self.configs.get(path)?;
         if config.includes(file) || config.references.is_empty() {
-            return Some(config);
+            return Some(path);
         }
         config
             .references
             .iter()
-            .filter_map(|r| self.configs.get(r))
-            .find(|r| r.includes(file))
-            .or(Some(config))
+            .find(|r| self.configs.get(*r).is_some_and(|c| c.includes(file)))
+            .or(Some(path))
+    }
+
+    /// The nearest package and config above `dir`. Folders of known files
+    /// are worked out once; any other folder walks its ancestors.
+    fn nearest(&self, dir: &Path) -> std::borrow::Cow<'_, Nearest> {
+        let walk = |dir: &Path, memo: Option<&HashMap<PathBuf, Nearest>>| {
+            let mut near = Nearest::default();
+            for d in dir.ancestors() {
+                if near.package.is_none() && self.packages.contains_key(d) {
+                    near.package = Some(d.to_path_buf());
+                }
+                if near.project.is_none() {
+                    near.project = self.projects.get(d).cloned();
+                }
+                if near.package.is_some() && near.project.is_some() {
+                    break;
+                }
+                if d != dir {
+                    if let Some(above) = memo.and_then(|m| m.get(d)) {
+                        near.package = near.package.or_else(|| above.package.clone());
+                        near.project = near.project.or_else(|| above.project.clone());
+                        break;
+                    }
+                }
+            }
+            near
+        };
+        let memo = self.nearest.get_or_init(|| {
+            let mut memo = HashMap::new();
+            let mut dirs: Vec<&Path> = self.sorted.iter().filter_map(|p| p.parent()).collect();
+            dirs.dedup();
+            dirs.sort();
+            dirs.dedup();
+            for dir in dirs {
+                let near = walk(dir, Some(&memo));
+                memo.insert(dir.to_path_buf(), near);
+            }
+            memo
+        });
+        match memo.get(dir) {
+            Some(near) => std::borrow::Cow::Borrowed(near),
+            None => std::borrow::Cow::Owned(walk(dir, Some(memo))),
+        }
+    }
+
+    /// Fingerprints of every package and config, made once.
+    fn fingerprints(&self) -> &Fingerprints {
+        self.fingerprints.get_or_init(|| Fingerprints {
+            packages: self
+                .packages
+                .par_iter()
+                .map(|(d, p)| (d.clone(), fingerprint_debug(&(d, p))))
+                .collect(),
+            configs: self
+                .configs
+                .par_iter()
+                .map(|(f, c)| (f.clone(), fingerprint_debug(&(f, c))))
+                .collect(),
+        })
     }
 
     /// Resolve `request` made by the file `ctx` describes.
@@ -634,6 +812,7 @@ impl Resolver {
         }
         let mut found = Vec::new();
         for (base, glob, hidden_ok, modules_ok) in &include {
+            record(|| Dep::Glob(base.clone()));
             let start = self.sorted.partition_point(|p| p < base);
             for path in self.sorted[start..]
                 .iter()
@@ -676,6 +855,7 @@ impl Resolver {
     /// describes.
     fn vite_root(&self, ctx: &Context) -> PathBuf {
         let dir = normalize(ctx.dir);
+        record(|| Dep::Vite(dir.clone()));
         let package = ctx.package.map(|p| normalize(&p.dir));
         for ancestor in dir.ancestors() {
             if self.vite.contains(ancestor) {
@@ -872,6 +1052,10 @@ impl Resolver {
     /// An import of one of the repository's own packages, by name.
     fn workspace(&self, ctx: &Context, request: Request) -> Option<Outcome> {
         let (name, subpath) = split_package(request.specifier)?;
+        record(|| Dep::Name(name.to_string()));
+        if let Some(own) = ctx.package {
+            record(|| Dep::Members(own.dir.clone()));
+        }
         let dirs = self.by_name.get(name)?;
         let chosen: Vec<&PathBuf> = if dirs.len() == 1 {
             dirs.iter().collect()
@@ -1060,6 +1244,7 @@ impl Resolver {
     /// `outDir/x.js` → `rootDir/x`, from the package's own `tsconfig.json`
     /// or a config it references.
     fn built_source(&self, package: &Package, built: &Path) -> Option<PathBuf> {
+        record(|| Dep::Built(package.dir.clone()));
         let project = self.configs.get(self.projects.get(&package.dir)?)?;
         let configs = std::iter::once(project).chain(
             project
@@ -1115,6 +1300,7 @@ impl Resolver {
                 .strip_prefix("$lib")
                 .unwrap_or("")
                 .trim_start_matches('/');
+            record(|| Dep::Svelte(ctx.dir.to_path_buf()));
             match marker(&self.svelte) {
                 Some(dir) => tries.push((dir.join("src/lib").join(rest), Certainty::Direct)),
                 None => {
@@ -1125,6 +1311,7 @@ impl Resolver {
             }
         } else {
             let rest = specifier.strip_prefix("@site/")?;
+            record(|| Dep::Docusaurus(ctx.dir.to_path_buf()));
             match marker(&self.docusaurus) {
                 Some(dir) => tries.push((dir.join(rest), Certainty::Direct)),
                 None => {

@@ -1,38 +1,58 @@
 //! Incremental cache: what each file's content showed on an earlier run, so
-//! a repeat run only reads the files that changed.
+//! a repeat run only redoes the work whose inputs changed.
 //!
 //! Per file the cache keeps line counts, the layer its code shows, its
-//! dependency facts and the dead-code names it mentions, keyed by size and
-//! modification time. Imports also depend on which other files exist and on
-//! `package.json` / `tsconfig.json`, so they are reused only while the file
-//! list and every `.json` and `.toml` file are unchanged. Mentions depend on
-//! the dead-code candidates, so they are reused only for the same candidates.
+//! JavaScript syntax scan, its dependency facts and the dead-code names it
+//! mentions. Every value is keyed by a hash of the file's bytes and by the
+//! version of the code that produced it, so an edit that keeps the size and
+//! the modification time is still seen, and a new parser or rule set
+//! recomputes only what it affects. Hashing every file read is the default;
+//! `CODEDNA_CACHE_TRUST_MTIME=1` is the explicit faster mode that trusts an
+//! unchanged size and modification time instead of reading the file.
+//!
+//! Dependency facts also depend on other files: which files exist, the
+//! `package.json` and `tsconfig.json` chain, workspace members, framework
+//! markers. While a file is resolved, every such lookup is recorded (see
+//! [`crate::resolution::deps`]) and stored with the fingerprint of its
+//! value; the facts are reused only while every one still matches. Mentions
+//! depend on the dead-code candidates, so they are reused only for the same
+//! candidates.
 //!
 //! The cache lives in the user's cache folder, never in the repository, so a
 //! repository cannot ship results for its own files. It is off unless the
 //! CLI turns it on; `--no-cache` or `CODEDNA_NO_CACHE=1` keep it off and
-//! `CODEDNA_CACHE_DIR` moves it.
+//! `CODEDNA_CACHE_DIR` moves it. `CODEDNA_CACHE_STATS=1` prints how many
+//! values of each kind were reused and computed.
 
 use crate::architecture::CodeSign;
 use crate::dependency_graph::{normalize, ImportTally};
-use crate::facts::DependencyFact;
+use crate::facts::{DependencyFact, RULES_VERSION};
 use crate::loc_counter::LineCounts;
+use crate::parsers::javascript::{JsScan, PARSER_VERSION};
 use crate::parsers::ParseStatus;
-use rayon::prelude::*;
+use crate::resolution::deps::{self, Dep};
+use crate::resolution::javascript::RESOLVER_VERSION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Bumped when the stored layout changes.
-const FORMAT: u32 = 8;
+const FORMAT: u32 = 9;
 /// Largest cache file read.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
-/// Files changed this close to the start of a run are not stored: an edit
-/// in the same clock tick would leave size and time unchanged.
+/// Files changed this close to the start of a run are not stored: the file
+/// may still be changing while it is read.
 const RACY: Duration = Duration::from_secs(2);
+
+/// Bump when line counting gives different counts for the same text.
+const LOC_VERSION: u32 = 1;
+/// Bump when the layer read from code changes for the same text.
+const LAYER_VERSION: u32 = 1;
+/// Bump when the dead-code mention search changes.
+const MENTIONS_VERSION: u32 = 1;
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static EXCLUDED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
@@ -63,6 +83,40 @@ fn stamp(path: &Path) -> Option<Stamp> {
     Some((meta.len(), u64::try_from(mtime.as_nanos()).ok()?))
 }
 
+/// The 128-bit hash of a file's bytes.
+type Hash = [u64; 2];
+
+fn hash_file(path: &Path) -> Option<Hash> {
+    let bytes = std::fs::read(path).ok()?;
+    let h = xxhash_rust::xxh3::xxh3_128(&bytes);
+    Some([(h >> 64) as u64, h as u64])
+}
+
+/// The version of the code behind each kind of cached value. A stored
+/// value made by another version is dropped.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+struct Versions {
+    loc: String,
+    layer: String,
+    scan: String,
+    imports: String,
+    mentions: String,
+}
+
+impl Versions {
+    fn current() -> Versions {
+        Versions {
+            loc: LOC_VERSION.to_string(),
+            layer: LAYER_VERSION.to_string(),
+            scan: PARSER_VERSION.to_string(),
+            imports: format!(
+                "rules {RULES_VERSION}; resolver {RESOLVER_VERSION}; {PARSER_VERSION}"
+            ),
+            mentions: MENTIONS_VERSION.to_string(),
+        }
+    }
+}
+
 /// A cached value that may be "nothing found".
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Known<T> {
@@ -74,16 +128,14 @@ struct Imports {
     facts: Vec<DependencyFact>,
     readable: bool,
     resolved: usize,
-    #[serde(default)]
     ambiguous: usize,
-    #[serde(default)]
     inferred: usize,
     unresolved: Vec<(usize, String)>,
     external: usize,
-    #[serde(default)]
     parse: ParseStatus,
-    #[serde(default)]
     parse_errors: Vec<(usize, String)>,
+    /// What the resolution read, as indices into [`Stored::deps`].
+    deps: Vec<u32>,
 }
 
 /// Dead-code names a file mentions, `(candidate, file is unused, line)`,
@@ -97,14 +149,27 @@ pub type Mentions = (
 struct Entry {
     size: u64,
     mtime: u64,
+    hash: Hash,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     loc: Option<Known<[usize; 3]>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     layer: Option<Known<Vec<(usize, CodeSign)>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    scan: Option<JsScan>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     imports: Option<Imports>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     mentions: Option<Known<Mentions>>,
+}
+
+impl Entry {
+    fn is_empty(&self) -> bool {
+        self.loc.is_none()
+            && self.layer.is_none()
+            && self.scan.is_none()
+            && self.imports.is_none()
+            && self.mentions.is_none()
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -112,20 +177,125 @@ struct Stored {
     format: u32,
     codedna: String,
     root: PathBuf,
-    tree: u64,
+    versions: Versions,
+    /// Fingerprint of the dead-code candidates the mentions are for.
     dead: u64,
+    /// Every lookup a stored resolution made, with the fingerprint of the
+    /// value it saw.
+    deps: Vec<(Dep, u64)>,
     files: HashMap<PathBuf, Entry>,
+}
+
+/// The kinds of cached value, for [`Stats`].
+#[derive(Clone, Copy)]
+enum Kind {
+    Loc,
+    Layer,
+    Scan,
+    Imports,
+    Mentions,
+}
+
+const KINDS: [(Kind, &str); 5] = [
+    (Kind::Loc, "loc"),
+    (Kind::Layer, "layer"),
+    (Kind::Scan, "scan"),
+    (Kind::Imports, "imports"),
+    (Kind::Mentions, "mentions"),
+];
+
+/// How many values of each kind were reused and computed.
+#[derive(Default)]
+struct Stats([[AtomicU64; 2]; 5]);
+
+impl Stats {
+    fn count(&self, kind: Kind, reused: bool) {
+        self.0[kind as usize][usize::from(!reused)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn json(&self) -> serde_json::Value {
+        let mut out = serde_json::Map::new();
+        for (kind, name) in KINDS {
+            let [reused, computed] = &self.0[kind as usize];
+            out.insert(
+                name.to_string(),
+                serde_json::json!({
+                    "reused": reused.load(Ordering::Relaxed),
+                    "computed": computed.load(Ordering::Relaxed),
+                }),
+            );
+        }
+        serde_json::Value::Object(out)
+    }
+}
+
+/// A file of this run.
+struct Seen {
+    stamp: Stamp,
+    /// Its content hash, read the first time a value is asked for; `None`
+    /// when it cannot be read.
+    hash: OnceLock<Option<Hash>>,
 }
 
 struct Inner {
     path: PathBuf,
     old: Stored,
-    stamps: HashMap<PathBuf, Stamp>,
+    /// Whether the stored versions differ from the current ones.
+    versions_changed: bool,
+    files: HashMap<PathBuf, Seen>,
     cutoff: u64,
-    tree: u64,
+    /// Reuse a stored hash when the size and time are unchanged.
+    trust_mtime: bool,
     /// Fingerprint of the dead-code candidates, once known.
     dead: Mutex<Option<u64>>,
     new: Mutex<HashMap<PathBuf, Entry>>,
+    /// What each new resolution read, with the fingerprints it saw.
+    new_deps: Mutex<HashMap<PathBuf, Vec<(Dep, u64)>>>,
+    /// Current fingerprints of the lookups checked this run.
+    observed: Mutex<HashMap<Dep, u64>>,
+    /// Current fingerprint of each stored lookup, by its index, when
+    /// [`Cache::prepare`] worked them out up front.
+    current: OnceLock<Vec<u64>>,
+    stats: Stats,
+}
+
+impl Inner {
+    /// The content hash of `file`.
+    fn hash(&self, file: &Path, seen: &Seen) -> Option<Hash> {
+        *seen.hash.get_or_init(|| {
+            if self.trust_mtime {
+                if let Some(old) = self.old.files.get(file) {
+                    if (old.size, old.mtime) == seen.stamp {
+                        return Some(old.hash);
+                    }
+                }
+            }
+            hash_file(file)
+        })
+    }
+
+    /// The current fingerprint of `dep`, asked of `observe` once per run.
+    fn observe(&self, dep: &Dep, observe: &impl Fn(&Dep) -> u64) -> u64 {
+        if let Some(&v) = self
+            .observed
+            .lock()
+            .ok()
+            .and_then(|o| o.get(dep).copied())
+            .as_ref()
+        {
+            return v;
+        }
+        let v = observe(dep);
+        if let Ok(mut o) = self.observed.lock() {
+            o.insert(dep.clone(), v);
+        }
+        v
+    }
+}
+
+/// Whether the explicit fast mode is on.
+fn trust_mtime() -> bool {
+    std::env::var("CODEDNA_CACHE_TRUST_MTIME").is_ok_and(|v| !v.is_empty() && v != "0")
 }
 
 /// Cached per-file results for one analysis run.
@@ -155,13 +325,22 @@ impl Cache {
             return Cache::off();
         }
         match dir() {
-            Some(dir) => Cache::open_in(&dir, root, &canonical, files),
+            Some(dir) => {
+                Cache::open_with(&dir, &canonical, files, Versions::current(), trust_mtime())
+            }
             None => Cache::off(),
         }
     }
 
-    /// The cache for `root` (canonically `canonical`) kept in `dir`.
-    fn open_in(dir: &Path, root: &Path, canonical: &Path, files: &[PathBuf]) -> Cache {
+    /// The cache for the repository at `canonical`, kept in `dir`, for
+    /// values made by `versions`.
+    fn open_with(
+        dir: &Path,
+        canonical: &Path,
+        files: &[PathBuf],
+        versions: Versions,
+        trust_mtime: bool,
+    ) -> Cache {
         let path = dir.join(format!(
             "{:016x}.json",
             fnv(canonical.to_string_lossy().as_bytes())
@@ -171,52 +350,76 @@ impl Cache {
             .unwrap_or_default();
         let cutoff = u64::try_from(start.saturating_sub(RACY).as_nanos()).unwrap_or(u64::MAX);
 
-        let stamps: HashMap<PathBuf, Stamp> = files
-            .par_iter()
-            .filter_map(|f| Some((normalize(f), stamp(f)?)))
+        let seen: HashMap<PathBuf, Seen> = files
+            .iter()
+            .filter_map(|f| {
+                Some((
+                    normalize(f),
+                    Seen {
+                        stamp: stamp(f)?,
+                        hash: OnceLock::new(),
+                    },
+                ))
+            })
             .collect();
-        // The file list and the settings that steer import resolution.
-        let mut tree = Fnv::default();
-        tree.add(root.as_os_str().as_encoded_bytes());
-        for file in files {
-            tree.add(file.as_os_str().as_encoded_bytes());
-            let settings = file
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("json") || e.eq_ignore_ascii_case("toml"))
-                || file.file_name().is_some_and(|n| n == "pnpm-workspace.yaml");
-            if settings {
-                let (size, mtime) = stamps.get(&normalize(file)).copied().unwrap_or_default();
-                tree.add(&size.to_le_bytes());
-                tree.add(&mtime.to_le_bytes());
-            }
-        }
 
-        let old = load(&path)
+        let mut old = load(&path)
             .filter(|s| {
                 s.format == FORMAT && s.codedna == env!("CARGO_PKG_VERSION") && s.root == canonical
             })
             .unwrap_or_default();
+        let versions_changed = old.versions != versions;
+        // Drop the values made by another version of their code.
+        let (loc, layer, scan, imports, mentions) = (
+            old.versions.loc != versions.loc,
+            old.versions.layer != versions.layer,
+            old.versions.scan != versions.scan,
+            old.versions.imports != versions.imports,
+            old.versions.mentions != versions.mentions,
+        );
+        for entry in old.files.values_mut() {
+            if loc {
+                entry.loc = None;
+            }
+            if layer {
+                entry.layer = None;
+            }
+            if scan {
+                entry.scan = None;
+            }
+            if imports {
+                entry.imports = None;
+            }
+            if mentions {
+                entry.mentions = None;
+            }
+        }
+        old.root = canonical.to_path_buf();
+        old.versions = versions;
         Cache {
             inner: Some(Inner {
                 path,
-                old: Stored {
-                    root: canonical.to_path_buf(),
-                    ..old
-                },
-                stamps,
+                old,
+                versions_changed,
+                files: seen,
                 cutoff,
-                tree: tree.0,
+                trust_mtime,
                 dead: Mutex::new(None),
                 new: Mutex::new(HashMap::new()),
+                new_deps: Mutex::new(HashMap::new()),
+                observed: Mutex::new(HashMap::new()),
+                current: OnceLock::new(),
+                stats: Stats::default(),
             }),
         }
     }
 
-    /// The cached value for `file` if its content is unchanged, else
-    /// `compute()`, remembered for next time.
+    /// The cached value for `file` if its content is unchanged and `pick`
+    /// still accepts it, else `compute()`, remembered for next time.
     fn get<T: Clone>(
         &self,
         file: &Path,
+        kind: Kind,
         pick: impl Fn(&Inner, &Entry) -> Option<T>,
         compute: impl FnOnce() -> T,
         put: impl FnOnce(&mut Entry, T),
@@ -225,22 +428,29 @@ impl Cache {
             return compute();
         };
         let file = normalize(file);
-        let Some(&(size, mtime)) = inner.stamps.get(&file) else {
+        let Some(seen) = inner.files.get(&file) else {
+            return compute();
+        };
+        let Some(hash) = inner.hash(&file, seen) else {
             return compute();
         };
         if let Some(old) = inner.old.files.get(&file) {
-            if (old.size, old.mtime) == (size, mtime) {
+            if old.hash == hash {
                 if let Some(value) = pick(inner, old) {
+                    inner.stats.count(kind, true);
                     return value;
                 }
             }
         }
+        inner.stats.count(kind, false);
         let value = compute();
+        let (size, mtime) = seen.stamp;
         if mtime < inner.cutoff {
             if let Ok(mut new) = inner.new.lock() {
                 let entry = new.entry(file).or_insert_with(|| Entry {
                     size,
                     mtime,
+                    hash,
                     ..Entry::default()
                 });
                 put(entry, value.clone());
@@ -263,6 +473,7 @@ impl Cache {
         };
         self.get(
             file,
+            Kind::Loc,
             |_, e| e.loc.as_ref().map(|k| k.v.map(from)),
             compute,
             |e, v| e.loc = Some(Known { v: v.map(to) }),
@@ -277,40 +488,93 @@ impl Cache {
     ) -> Option<Vec<(usize, CodeSign)>> {
         self.get(
             file,
+            Kind::Layer,
             |_, e| e.layer.as_ref().map(|k| k.v.clone()),
             compute,
             |e, v| e.layer = Some(Known { v }),
         )
     }
 
+    /// The JavaScript syntax scan of `file`.
+    pub fn scan(&self, file: &Path, compute: impl FnOnce() -> JsScan) -> JsScan {
+        self.get(
+            file,
+            Kind::Scan,
+            |_, e| e.scan.clone(),
+            compute,
+            |e, v| e.scan = Some(v),
+        )
+    }
+
+    /// Work out the current fingerprint of every stored lookup at once, in
+    /// parallel, before files ask for their dependency facts.
+    pub fn prepare(&self, observe: impl Fn(&Dep) -> u64 + Sync) {
+        use rayon::prelude::*;
+        if let Some(inner) = &self.inner {
+            let current = inner
+                .old
+                .deps
+                .par_iter()
+                .map(|(dep, _)| observe(dep))
+                .collect();
+            let _ = inner.current.set(current);
+        }
+    }
+
     /// The dependency facts of `file` and what happened to its imports.
+    /// `observe` gives the current fingerprint of a lookup the resolution
+    /// made; stored facts are reused only while every lookup they were
+    /// worked out from gives the fingerprint it gave then.
     pub fn imports(
         &self,
         file: &Path,
+        observe: impl Fn(&Dep) -> u64,
         compute: impl FnOnce() -> (Vec<DependencyFact>, ImportTally),
     ) -> (Vec<DependencyFact>, ImportTally) {
-        self.get(
+        let Some(inner) = &self.inner else {
+            return compute();
+        };
+        let key = normalize(file);
+        let (facts, tally, read) = self.get(
             file,
+            Kind::Imports,
             |inner, e| {
-                if inner.old.tree != inner.tree {
-                    return None;
-                }
-                e.imports.as_ref().map(|i| {
-                    let tally = ImportTally {
-                        readable: i.readable,
-                        resolved: i.resolved,
-                        ambiguous: i.ambiguous,
-                        inferred: i.inferred,
-                        unresolved: i.unresolved.clone(),
-                        external: i.external,
-                        parse: i.parse,
-                        parse_errors: i.parse_errors.clone(),
+                let i = e.imports.as_ref()?;
+                for &index in &i.deps {
+                    let (dep, then) = inner.old.deps.get(index as usize)?;
+                    let now = match inner.current.get() {
+                        Some(current) => *current.get(index as usize)?,
+                        None => inner.observe(dep, &observe),
                     };
-                    (i.facts.clone(), tally)
-                })
+                    if now != *then {
+                        return None;
+                    }
+                }
+                let tally = ImportTally {
+                    readable: i.readable,
+                    resolved: i.resolved,
+                    ambiguous: i.ambiguous,
+                    inferred: i.inferred,
+                    unresolved: i.unresolved.clone(),
+                    external: i.external,
+                    parse: i.parse,
+                    parse_errors: i.parse_errors.clone(),
+                };
+                Some((i.facts.clone(), tally, None))
             },
-            compute,
-            |e, (facts, tally)| {
+            || {
+                let ((facts, tally), read) = deps::recording(compute);
+                let mut read: Vec<(Dep, u64)> = read
+                    .into_iter()
+                    .map(|d| {
+                        let v = inner.observe(&d, &observe);
+                        (d, v)
+                    })
+                    .collect();
+                read.sort();
+                (facts, tally, Some(read))
+            },
+            |e, (facts, tally, _)| {
                 e.imports = Some(Imports {
                     facts,
                     readable: tally.readable,
@@ -321,9 +585,16 @@ impl Cache {
                     external: tally.external,
                     parse: tally.parse,
                     parse_errors: tally.parse_errors,
+                    deps: Vec::new(),
                 })
             },
-        )
+        );
+        if let Some(read) = read {
+            if let Ok(mut new_deps) = inner.new_deps.lock() {
+                new_deps.insert(key, read);
+            }
+        }
+        (facts, tally)
     }
 
     /// Set the dead-code candidates that [`Cache::mentions`] answers for.
@@ -355,8 +626,9 @@ impl Cache {
         }
         self.get(
             file,
+            Kind::Mentions,
             |inner, e| {
-                if Some(inner.old.dead) != dead || inner.old.tree != inner.tree {
+                if Some(inner.old.dead) != dead {
                     return None;
                 }
                 e.mentions.as_ref().map(|k| k.v.clone())
@@ -371,42 +643,89 @@ impl Cache {
         let Some(inner) = self.inner else {
             return;
         };
+        if std::env::var_os("CODEDNA_CACHE_STATS").is_some() {
+            eprintln!("codedna cache stats: {}", inner.stats.json());
+        }
         let new = inner.new.into_inner().unwrap_or_default();
+        let new_deps = inner.new_deps.into_inner().unwrap_or_default();
         let dead = inner.dead.into_inner().ok().flatten();
         let mut old = inner.old;
-        let tree_same = old.tree == inner.tree;
-        let dead_same = dead.is_none_or(|d| d == old.dead) && tree_same;
-        let removed = old.files.keys().any(|f| !inner.stamps.contains_key(f));
-        if new.is_empty() && !removed && dead_same {
+        let dead_same = dead.is_none_or(|d| d == old.dead);
+        let removed = old.files.keys().any(|f| !inner.files.contains_key(f));
+        let restamped = inner.files.iter().any(|(file, seen)| {
+            old.files
+                .get(file)
+                .is_some_and(|e| (e.size, e.mtime) != seen.stamp)
+        });
+        if new.is_empty() && !removed && !restamped && dead_same && !inner.versions_changed {
             return;
         }
-        let mut files: HashMap<PathBuf, Entry> = HashMap::with_capacity(inner.stamps.len());
-        for (file, &(size, mtime)) in &inner.stamps {
+
+        let mut table: Vec<(Dep, u64)> = Vec::new();
+        let mut index: HashMap<(Dep, u64), u32> = HashMap::new();
+        let mut intern = |dep: &(Dep, u64)| -> u32 {
+            *index.entry(dep.clone()).or_insert_with(|| {
+                table.push(dep.clone());
+                u32::try_from(table.len() - 1).unwrap_or(u32::MAX)
+            })
+        };
+        let mut files: HashMap<PathBuf, Entry> = HashMap::with_capacity(inner.files.len());
+        for (file, seen) in &inner.files {
+            let hash = seen.hash.get().copied().flatten();
             let mut entry = match old.files.remove(file) {
-                Some(e) if (e.size, e.mtime) == (size, mtime) => e,
-                _ => Entry {
-                    size,
-                    mtime,
-                    ..Entry::default()
+                // Read this run and unchanged: note the new stamp.
+                Some(e) if hash == Some(e.hash) => Entry {
+                    size: seen.stamp.0,
+                    mtime: seen.stamp.1,
+                    ..e
+                },
+                // Not read this run: keep it, to be checked when it is.
+                Some(e) if hash.is_none() => e,
+                _ => match hash {
+                    Some(hash) => Entry {
+                        size: seen.stamp.0,
+                        mtime: seen.stamp.1,
+                        hash,
+                        ..Entry::default()
+                    },
+                    None => continue,
                 },
             };
-            if !tree_same {
-                entry.imports = None;
-            }
             if !dead_same {
                 entry.mentions = None;
             }
+            if let Some(imports) = entry.imports.as_mut() {
+                let mut deps = Vec::with_capacity(imports.deps.len());
+                for &i in &imports.deps {
+                    match old.deps.get(i as usize) {
+                        Some(dep) => deps.push(intern(dep)),
+                        None => {
+                            entry.imports = None;
+                            break;
+                        }
+                    }
+                }
+                if let Some(imports) = entry.imports.as_mut() {
+                    imports.deps = deps;
+                }
+            }
             if let Some(n) = new.get(file) {
+                if n.hash != entry.hash {
+                    continue;
+                }
                 entry.loc = n.loc.clone().or(entry.loc);
                 entry.layer = n.layer.clone().or(entry.layer);
-                entry.imports = n.imports.clone().or(entry.imports);
+                entry.scan = n.scan.clone().or(entry.scan);
                 entry.mentions = n.mentions.clone().or(entry.mentions);
+                if let Some(mut imports) = n.imports.clone() {
+                    imports.deps = new_deps
+                        .get(file)
+                        .map(|read| read.iter().map(&mut intern).collect())
+                        .unwrap_or_default();
+                    entry.imports = Some(imports);
+                }
             }
-            let empty = entry.loc.is_none()
-                && entry.layer.is_none()
-                && entry.imports.is_none()
-                && entry.mentions.is_none();
-            if !empty {
+            if !entry.is_empty() {
                 files.insert(file.clone(), entry);
             }
         }
@@ -414,8 +733,9 @@ impl Cache {
             format: FORMAT,
             codedna: env!("CARGO_PKG_VERSION").to_string(),
             root: old.root,
-            tree: inner.tree,
+            versions: old.versions,
             dead: dead.unwrap_or(old.dead),
+            deps: table,
             files,
         };
         let _ = write(&inner.path, &stored);
@@ -567,8 +887,39 @@ mod tests {
     }
 
     fn cached(dir: &Path, root: &Path) -> Cache {
+        cached_with(dir, root, Versions::current(), false)
+    }
+
+    fn cached_with(dir: &Path, root: &Path, versions: Versions, trust_mtime: bool) -> Cache {
         let files = scanner::scan_repository(root);
-        Cache::open_in(dir, root, &fs::canonicalize(root).unwrap(), &files)
+        Cache::open_with(
+            dir,
+            &fs::canonicalize(root).unwrap(),
+            &files,
+            versions,
+            trust_mtime,
+        )
+    }
+
+    /// Rewrite `path` with `text` of the same size, keeping its time.
+    fn rewrite_in_place(path: &Path, text: &str) {
+        let before = fs::metadata(path).unwrap();
+        assert_eq!(before.len(), text.len() as u64);
+        fs::write(path, text).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(before.modified().unwrap())
+            .unwrap();
+    }
+
+    fn counts(cache: &Cache, kind: &str) -> (u64, u64) {
+        let stats = cache.inner.as_ref().unwrap().stats.json();
+        (
+            stats[kind]["reused"].as_u64().unwrap(),
+            stats[kind]["computed"].as_u64().unwrap(),
+        )
     }
 
     #[test]
@@ -584,24 +935,87 @@ mod tests {
     }
 
     #[test]
-    fn unchanged_files_are_not_read_again() {
+    fn a_same_size_edit_with_the_old_time_is_seen() {
         let repo = repo();
         let store = tempfile::tempdir().unwrap();
         let first = cached(store.path(), repo.path());
         let before = run(repo.path(), &first);
         first.save();
-        // Same size and time, but now a comment: only a cache would miss it.
-        let a = repo.path().join("src/a.ts");
-        let when = fs::metadata(&a).unwrap().modified().unwrap();
-        fs::write(&a, "//port const a = 1;\n").unwrap();
-        fs::File::options()
-            .write(true)
-            .open(&a)
-            .unwrap()
-            .set_modified(when)
-            .unwrap();
-        assert_ne!(run(repo.path(), &Cache::off()), before);
-        assert_eq!(run(repo.path(), &cached(store.path(), repo.path())), before);
+        // Same size and time, but now a comment.
+        rewrite_in_place(&repo.path().join("src/a.ts"), "//port const a = 1;\n");
+        let fresh = run(repo.path(), &Cache::off());
+        assert_ne!(fresh, before);
+        assert_eq!(run(repo.path(), &cached(store.path(), repo.path())), fresh);
+    }
+
+    #[test]
+    fn trusting_timestamps_skips_reading_unchanged_files() {
+        let repo = repo();
+        let store = tempfile::tempdir().unwrap();
+        let first = cached(store.path(), repo.path());
+        let before = run(repo.path(), &first);
+        first.save();
+        rewrite_in_place(&repo.path().join("src/a.ts"), "//port const a = 1;\n");
+        // The fast mode trusts size and time, so it misses the edit.
+        let fast = cached_with(store.path(), repo.path(), Versions::current(), true);
+        assert_eq!(run(repo.path(), &fast), before);
+    }
+
+    #[test]
+    fn only_values_of_a_changed_version_are_recomputed() {
+        let repo = repo();
+        let store = tempfile::tempdir().unwrap();
+        let first = cached(store.path(), repo.path());
+        let fresh = run(repo.path(), &first);
+        first.save();
+
+        let same = cached(store.path(), repo.path());
+        assert_eq!(run(repo.path(), &same), fresh);
+        assert_eq!(counts(&same, "imports").1, 0);
+        assert_eq!(counts(&same, "loc").1, 0);
+
+        // A new resolver: imports are worked out again from the stored
+        // scans; line counts stay.
+        let resolver = Versions {
+            imports: "next".into(),
+            ..Versions::current()
+        };
+        let next = cached_with(store.path(), repo.path(), resolver.clone(), false);
+        assert_eq!(run(repo.path(), &next), fresh);
+        assert!(counts(&next, "imports").1 > 0);
+        assert_eq!(counts(&next, "scan").1, 0);
+        assert_eq!(counts(&next, "loc").1, 0);
+        next.save();
+
+        // A new parser: scans are made again too.
+        let parser = Versions {
+            scan: "next".into(),
+            imports: "next 2".into(),
+            ..resolver
+        };
+        let next = cached_with(store.path(), repo.path(), parser, false);
+        assert_eq!(run(repo.path(), &next), fresh);
+        assert!(counts(&next, "scan").1 > 0);
+        assert_eq!(counts(&next, "loc").1, 0);
+    }
+
+    #[test]
+    fn a_new_file_in_a_folder_recomputes_only_its_importers() {
+        let repo = repo();
+        let store = tempfile::tempdir().unwrap();
+        fs::create_dir(repo.path().join("lib")).unwrap();
+        put(&repo.path().join("lib/other.ts"), "import './x';\n", 1);
+        let first = cached(store.path(), repo.path());
+        run(repo.path(), &first);
+        first.save();
+        // `./x` now resolves; nothing in src/ looked in lib/.
+        put(&repo.path().join("lib/x.ts"), "export {};\n", 1);
+        let fresh = run(repo.path(), &Cache::off());
+        let warm = cached(store.path(), repo.path());
+        assert_eq!(run(repo.path(), &warm), fresh);
+        let (reused, computed) = counts(&warm, "imports");
+        assert_eq!(computed, 2, "lib/other.ts and the new lib/x.ts");
+        assert_eq!(reused, 4);
     }
 
     #[test]

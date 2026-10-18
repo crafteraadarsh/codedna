@@ -881,14 +881,14 @@ A measured run also gives, per kind: precision for each language (dead code) or 
 
 Lines of code exclude comments and blank lines.
 
-**Repeat runs are incremental.** CodeDna remembers what each file's content showed (line counts, imports, layer, dead-code mentions) and reads again only the files whose size or modification time changed. On a 2-core Linux machine with v0.2.5:
+**Repeat runs are incremental.** CodeDna remembers what each file's content showed (line counts, JavaScript syntax scan, imports, layer, dead-code mentions) and redoes only the work whose inputs changed. On a 2-core Linux machine with v0.2.5:
 
 | Repository | Files | First run | Repeat run |
 |---|---:|---:|---:|
 | [vscode](https://github.com/microsoft/vscode) | 20,744 | 11.6 s | **1.4 s** |
 | [kubernetes](https://github.com/kubernetes/kubernetes) | 31,461 | 4.9 s | **0.9 s** |
 
-The output is identical either way. Adding, removing or renaming a file, or editing a `.json` / `.toml` file, re-resolves every file's imports, since any of them could point at it. The cache is kept in your user cache folder (`~/.cache/codedna`, `~/Library/Caches/codedna` on macOS, `%LOCALAPPDATA%\codedna\cache` on Windows; `CODEDNA_CACHE_DIR` moves it), never in the repository, and remote clones are never cached. `--no-cache` or `CODEDNA_NO_CACHE=1` reads every file afresh.
+The output is identical either way. Every cached value is keyed by a hash of the file's bytes and by the version of the code that produced it, so an edit that keeps the size and modification time is still seen, and a new parser, resolver or rule set recomputes only what it affects. A file's imports are also keyed by everything their resolution looked at: which files exist in the folders it searched, the `package.json` and `tsconfig.json` chain that applies, workspace members and framework config files. Editing a `tsconfig.json` re-resolves only the files that config governs; adding a file re-resolves only the imports that searched its folder. `CODEDNA_CACHE_TRUST_MTIME=1` is a faster mode that trusts an unchanged size and modification time instead of reading every file, and `CODEDNA_CACHE_STATS=1` prints how many values were reused and recomputed. The cache is kept in your user cache folder (`~/.cache/codedna`, `~/Library/Caches/codedna` on macOS, `%LOCALAPPDATA%\codedna\cache` on Windows; `CODEDNA_CACHE_DIR` moves it), never in the repository, and remote clones are never cached. `--no-cache` or `CODEDNA_NO_CACHE=1` reads every file afresh.
 
 ## 🛡️ Security
 
@@ -943,6 +943,7 @@ src/
 ├── dependency_graph.rs     import / require / mod parsing into facts
 ├── parsers/javascript.rs   JS/TS syntax-tree import scan (Oxc)
 ├── resolution/javascript.rs JS/TS module resolution (package.json, tsconfig, workspaces)
+├── resolution/deps.rs      records what each resolution looked at, for the cache
 ├── facts.rs                typed dependency facts
 ├── graph.rs                dependency graph built from facts
 ├── dead_code_detector.rs   reachability from entry points
