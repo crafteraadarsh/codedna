@@ -43,6 +43,7 @@
   "kind": "architecture",
   "repo": "alan2207_bulletproof-react",
   "confidence": "high",
+  "output": "Routes,UI",
   "verdict": "incorrect",
   "note": "Routes/Data are MSW test mock handlers; misses dominant features/ + app/ structure"
  },
@@ -150,6 +151,7 @@
   "kind": "architecture",
   "repo": "appwrite_appwrite",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "console UI, PHP app/controllers, workers, models exist; Routes partly mislabels console src/lib"
  },
@@ -173,6 +175,7 @@
   "kind": "architecture",
   "repo": "bradtraversy_proshop_mern",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,UI",
   "verdict": "correct",
   "note": "React screens/components, Express routes/controllers, auth middleware, Mongoose models match"
  },
@@ -204,6 +207,7 @@
   "kind": "architecture",
   "repo": "brocoders_nestjs-boilerplate",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services",
   "verdict": "correct",
   "note": "NestJS controllers (routes), services, roles guard, entities/seeds data layers exist; mostly accurate"
  },
@@ -221,6 +225,7 @@
   "kind": "architecture",
   "repo": "BurntSushi_ripgrep",
   "confidence": "low",
+  "output": "none",
   "verdict": "unsure",
   "note": "no web-style layers, but repo has clear crate modularity (cli/searcher/printer/ignore); 'no layers' at low conf debatable"
  },
@@ -252,6 +257,7 @@
   "kind": "architecture",
   "repo": "Buuntu_fastapi-react",
   "confidence": "high",
+  "output": "Data,Routes,Services,UI",
   "verdict": "correct",
   "note": "React frontend, FastAPI routers, core, db layers match template"
  },
@@ -379,6 +385,7 @@
   "kind": "architecture",
   "repo": "calcom_cal.com",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI, tRPC/Nest routes, Nest middleware, services/repositories, Prisma data all exist; Data top dirs oddly point at trpc routers"
  },
@@ -386,6 +393,7 @@
   "kind": "architecture",
   "repo": "charmbracelet_glow",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "ui/ is the Bubble Tea TUI layer; root holds CLI commands (minor omission)"
  },
@@ -432,9 +440,10 @@
  {
   "kind": "architecture",
   "repo": "cookiecutter_cookiecutter-django",
-  "confidence": "high",
-  "verdict": "incorrect",
-  "note": "Cookiecutter hooks/ labelled UI and sites migrations labelled Services; mislabels a Django project template"
+  "confidence": "medium",
+  "output": "Data,Routes",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports Data,Routes; earlier: Cookiecutter hooks/ labelled UI and sites migrations labelled Services; mislabels a Django project template"
  },
  {
   "kind": "dead_code",
@@ -500,6 +509,7 @@
   "kind": "architecture",
   "repo": "directus_directus",
   "confidence": "medium",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "Vue app UI, api controllers, middleware, services, database/migrations all real main layers"
  },
@@ -546,7 +556,8 @@
  {
   "kind": "architecture",
   "repo": "django_djangoproject.com",
-  "confidence": "medium",
+  "confidence": "high",
+  "output": "Data,Routes,Services",
   "verdict": "incorrect",
   "note": "Services layer = app __init__.py/forms with bogus flows (__init__ imports migrations); misses views/templates"
  },
@@ -594,6 +605,7 @@
   "kind": "architecture",
   "repo": "documenso_documenso",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI, trpc routers, middleware, prisma exist; but headline Routes dirs are job definitions, remix routes folded elsewhere"
  },
@@ -721,6 +733,7 @@
   "kind": "architecture",
   "repo": "dubinc_dub",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI/Routes/Middleware/Services/Data match monorepo app/lib/ui layout; some dirs mislabelled (lib/ai as Data) but main layers real"
  },
@@ -838,6 +851,7 @@
   "kind": "architecture",
   "repo": "elie222_inbox-zero",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "Next.js components/UI, app/api routes, utils/actions services, prisma data exist; Middleware/Data layers thin and partly mocks"
  },
@@ -860,9 +874,10 @@
  {
   "kind": "architecture",
   "repo": "encode_httpx",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "HTTP client library; Routes/Services/Data layers in httpx/ are invented mislabels"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: HTTP client library; Routes/Services/Data layers in httpx/ are invented mislabels"
  },
  {
   "kind": "dead_code",
@@ -940,6 +955,7 @@
   "kind": "architecture",
   "repo": "excalidraw_excalidraw",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "Frontend library/app; UI components dominant; element/math packages not separate layers but minor"
  },
@@ -962,9 +978,10 @@
  {
   "kind": "architecture",
   "repo": "expressjs_express",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "Express is a framework library (lib/ application/request/response); labelling it a Middleware layer is mislabelled"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: Express is a framework library (lib/ application/request/response); labelling it a Middleware layer is mislabelled"
  },
  {
   "kind": "dead_code",
@@ -1026,6 +1043,7 @@
   "kind": "architecture",
   "repo": "fastapi_full-stack-fastapi-template",
   "confidence": "high",
+  "output": "Data,Routes,Services,UI",
   "verdict": "correct",
   "note": "frontend UI, backend/app/api/routes, crud, models layers are real"
  },
@@ -1048,9 +1066,10 @@
  {
   "kind": "architecture",
   "repo": "fastify_fastify",
-  "confidence": "high",
-  "verdict": "incorrect",
-  "note": "framework lib; hooks.js labelled UI, error-handler/head-route as Routes; mislabelled layers"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: framework lib; hooks.js labelled UI, error-handler/head-route as Routes; mislabelled layers"
  },
  {
   "kind": "audit",
@@ -1066,6 +1085,7 @@
   "kind": "architecture",
   "repo": "gin-gonic_gin",
   "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "gin is a flat library package; no app layers at low confidence is accurate"
  },
@@ -1081,6 +1101,7 @@
   "kind": "architecture",
   "repo": "gothinkster_angular-realworld-example-app",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "components, routes, interceptors, services, models match src/app layout"
  },
@@ -1088,6 +1109,7 @@
   "kind": "architecture",
   "repo": "gothinkster_react-redux-realworld-example-app",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "src/components UI is the main layer; omits Redux reducers/store and agent.js API module"
  },
@@ -1134,7 +1156,8 @@
  {
   "kind": "architecture",
   "repo": "honojs_hono",
-  "confidence": "medium",
+  "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "Library modules router, middleware, jsx exist; benchmarks mixed in, adapters/helpers omitted"
  },
@@ -1166,6 +1189,7 @@
   "kind": "architecture",
   "repo": "ixartz_Next-js-Boilerplate",
   "confidence": "high",
+  "output": "Data,Routes,UI",
   "verdict": "correct",
   "note": "UI components/app, Routes app/api/counter, Data libs/DB + models/Schema match repo"
  },
@@ -1246,7 +1270,8 @@
  {
   "kind": "architecture",
   "repo": "jazzband_django-oauth-toolkit",
-  "confidence": "medium",
+  "confidence": "high",
+  "output": "Data,Middleware,Routes,Services",
   "verdict": "correct",
   "note": "Django lib: views/ (routes), middleware.py, authorization_server services, models.py+migrations exist"
  },
@@ -1300,6 +1325,7 @@
   "kind": "architecture",
   "repo": "juice-shop_juice-shop",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "frontend UI, routes/, lib middleware, models/ are real; codefixes mislabelled as Routes is minor"
  },
@@ -1427,6 +1453,7 @@
   "kind": "architecture",
   "repo": "linkwarden_linkwarden",
   "confidence": "high",
+  "output": "Data,Routes,Services,UI",
   "verdict": "correct",
   "note": "web components UI, lib/api controllers, worker services, prisma data all real main layers"
  },
@@ -1508,6 +1535,7 @@
   "kind": "architecture",
   "repo": "maybe-finance_maybe",
   "confidence": "medium",
+  "output": "Data,Routes,Services,UI",
   "verdict": "correct",
   "note": "Rails app: components, controllers, jobs/services, models+migrations exist; Stimulus controllers as Routes is a minor mislabel"
  },
@@ -1555,6 +1583,7 @@
   "kind": "architecture",
   "repo": "mckaywrigley_chatbot-ui",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI, app/api routes, middleware, db data layers real; Services->types mislabel minor"
  },
@@ -1648,6 +1677,7 @@
   "kind": "architecture",
   "repo": "medusajs_nextjs-starter-medusa",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "incorrect",
   "note": "Only UI layer; misses app router routes and src/lib/data server-action data layer"
  },
@@ -1671,6 +1701,7 @@
   "kind": "architecture",
   "repo": "miguelgrinberg_microblog",
   "confidence": "high",
+  "output": "Data,Routes,Services",
   "verdict": "correct",
   "note": "blueprint routes, auth/main services, models + migrations real (templates omitted)"
  },
@@ -1693,7 +1724,8 @@
  {
   "kind": "architecture",
   "repo": "mutoe_vue3-realworld-example-app",
-  "confidence": "medium",
+  "confidence": "high",
+  "output": "Routes,Services,UI",
   "verdict": "correct",
   "note": "Vue pages/components, router.ts, services/ API layer match this small SPA"
  },
@@ -1881,6 +1913,7 @@
   "kind": "architecture",
   "repo": "n8n-io_n8n",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "Frontend UI, cli controllers/middlewares/services, @n8n/db entities/migrations exist; nodes-base omitted, Routes includes playwright pages"
  },
@@ -1896,6 +1929,7 @@
   "kind": "architecture",
   "repo": "nestjs_typescript-starter",
   "confidence": "high",
+  "output": "Routes,Services",
   "verdict": "correct",
   "note": "controller (Routes) -> service (Services) is the whole starter structure"
  },
@@ -1911,6 +1945,7 @@
   "kind": "architecture",
   "repo": "nextauthjs_next-auth-example",
   "confidence": "high",
+  "output": "Routes,UI",
   "verdict": "correct",
   "note": "components/app UI and app/api, auth route handlers are the real structure"
  },
@@ -1918,6 +1953,7 @@
   "kind": "architecture",
   "repo": "Nutlope_roomGPT",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "Small Next.js app: components/ and app/ pages; one API route in app/generate is a minor omission"
  },
@@ -1985,6 +2021,7 @@
   "kind": "architecture",
   "repo": "open-webui_open-webui",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "Svelte UI in src/lib/components, FastAPI routers/, models/ + alembic migrations, utils/ services all exist"
  },
@@ -2042,6 +2079,7 @@
   "kind": "architecture",
   "repo": "outline_outline",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "app/ UI, server/routes, middlewares, commands/services, models/migrations all real and main"
  },
@@ -2065,6 +2103,7 @@
   "kind": "architecture",
   "repo": "pallets_flask",
   "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "Flask is a framework library; no app-style layers is a fair description at low confidence"
  },
@@ -2111,7 +2150,8 @@
  {
   "kind": "architecture",
   "repo": "PanJiaChen_vue-element-admin",
-  "confidence": "medium",
+  "confidence": "high",
+  "output": "Routes,UI",
   "verdict": "correct",
   "note": "Frontend admin: views/components UI and router/api; store layer omitted, api client lumped into Routes"
  },
@@ -2166,9 +2206,10 @@
  {
   "kind": "architecture",
   "repo": "plausible_analytics",
-  "confidence": "high",
-  "verdict": "incorrect",
-  "note": "Describes only JS dashboard assets; misses dominant Elixir/Phoenix lib/plausible, plausible_web structure"
+  "confidence": "low",
+  "output": "unknown",
+  "verdict": "correct",
+  "note": "re-checked after #117: now says unknown (unsupported language dominates); earlier: Describes only JS dashboard assets; misses dominant Elixir/Phoenix lib/plausible, plausible_web structure"
  },
  {
   "kind": "dead_code",
@@ -2182,6 +2223,7 @@
   "kind": "architecture",
   "repo": "pmndrs_zustand",
   "confidence": "medium",
+  "output": "Middleware",
   "verdict": "correct",
   "note": "src/middleware is real; small library, omission of vanilla/react core is minor"
  },
@@ -2284,9 +2326,10 @@
  {
   "kind": "architecture",
   "repo": "react-hook-form_react-hook-form",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "library repo; 'Routes' = src/types/controller.ts,resolvers.ts is invented; misses logic/utils/hooks structure"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: library repo; 'Routes' = src/types/controller.ts,resolvers.ts is invented; misses logic/utils/hooks structure"
  },
  {
   "kind": "dead_code",
@@ -2328,6 +2371,7 @@
   "kind": "architecture",
   "repo": "sahat_hackathon-starter",
   "confidence": "high",
+  "output": "Data,Middleware,Routes",
   "verdict": "correct",
   "note": "controllers (routes), config (passport/middleware), models are the real MVC layers; views omitted"
  },
@@ -2370,7 +2414,8 @@
  {
   "kind": "architecture",
   "repo": "saleor_saleor",
-  "confidence": "medium",
+  "confidence": "high",
+  "output": "Data,Middleware,Routes,Services",
   "verdict": "correct",
   "note": "graphql API, core/plugins services, Django models/migrations data layers are real at medium"
  },
@@ -2378,6 +2423,7 @@
   "kind": "architecture",
   "repo": "shadcn-ui_next-template",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "Next.js template with only app/ pages and components/; UI-only is accurate"
  },
@@ -2441,6 +2487,7 @@
   "kind": "architecture",
   "repo": "shadcn-ui_taxonomy",
   "confidence": "high",
+  "output": "Data,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI components/app, Routes app/api, Services/Data in lib (auth, db) match repo"
  },
@@ -2464,6 +2511,7 @@
   "kind": "architecture",
   "repo": "steven-tey_precedent",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "Next.js starter: components/ UI is the main structure; app/ and lib/ hooks minor"
  },
@@ -2611,6 +2659,7 @@
   "kind": "architecture",
   "repo": "strapi_strapi",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "Admin React UI, server routes/controllers, middlewares, services, database packages all real"
  },
@@ -2618,6 +2667,7 @@
   "kind": "architecture",
   "repo": "sveltejs_realworld",
   "confidence": "medium",
+  "output": "Routes,UI",
   "verdict": "correct",
   "note": "SvelteKit routes with +page.svelte UI and +page.server.js handlers; lib/api.js data access omitted"
  },
@@ -2665,6 +2715,7 @@
   "kind": "architecture",
   "repo": "taniarascia_takenote",
   "confidence": "high",
+  "output": "Middleware,Routes,UI",
   "verdict": "correct",
   "note": "React client containers/components, Express server/router + handlers, server/middleware exist"
  },
@@ -2696,6 +2747,7 @@
   "kind": "architecture",
   "repo": "tj_commander.js",
   "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "Single-module CLI library; no layers is accurate at low confidence"
  },
@@ -2843,6 +2895,7 @@
   "kind": "architecture",
   "repo": "twentyhq_twenty",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "Examples are real NestJS controllers, guards, @Injectable services, @Entity; React UI; some headline dirs mislabelled"
  },
@@ -2890,6 +2943,7 @@
   "kind": "architecture",
   "repo": "umami-software_umami",
   "confidence": "high",
+  "output": "Data,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI components, Routes app/api, Services queries/sql + lib, Data queries/prisma match repo"
  },
@@ -2961,6 +3015,7 @@
   "kind": "architecture",
   "repo": "vercel_ai-chatbot",
   "confidence": "high",
+  "output": "Data,Routes,Services,UI",
   "verdict": "correct",
   "note": "components UI, app/(..)/api routes, lib/ai tools, lib/db data match repo"
  },
@@ -2968,6 +3023,7 @@
   "kind": "architecture",
   "repo": "vercel_commerce",
   "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "components/ and app/ UI dominate; omits lib/shopify data layer and app/api route"
  },
@@ -3011,6 +3067,7 @@
   "kind": "architecture",
   "repo": "WebGoat_WebGoat",
   "confidence": "high",
+  "output": "Data,Routes,Services",
   "verdict": "correct",
   "note": "Spring controllers/lesson endpoints, @Service classes, JPA repositories are the real structure"
  }

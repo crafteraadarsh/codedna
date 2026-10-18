@@ -1,0 +1,4753 @@
+{
+  "version": 1,
+  "sets": [
+    "fresh",
+    "original"
+  ],
+  "labels": [
+    {
+      "set": "fresh",
+      "key": "dead_code|alan2207_bulletproof-react|apps/nextjs-pages/__mocks__/zustand.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|alan2207_bulletproof-react|apps/react-vite/__mocks__/zustand.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|alan2207_bulletproof-react|apps/nextjs-app/__mocks__/zustand.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|alan2207_bulletproof-react|apps/nextjs-app/e2e/tests/auth.setup.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|alan2207_bulletproof-react|apps/nextjs-app/public/mockServiceWorker.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|alan2207_bulletproof-react||||finding",
+      "level": "high",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|appwrite_appwrite|apps/console/src/components/global/shared/AppwriteWordmark 2.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|appwrite_appwrite|apps/console/src/lib/postgres-promo-banner.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|appwrite_appwrite|apps/console/src/components/pages/projects/$projectId/shared/connect-snippets/python/django/config/urls.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|appwrite_appwrite|apps/console/src/server/middleware/pre-launch.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|appwrite_appwrite|apps/console/src/routes/_public/organizations.$orgId.settings.billing.tsx|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|appwrite_appwrite|apps/console/src/content/integrations/deployments-github.markdoc|102|secret|finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|appwrite_appwrite|apps/console/src/content/docs-partials/configure-github-app.md|96|secret|finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|appwrite_appwrite|packages/nats/tests/fixtures/certs/client-key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|appwrite_appwrite|packages/nats/tests/fixtures/certs/ca-key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|appwrite_appwrite|packages/smtp/tests/fixtures/certs/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|appwrite_appwrite|packages/nats/tests/fixtures/certs/server-key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|appwrite_appwrite||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|bradtraversy_proshop_mern|backend/seeder.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|bradtraversy_proshop_mern|backend/data/users.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|bradtraversy_proshop_mern||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|brocoders_nestjs-boilerplate|src/social/tokens.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|brocoders_nestjs-boilerplate|test/admin/users.e2e-spec.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|brocoders_nestjs-boilerplate|src/database/seeds/relational/seed.module.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|brocoders_nestjs-boilerplate||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|BurntSushi_ripgrep|build.rs|40|install-script|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|BurntSushi_ripgrep||||finding",
+      "level": "low",
+      "verdict": "unsure"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|Buuntu_fastapi-react|{{cookiecutter.project_slug}}/backend/app/api/dependencies/__init__.py|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|Buuntu_fastapi-react|{{cookiecutter.project_slug}}/backend/app/tests/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|Buuntu_fastapi-react|{{cookiecutter.project_slug}}/backend/app/alembic/env.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|Buuntu_fastapi-react||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|calcom_cal.com|apps/web/modules/users/components/UserTable/EditSheet/EditUserSheet.tsx|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|calcom_cal.com|packages/trpc/server/routers/_app.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|calcom_cal.com|packages/platform/atoms/lib/markdownToSafeHTML.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|calcom_cal.com|apps/web/playwright/fixtures/bookings.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|calcom_cal.com|packages/app-store-cli/src/components/Message.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|.yarn/releases/yarn-4.12.0.cjs|141|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|.yarn/releases/yarn-4.12.0.cjs|254|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|.yarn/releases/yarn-4.12.0.cjs|284|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|.yarn/releases/yarn-4.12.0.cjs|247|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|.yarn/releases/yarn-4.12.0.cjs|218|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|.yarn/releases/yarn-4.12.0.cjs|4|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|.yarn/releases/yarn-4.12.0.cjs|191|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|calcom_cal.com|packages/lib/redactSensitiveData.test.ts|184|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|calcom_cal.com||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|charmbracelet_glow||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|cookiecutter_cookiecutter-django|{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/users/api/views.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|cookiecutter_cookiecutter-django|{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/__init__.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|cookiecutter_cookiecutter-django|{{cookiecutter.project_slug}}/config/settings/test.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|cookiecutter_cookiecutter-django|{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/users/migrations/0001_initial.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|cookiecutter_cookiecutter-django|{{cookiecutter.project_slug}}/{{cookiecutter.project_slug}}/contrib/sites/migrations/0002_alter_domain_unique.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|cookiecutter_cookiecutter-django||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|directus_directus|packages/extensions-sdk/templates/operation/typescript/source/api.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|directus_directus|app/src/interfaces/input-block-editor/plugins.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|directus_directus|app/src/interfaces/input-block-editor/use-file-handler.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|directus_directus|sdk/tests/merge-collection.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|directus_directus|api/src/database/migrations/20240716A-update-files-date-fields.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|directus_directus|app/src/lang/translations/ar-SA.yaml|579|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|directus_directus|app/src/lang/translations/ar-SA.yaml|872|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|directus_directus||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|django_djangoproject.com|djangoproject/settings/docker.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|django_djangoproject.com|fundraising/exceptions.py|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|django_djangoproject.com|djangoproject/settings/prod.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|django_djangoproject.com|blog/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|django_djangoproject.com|accounts/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|django_djangoproject.com||||finding",
+      "level": "high",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|documenso_documenso|packages/lib/server-only/field/get-completed-fields-for-document.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|documenso_documenso|packages/ui/lib/use-hydrated.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|documenso_documenso|packages/lib/universal/upload/delete-file.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|documenso_documenso|scripts/generate-overflow-test-pdf.mjs|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|documenso_documenso|apps/remix/app/types/empty-module.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|documenso_documenso||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/ui/partners/groups/design/previews/portal-preview.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/ui/partners/groups/design/studs-pattern.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/ui/modals/invite-referral-modal.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|packages/email/src/templates/broadcasts/dub-wrapped.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/ui/layout/settings-layout.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/app/(ee)/partners.dub.co/(onboarding)/onboarding/payouts/payout-provider.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/ui/partners/rewind/partner-rewind-card.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|packages/email/src/templates/broadcasts/launch-week-day-5.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/lib/actions/send-invite-referral-email.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|packages/email/src/templates/referral-invite.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/ui/guides/guide-action-button.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|packages/stripe-app/src/utils/stripe.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/lib/actions/partners/approve-program-application.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/scripts/customers/beehiiv/update-links-stats.ts|||finding",
+      "level": "low",
+      "verdict": "unsure"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|dubinc_dub|apps/web/scripts/fix-broken-applications.ts|||finding",
+      "level": "low",
+      "verdict": "unsure"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|dubinc_dub||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|elie222_inbox-zero|apps/web/hooks/useTableKeyboardNavigation.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|elie222_inbox-zero|apps/web/app/(app)/[emailAccountId]/onboarding/ImagePreview.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|elie222_inbox-zero|apps/web/utils/ai/reply/generate-nudge.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|elie222_inbox-zero|apps/desktop/__tests__/mail-engine/electron-hosted-renderer-entry.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|elie222_inbox-zero|packages/email-editor/scripts/prepare-package.mjs|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|elie222_inbox-zero|apps/web/ee/billing/apple/local-testing.ts|8|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|elie222_inbox-zero|apps/web/package.json|174|typosquat|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|elie222_inbox-zero|apps/web/app/api/user/messaging-channels/route.test.ts|385|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|elie222_inbox-zero|apps/web/app/api/slack/callback/route.test.ts|148|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|elie222_inbox-zero|apps/web/app/api/user/messaging-channels/route.test.ts|264|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|elie222_inbox-zero|apps/web/app/api/slack/callback/route.test.ts|108|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|elie222_inbox-zero|apps/web/app/api/slack/callback/route.test.ts|158|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|elie222_inbox-zero||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|encode_httpx|tests/models/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|encode_httpx|tests/client/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|encode_httpx||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|excalidraw_excalidraw|packages/excalidraw/components/Paragraph.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|excalidraw_excalidraw|packages/excalidraw/components/ButtonIconCycle.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|excalidraw_excalidraw|scripts/buildPackage.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|excalidraw_excalidraw|scripts/buildWasm.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|excalidraw_excalidraw|packages/excalidraw/subset/harfbuzz/harfbuzz-wasm.ts|57|minified|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|excalidraw_excalidraw|.env.production|17|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|excalidraw_excalidraw|packages/excalidraw/subset/woff2/woff2-wasm.ts|55|minified|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|excalidraw_excalidraw|.env.development|17|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|excalidraw_excalidraw||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|expressjs_express|test/app.router.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|expressjs_express|test/app.listen.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|expressjs_express||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastapi_full-stack-fastapi-template|hooks/post_gen_project.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastapi_full-stack-fastapi-template|frontend/src/components/ui/alert.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastapi_full-stack-fastapi-template|frontend/src/components/ui/button-group.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastapi_full-stack-fastapi-template|frontend/src/components/ui/card.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastapi_full-stack-fastapi-template|frontend/src/components/ui/pagination.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastapi_full-stack-fastapi-template|backend/app/alembic/versions/e2412789c190_initialize_models.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastapi_full-stack-fastapi-template|backend/app/alembic/versions/fe56fa70289e_add_created_at_to_user_and_item.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|fastapi_full-stack-fastapi-template||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastify_fastify|examples/benchmark/simple.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|fastify_fastify|examples/benchmark/hooks-benchmark-async-await.js|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|fastify_fastify||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|gin-gonic_gin|testdata/certificate/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|gin-gonic_gin||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|gothinkster_angular-realworld-example-app|src/test-setup.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|gothinkster_angular-realworld-example-app||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|gothinkster_react-redux-realworld-example-app||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|honojs_hono|benchmarks/utils/src/get-path.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|honojs_hono|benchmarks/utils/src/loop.js|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|honojs_hono|perf-measures/type-check/client.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|honojs_hono|benchmarks/jsx/src/benchmark.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|honojs_hono|perf-measures/bundle-check/scripts/check-bundle-size.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|honojs_hono||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|ixartz_Next-js-Boilerplate|src/instrumentation-client.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|ixartz_Next-js-Boilerplate|tests/e2e/Counter.e2e.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|ixartz_Next-js-Boilerplate|tests/e2e/Visual.e2e.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|ixartz_Next-js-Boilerplate||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|jazzband_django-oauth-toolkit|docs/rfc.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|jazzband_django-oauth-toolkit|tests/e2e/oidc_rp_initiated_logout/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|jazzband_django-oauth-toolkit|tests/e2e/rfc8628_device_grant/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|jazzband_django-oauth-toolkit|tests/settings.py|154|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|jazzband_django-oauth-toolkit|tests/test_utils.py|20|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|jazzband_django-oauth-toolkit|tests/app/idp/idp/settings.py|64|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|jazzband_django-oauth-toolkit|tests/test_utils.py|7|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|jazzband_django-oauth-toolkit|tests/settings.py|137|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|jazzband_django-oauth-toolkit||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|juice-shop_juice-shop|test/cypress/support/e2e.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|juice-shop_juice-shop|data/static/codefixes/redirectCryptoCurrencyChallenge_2.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|juice-shop_juice-shop|lib/insecurity.ts|21|secret|finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|juice-shop_juice-shop|terraform/networking.tf|171|secret|finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|juice-shop_juice-shop|infrastructure/terraform/networking.tf|171|secret|finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|juice-shop_juice-shop||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/app/(tabs)/_layout.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/app/(tabs)/tags/_layout.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/components/ActionSheets/SignUpSheet.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/app/(tabs)/settings/_layout.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/components/TabBarSafeArea.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/components/OfflineSyncProvider.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/components/ui/IconSymbol.ios.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/components/ActionSheets/RefreshPreservedFormatsSheet.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/web/components/RadioButton.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/app/_layout.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/store/reader.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/web/components/Dropdown.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/mobile/components/Formats/WebpageFormat.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|apps/worker/workers/linkIndexing.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|linkwarden_linkwarden|packages/prisma/seed.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|linkwarden_linkwarden||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|maybe-finance_maybe|app/javascript/services/currencies_service.js|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|maybe-finance_maybe|app/views/pwa/service-worker.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|maybe-finance_maybe|vendor/javascript/d3-zoom.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|maybe-finance_maybe|vendor/javascript/d3-shape.js|3|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|maybe-finance_maybe|vendor/javascript/d3-force.js|3|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|maybe-finance_maybe|vendor/javascript/d3-sankey.js|3|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|maybe-finance_maybe|vendor/javascript/@github--hotkey.js|1|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|maybe-finance_maybe|vendor/javascript/d3-scale.js|3|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|maybe-finance_maybe||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|mckaywrigley_chatbot-ui|components/ui/alert.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|mckaywrigley_chatbot-ui|components/ui/skeleton.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|mckaywrigley_chatbot-ui|components/ui/hover-card.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|mckaywrigley_chatbot-ui|components/utility/import.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|mckaywrigley_chatbot-ui|public/worker-development.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|mckaywrigley_chatbot-ui||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|medusajs_nextjs-starter-medusa|next-sitemap.js|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|medusajs_nextjs-starter-medusa|src/lib/data/variants.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|medusajs_nextjs-starter-medusa|.yarn/releases/yarn-4.12.0.cjs|247|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|medusajs_nextjs-starter-medusa|.yarn/releases/yarn-4.12.0.cjs|141|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|medusajs_nextjs-starter-medusa|.yarn/releases/yarn-4.12.0.cjs|298|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|medusajs_nextjs-starter-medusa|.yarn/releases/yarn-4.12.0.cjs|299|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|medusajs_nextjs-starter-medusa|.yarn/releases/yarn-4.12.0.cjs|395|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|medusajs_nextjs-starter-medusa|.yarn/releases/yarn-4.12.0.cjs|191|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|medusajs_nextjs-starter-medusa|.yarn/releases/yarn-4.12.0.cjs|4|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|medusajs_nextjs-starter-medusa||||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|miguelgrinberg_microblog|migrations/versions/37f06a334dbf_new_fields_in_user_model.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|miguelgrinberg_microblog|migrations/versions/2b017edaa91f_add_language_to_posts.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|miguelgrinberg_microblog||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|mutoe_vue3-realworld-example-app|src/composable/use-favorite-article.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|mutoe_vue3-realworld-example-app|scripts/merge-coverage.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|mutoe_vue3-realworld-example-app||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|n8n-io_n8n|packages/frontend/editor-ui/src/features/agents/vector-stores.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|n8n-io_n8n|packages/cli/src/modules/promotions.ee/promotions.module.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|n8n-io_n8n|packages/frontend/editor-ui/src/app/constants/breakpoints.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|n8n-io_n8n|packages/nodes-base/nodes/Html/Html.node.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|n8n-io_n8n|packages/@n8n/db/src/migrations/common/1691088862123-CreateWorkflowNameIndex.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json|86308|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json|84954|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json|84698|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json|1195|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/quality/efficiency/scale/benchmark/scripts/mock-api/mappings/mockApiData.json|86617|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/@n8n/eslint-plugin-community-nodes/docs/rules/no-hardcoded-secrets.md|44|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/nodes-base/utils/binary.ts|163|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/nodes-base/nodes/UProc/Json/Tools.ts|4764|hidden-unicode|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/nodes-base/nodes/Venafi/Datacenter/VenafiTlsProtectDatacenterTrigger.node.ts|23|hidden-unicode|finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/@n8n/nodes-langchain/nodes/Guardrails/test/checks/secretKeys.test.ts|83|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/quality/testing/playwright/tests/cli-workflows/workflows/97.json|167|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/@n8n/mcp-browser/src/redaction/__tests__/redact.test.ts|12|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/core/src/execution-engine/eval-mock-fixtures.ts|56|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|n8n-io_n8n|packages/@n8n/nodes-langchain/nodes/Guardrails/test/checks/secretKeys.test.ts|40|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|n8n-io_n8n||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|nestjs_typescript-starter|test/app.e2e-spec.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|nestjs_typescript-starter||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|nextauthjs_next-auth-example|components/access-denied.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|nextauthjs_next-auth-example||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|Nutlope_roomGPT||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|open-webui_open-webui|src/lib/components/common/diffEditorHistory.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|open-webui_open-webui|backend/open_webui/models/prompts.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|open-webui_open-webui|backend/open_webui/routers/groups.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|open-webui_open-webui|backend/open_webui/migrations/versions/d4c1a8e37b62_add_chat_timer_at_and_chat_indexes.py|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|open-webui_open-webui|src/lib/utils/marked/strikethrough-extension.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|open-webui_open-webui|backend/open_webui/static/swagger-ui/swagger-ui-bundle.js|60958|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|open-webui_open-webui|backend/open_webui/static/swagger-ui/swagger-ui-bundle.js|66898|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|open-webui_open-webui||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|outline_outline|server/queues/processors/EmailsProcessor.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|outline_outline|__mocks__/react-medium-image-zoom.js|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|outline_outline|server/utils/__mocks__/MutexLock.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|outline_outline|server/migrations/20220812115059-scope-user-auth-provider-id-uniqueness-to-user.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|outline_outline|server/migrations/20241219023150-group-external-id.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|outline_outline|shared/editor/lib/DiagramsNetClient.ts|200|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|outline_outline||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|pallets_flask|tests/test_apps/blueprintapp/apps/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|pallets_flask|examples/celery/src/task_app/views.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|pallets_flask||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|PanJiaChen_vue-element-admin|plopfile.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|PanJiaChen_vue-element-admin|src/components/Tinymce/toolbar.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|PanJiaChen_vue-element-admin|src/components/Tinymce/plugins.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|PanJiaChen_vue-element-admin|src/api/user.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|PanJiaChen_vue-element-admin|src/views/dashboard/admin/components/mixins/resize.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|PanJiaChen_vue-element-admin||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|plausible_analytics|assets/js/dashboard/components/table-legacy.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|plausible_analytics|assets/js/dashboard/stats/bar.js|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|plausible_analytics|assets/js/dashboard/fade-in.js|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|plausible_analytics|assets/js/dashboard/components/placeholder.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|plausible_analytics|tracker/compile.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|plausible_analytics|tracker/installation_support/verifier.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|plausible_analytics||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|pmndrs_zustand|tests/setup.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|pmndrs_zustand||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/watch.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/fieldArray.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/opaqueTypes.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/util.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/path/common.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/getErrors.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/useController.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/path/eager.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/use-form-context.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|src/__typetest__/form-state-subscribe.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|examples/V7/validationOnFieldChange.tsx|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|react-hook-form_react-hook-form|examples/V6/setValue.tsx|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|react-hook-form_react-hook-form||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|sahat_hackathon-starter|test/tools/start-with-memory-db.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|sahat_hackathon-starter|public/js/theme.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|sahat_hackathon-starter|package.json|19|install-script|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|sahat_hackathon-starter|package.json|18|install-script|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|sahat_hackathon-starter||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|saleor_saleor|saleor/tests/dummy_password_hasher.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|saleor_saleor|saleor/graphql/product/tests/queries/products_filtrations/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|saleor_saleor|saleor/tests/settings.py|60|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|saleor_saleor|saleor/plugins/openid_connect/tests/conftest.py|149|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|saleor_saleor||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|shadcn-ui_next-template||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|shadcn-ui_taxonomy|components/ui/badge.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|shadcn-ui_taxonomy|app/api/auth/[...nextauth]/_route.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|shadcn-ui_taxonomy|components/ui/sheet.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|shadcn-ui_taxonomy|components/ui/calendar.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|shadcn-ui_taxonomy|components/ui/tooltip.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|shadcn-ui_taxonomy|components/ui/command.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|shadcn-ui_taxonomy|components/ui/navigation-menu.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|shadcn-ui_taxonomy||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|steven-tey_precedent|lib/hooks/use-intersection-observer.ts|||finding",
+      "level": "high",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|steven-tey_precedent|lib/hooks/use-local-storage.ts|||finding",
+      "level": "high",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|steven-tey_precedent||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|strapi_strapi|packages/utils/upgrade/resources/codemods/5.0.0/s3-keys-wrapped-in-credentials.code.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|strapi_strapi|packages/cli/create-strapi-app/templates/example-js/src/api/about/routes/about.js|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|strapi_strapi|packages/cli/create-strapi-app/templates/example-js/src/api/author/controllers/author.js|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|strapi_strapi|examples/complex/src/api/relation-dp/controllers/relation-dp.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|strapi_strapi|packages/core/review-workflows/admin/tests/setup.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|.yarn/releases/yarn-4.12.0.cjs|247|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|.yarn/releases/yarn-4.12.0.cjs|19|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|.yarn/releases/yarn-4.12.0.cjs|284|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|.yarn/releases/yarn-4.12.0.cjs|254|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|.yarn/releases/yarn-4.12.0.cjs|138|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|packages/core/admin/ee/admin/src/pages/SettingsPage/pages/AuditLogs/hooks/tests/useExportAuditLogs.test.ts|13|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|packages/core/admin/ee/admin/src/pages/SettingsPage/pages/AuditLogs/tests/ListPage.test.tsx|225|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|.yarn/releases/yarn-4.12.0.cjs|191|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|packages/core/admin/server/src/utils/debug-dump/__tests__/redact.test.ts|155|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|strapi_strapi|packages/core/admin/ee/admin/src/pages/SettingsPage/pages/AuditLogs/tests/ListPage.test.tsx|139|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|strapi_strapi||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|sveltejs_realworld||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|taniarascia_takenote|src/client/serviceWorker.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|taniarascia_takenote|src/client/setupTests.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|taniarascia_takenote|seed.js|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|taniarascia_takenote|config/webpack.prod.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|taniarascia_takenote|tests/__mocks__/styleMock.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|taniarascia_takenote||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|tj_commander.js|typings/index.test-d.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|tj_commander.js|examples/options-defaults.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|tj_commander.js|examples/arguments-extra.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|tj_commander.js||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|twentyhq_twenty|packages/twenty-server/src/database/typeorm/core/legacy-typeorm-migrations-do-not-add/common/1768916632478-makeRemainingEntitiesUniversalIdentifierAndApplicationIdNotNullable.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|twentyhq_twenty|packages/twenty-server/src/database/typeorm/core/legacy-typeorm-migrations-do-not-add/common/1762351626807-viewVisibility.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|twentyhq_twenty|packages/twenty-front-component-renderer/src/__stories__/html-tag/list/dl/dl-click.front-component.tsx|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|twentyhq_twenty|packages/twenty-server/test/integration/utils/run-folder-actions.util.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|twentyhq_twenty|packages/twenty-server/test/integration/upgrade/suites/2-44-workspace-command-1790583246061-rename-call-recording-tabs-to-transcript.integration-spec.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-server/package.json|107|typosquat|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-server/src/engine/core-modules/application/application-package/constants/yarn-engine/.yarn/releases/yarn-4.9.2.cjs|395|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-server/src/engine/core-modules/application/application-package/constants/yarn-engine/.yarn/releases/yarn-4.9.2.cjs|298|obfuscation|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-server/src/engine/metadata-modules/front-component/constants/seed-project/show-notification/index.mjs|28|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-server/src/engine/core-modules/i18n/locales/generated/af-ZA.ts|1|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-front/src/locales/generated/af-ZA.ts|1|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-website/src/locales/generated/cs.ts|1|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-front/src/locales/generated/ca-ES.ts|1|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-front/src/locales/generated/sr-Latn.ts|1|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|twentyhq_twenty|packages/twenty-emails/src/locales/generated/fi-FI.ts|1|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|twentyhq_twenty||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|umami-software_umami|src/app/(main)/websites/[websiteId]/WebsiteTabs.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|umami-software_umami|src/lib/sql.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|umami-software_umami|src/app/(main)/settings/profile/ProfileHeader.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|umami-software_umami|src/app/api/websites/[websiteId]/event-data/values/contract.generated.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|umami-software_umami|src/app/api/2fa/setup/cancel/contract.generated.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|umami-software_umami||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|components/chat/sign-out-form.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|instrumentation-client.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|components/chat/sidebar-toggle.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|lib/editor/react-renderer.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|components/chat/artifact-messages.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|components/ai-elements/conversation.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|lib/db/migrate.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|vercel_ai-chatbot|tests/helpers.ts|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|vercel_ai-chatbot||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|vercel_commerce||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|WebGoat_WebGoat|src/main/resources/webgoat/static/js/goatApp/view/HintView.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "dead_code|WebGoat_WebGoat|src/main/resources/webgoat/static/js/libs/bootstrap.min.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|WebGoat_WebGoat|src/main/resources/webgoat/static/js/libs/backbone-min.js|1|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "audit|WebGoat_WebGoat|src/main/resources/webgoat/static/js/libs/underscore-min.js|6|minified|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "fresh",
+      "key": "architecture|WebGoat_WebGoat||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|ee/stripe/webhooks/checkout-session-completed.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/datarooms/settings/settings-tabs.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/trigger/backfill-video-lengths.ts|||finding",
+      "level": "high",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/shared/icons/copy-right.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/utils/use-at-bottom.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/datarooms/add-viewer-modal.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/documents/annotations/annotation-sheet.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/shared/icons/badge-check.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/EmailForm.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|ee/features/billing/cancellation/api/pause-route.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|ee/stripe/webhooks/customer-subscription-deleted.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/api/domains/clear-team-redirects.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/teams/select-team.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/billing/upgrade-plan-modal-with-discount.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/shared/dealflow-popup.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/search-command.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/folders/folder-color-picker.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/year-in-review/calculate-percentile.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/swr/use-document-stats.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|ee/features/billing/cancellation/api/retention-route.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|ee/features/billing/cancellation/lib/trigger/unpause-task.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/links/link-sheet/permissions-sheet.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|ee/features/billing/cancellation/constants.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/featureFlags/dataroom-freeze.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/notion/config.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/shared/icons/producthunt.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|mfts_papermark|public/vendor/handsontable/handsontable.full.min.js|29|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/emails/onboarding-1.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/emails/thousand-views-congrats.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/emails/onboarding-3.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|ee/emails/pause-resume-reminder.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|components/emails/upgrade-personal-welcome.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|mfts_papermark|lib/emails/send-upgrade-personal-welcome.ts|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|mfts_papermark||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|go-chi_chi|testdata/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|go-chi_chi||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|laravel_laravel|resources/views/welcome.blade.php|16|minified|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|laravel_laravel||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/config/drizzle-config-mysql.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/index-drizzle/with-mysql.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/index-drizzle/with-planetscale.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-better-auth-planetscale.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/config/drizzle-config-postgres.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/base-planetscale.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/base-postgres.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-auth-planetscale.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-auth-sqlite.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/index-drizzle/with-sqlite.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-better-auth-postgres.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/base-sqlite.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-better-auth-sqlite.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-auth-postgres.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-auth-mysql.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/config/drizzle-config-sqlite.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/with-better-auth-mysql.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/schema-drizzle/base-mysql.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/db/index-drizzle/with-postgres.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/auth/config/base.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|www/src/components/docs/openSourceAppList.tsx|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/better-auth/client.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|www/src/components/docs/breadCrumbs.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|www/src/components/docs/introductionTab.tsx|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|www/src/components/landingPage/cli.tsx|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/better-auth/config/with-drizzle.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/api/trpc-pages/with-better-auth.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/app/page/with-tw.tsx|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/server/api/trpc-pages/with-auth.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/app/layout/with-trpc.tsx|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|t3-oss_create-t3-app|cli/template/extras/src/app/page/with-better-auth-tw.tsx|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|t3-oss_create-t3-app||||finding",
+      "level": "medium",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|steven-tey_novel|apps/web/components/tailwind/ui/icons/loading-circle.tsx|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|steven-tey_novel|apps/web/styles/fonts.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|steven-tey_novel||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|gothinkster_rails-realworld-example-app|app/assets/javascripts/application.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|gothinkster_rails-realworld-example-app||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|launchbadge_realworld-axum-sqlx||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/connectors/connector-alipay-native/src/mock.ts|15|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/connectors/connector-alipay-web/src/mock.ts|16|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/schemas/alterations/1.11.0-1699422979-add-sso-connector-id-col-to-user-sso-identities-table.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/schemas/alterations/1.7.0-1688627407-daily-active-users.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/account/src/utils/social-flow.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/schemas/alterations/1.44.0-1789000000-extend-user-id-length.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/schemas/alterations/1.43.0-1785722831-add-oidc-session-extensions-account-id-index.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/schemas/alterations/1.31.0-1753689065-add-forgot-password-methods-to-sie-table.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/phrases/src/locales/es/translation/admin-console/tenants.ts|195|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/phrases/src/locales/pl-pl/errors/role.ts|11|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/phrases/src/locales/tr-tr/translation/admin-console/inkeep-ai-bot.ts|9|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/phrases/src/locales/it/translation/admin-console/tenant-members.ts|45|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/core/jest.setup.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|.scripts/publish.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/core/src/workers/tasks/script-runner.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|.scripts/version.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/integration-tests/jest.setup.api.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|logto-io_logto|packages/connectors/templates/sync-preset.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/core/src/sso/OktaSsoConnector/consts.ts|2|minified|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/connectors/connector-saml/src/mock.ts|42|minified|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|logto-io_logto|packages/connectors/connector-saml/src/mock.ts|10|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|logto-io_logto||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|remix-run_indie-stack|cypress/support/e2e.ts|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|remix-run_indie-stack|cypress/support/commands.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|remix-run_indie-stack|test/setup-test-env.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|remix-run_indie-stack|cypress/support/delete-user.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|remix-run_indie-stack|cypress/support/create-user.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|remix-run_indie-stack|prisma/seed.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|remix-run_indie-stack|cypress/e2e/smoke.cy.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|remix-run_indie-stack||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|pallets_click|examples/imagepipe/imagepipe.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|pallets_click|tests/typing/typing_confirmation_option.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|pallets_click|examples/colors/colors.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|pallets_click|examples/validation/validation.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|pallets_click|tests/typing/typing_edit.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|pallets_click|tests/typing/typing_path.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|pallets_click||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|spf13_viper||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/status-page/src/components/ui/data-table/data-table.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/web/src/lib/github.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/dashboard/src/components/date-picker.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/status-page/src/components/ui/data-table/data-table-faceted-filter.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/web/src/components/ui/data-table/data-table.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/status-page/src/components/ui/data-table/data-table-view-options.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/server/src/serve.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|packages/notifications/slack/src/mock.ts|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|packages/db/src/seed/external-services.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|apps/web/env.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|packages/notifications/email/src/mock.ts|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|openstatusHQ_openstatus|packages/notifications/discord/src/mock.ts|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/openstatus/status_report/v1/service_pb.ts|17|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/gnostic/openapi/v3/openapiv3_pb.ts|31|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/openstatus/private_location/v1/private_location_pb.ts|13|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/openstatus/notification/v1/notification_pb.ts|15|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/openstatus/private_location/v1/service_pb.ts|17|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/openstatus/maintenance/v1/maintenance_pb.ts|13|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/gnostic/openapi/v3/annotations_pb.ts|30|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|openstatusHQ_openstatus|packages/proto/gen/ts/openstatus/monitor/v1/service_pb.ts|27|obfuscation|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|openstatusHQ_openstatus||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|wagtail_bakerydemo|bakerydemo/settings/base.py|262|secret|finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/settings/production.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/settings/test.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/base/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/locations/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/recipes/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/people/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/base/filters.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|wagtail_bakerydemo|bakerydemo/breads/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "architecture|wagtail_bakerydemo||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|appsecco_dvna|models/user.js|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|appsecco_dvna|models/product.js|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|appsecco_dvna|public/assets/showdown.min.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|appsecco_dvna|public/assets/jquery-3.2.1.min.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|appsecco_dvna||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|lujakob_nestjs-realworld-example-app|src/shared/base.controller.ts|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|lujakob_nestjs-realworld-example-app||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/app/(app)/workspaces/[workspaceId]/settings/account/components/AccountSettingsNavbar.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|packages/database/zod/workflows.ts|||finding",
+      "level": "not reported",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|packages/surveys/src/components/icons/link-icon.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/modules/survey/editor/types/survey-trigger.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|packages/types/activity.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/modules/ee/analysis/charts/components/charts-list-skeleton.tsx|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|formbricks_formbricks|apps/web/modules/survey/import/lib/qsf-file.ts|46|hidden-unicode|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|formbricks_formbricks|apps/web/modules/custom-css/components/lib/upload.ts|30|hidden-unicode|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/modules/api/v2/management/surveys/[surveyId]/contact-links/segments/lib/openapi.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|packages/database/src/scripts/create-saml-database.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/modules/api/v2/organizations/[organizationId]/users/lib/openapi.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/modules/ui/components/label/stories.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/modules/api/v2/types/openapi-response.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|formbricks_formbricks|apps/web/modules/api/v2/organizations/[organizationId]/workspace-teams/lib/openapi.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|formbricks_formbricks|apps/web/modules/custom-css/components/lib/upload.test.ts|45|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|formbricks_formbricks|apps/web/modules/organization/settings/teams/components/invite-member/bulk-invite-tab.test.ts|35|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|formbricks_formbricks|apps/web/modules/survey/import/lib/qsf-file.test.ts|33|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|formbricks_formbricks|apps/web/modules/custom-css/components/lib/upload.test.ts|46|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|formbricks_formbricks||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|digininja_DVWA|vulnerabilities/javascript/source/high_unobfuscated.js|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|digininja_DVWA|vulnerabilities/javascript/source/high.js|1|obfuscation|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|digininja_DVWA|vulnerabilities/javascript/source/high.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|digininja_DVWA|vulnerabilities/help.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|digininja_DVWA|vulnerabilities/javascript/source/medium.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|digininja_DVWA|dvwa/js/add_event_listeners.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|digininja_DVWA|vulnerabilities/authbypass/authbypass.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|digininja_DVWA|vulnerabilities/csp/source/high.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|digininja_DVWA|vulnerabilities/javascript/source/high.js|1|minified|finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|digininja_DVWA||||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|encode_starlette|benchmarks/multipart_benchmark.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|encode_starlette|benchmarks/websocket_benchmark.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|encode_starlette|tests/middleware/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|encode_starlette|benchmarks/urlencoded_benchmark.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|encode_starlette|benchmarks/request_benchmark.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|encode_starlette|benchmarks/routing_benchmark.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|encode_starlette||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|trpc_examples-next-prisma-starter|prisma/seed.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|trpc_examples-next-prisma-starter||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/components/lenses/renderers/mixins/TextContentRendererMixin.js|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/newstore/HoppExtension.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-js-sandbox/src/bootstrap-code/pre-request.js|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/functional/debug.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/mockServer/exampleCollection.ts|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/requestParams.js|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-sh-admin/src/composables/stream.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/composables/step-components.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/functional/taskEither.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/lenses/pdfLens.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/import-export/import/insomnia/insomniaColl.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hoppscotch_hoppscotch|packages/hoppscotch-common/src/newstore/reordering.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/runner/__tests__/dataset.spec.ts|47|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|hoppscotch_hoppscotch|packages/hoppscotch-js-sandbox/package.json|40|install-script|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/auth/types/__tests__/jwt.spec.ts|147|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/aichat/__tests__/secret-references.spec.ts|135|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/auth/types/__tests__/jwt.spec.ts|129|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|hoppscotch_hoppscotch|packages/hoppscotch-common/src/helpers/aichat/__tests__/secret-references.spec.ts|132|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|hoppscotch_hoppscotch||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|httpie_cli|setup.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|httpie_cli|httpie/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|httpie_cli|extras/packaging/linux/scripts/httpie_cli.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|httpie_cli|extras/packaging/linux/scripts/http_cli.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|httpie_cli|docs/contributors/fetch.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|httpie_cli|httpie/output/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|httpie_cli|docs/installation/generate.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|httpie_cli|tests/client_certs/client.pem|32|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|httpie_cli|tests/client_certs/client.key|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|httpie_cli||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|nsidnev_fastapi-realworld-example-app|tests/test_schemas/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|nsidnev_fastapi-realworld-example-app|tests/test_api/test_errors/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|nsidnev_fastapi-realworld-example-app|tests/test_services/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|nsidnev_fastapi-realworld-example-app|tests/test_db/test_queries/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|nsidnev_fastapi-realworld-example-app|tests/test_api/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|nsidnev_fastapi-realworld-example-app|tests/test_db/__init__.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|nsidnev_fastapi-realworld-example-app||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|gothinkster_golang-gin-realworld-example-app||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|profiling/mix_big.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|profiling/mix_huge.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|profiling/dict_huge.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|profiling/list_huge.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|profiling/dict_big.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|profiling/mix_small.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|profiling/list_big.py|||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|src/blib2to3/pgen2/literals.py|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|src/black/schema.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|src/black/resources/__init__.py|||finding",
+      "level": "medium",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|src/blib2to3/pgen2/conv.py|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|tests/data/cases/torture.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|tests/data/cases/line_ranges_basic.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|tests/data/cases/string_prefixes.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|tests/data/invalid_nested_gitignore_tests/a.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|tests/data/cases/fstring_quotations.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|psf_black|tests/data/cases/slices.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|psf_black||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|tokio-rs_axum|examples/low-level-native-tls/self_signed_certs/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|tokio-rs_axum|examples/websockets-http2/self_signed_certs/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|tokio-rs_axum|examples/tls-graceful-shutdown/self_signed_certs/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|tokio-rs_axum|examples/tls-rustls/self_signed_certs/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|tokio-rs_axum|examples/low-level-rustls/self_signed_certs/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|tokio-rs_axum|examples/low-level-openssl/self_signed_certs/key.pem|1|secret|finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|tokio-rs_axum|axum-macros/tests/from_request/pass/named_via_parts.rs|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|tokio-rs_axum|axum-macros/tests/from_request/pass/unit.rs|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|tokio-rs_axum|axum-macros/tests/debug_handler/fail/not_a_function.rs|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|tokio-rs_axum|axum-macros/tests/from_request/pass/state_enum_via.rs|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|tokio-rs_axum|axum-macros/tests/debug_handler/fail/output_tuple_too_many.rs|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|tokio-rs_axum|axum-macros/tests/debug_handler/fail/generics.rs|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|tokio-rs_axum||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|Blazity_next-enterprise|report-bundle-size.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|Blazity_next-enterprise|vitest.setup.ts|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|Blazity_next-enterprise|components/Tooltip/Tooltip.tsx|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|Blazity_next-enterprise||||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|hagopj13_node-express-boilerplate|bin/createNodejsApp.js|||finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|hagopj13_node-express-boilerplate||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|.ssh/wrongsecrets.keys|1|secret|finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-c-arm||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-c-linux-arm||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-rust-linux-musl-arm||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-swift-linux||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-advanced-c-linux||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-swift-linux-arm-ctf||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-rust||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/main/resources/executables/wrongsecrets-rust-linux||binary|finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|OWASP_wrongsecrets|src/test/K8s-tests/cypress/e2e/Challenge47Test.cy.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|OWASP_wrongsecrets|src/test/K8s-tests/cypress/e2e/Challenge5Test.cy.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|OWASP_wrongsecrets|.github/scripts/update_pr_index.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|OWASP_wrongsecrets|src/test/e2e/cypress/integration/themeSwitch.cy.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|OWASP_wrongsecrets|src/test/e2e/cypress/support/e2e.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|OWASP_wrongsecrets|.github/scripts/remove_pr_from_index.py|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|OWASP_wrongsecrets|src/test/resources/RSAprivatekey.pem|1|secret|finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|OWASP_wrongsecrets||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|sindresorhus_got|test/types/exports.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|sindresorhus_got|test/timeout.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|sindresorhus_got|documentation/examples/pagination.js|||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|sindresorhus_got|test/arguments.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|sindresorhus_got|test/zstd.ts|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|sindresorhus_got|documentation/examples/uppercase-headers.js|||finding",
+      "level": "low",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|sindresorhus_got|test/response-parse.ts|1121|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|sindresorhus_got|test/pagination-options.ts|206|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|sindresorhus_got|test/pagination-options.ts|196|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|sindresorhus_got|test/pagination-options.ts|209|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|sindresorhus_got|test/pagination-options.ts|184|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "audit|sindresorhus_got|test/pagination-options.ts|107|hidden-unicode|finding",
+      "level": "not reported",
+      "verdict": "incorrect"
+    },
+    {
+      "set": "original",
+      "key": "architecture|sindresorhus_got||||finding",
+      "level": "low",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|gothinkster_django-realworld-example-app|conduit/apps/profiles/exceptions.py|||finding",
+      "level": "medium",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|gothinkster_django-realworld-example-app|conduit/apps/profiles/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|gothinkster_django-realworld-example-app|conduit/apps/authentication/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|gothinkster_django-realworld-example-app|conduit/apps/articles/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "dead_code|gothinkster_django-realworld-example-app|conduit/apps/core/apps.py|||finding",
+      "level": "not reported",
+      "verdict": "unsure"
+    },
+    {
+      "set": "original",
+      "key": "architecture|gothinkster_django-realworld-example-app||||finding",
+      "level": "high",
+      "verdict": "correct"
+    },
+    {
+      "set": "original",
+      "key": "architecture|koajs_koa||||finding",
+      "level": "low",
+      "verdict": "correct"
+    }
+  ],
+  "repositories": {
+    "Blazity_next-enterprise": {
+      "files": 45,
+      "dead_code": {
+        "low": 2
+      },
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "BurntSushi_ripgrep": {
+      "files": 226,
+      "dead_code": {},
+      "audit": {
+        "low": 1
+      },
+      "architecture": "none|low"
+    },
+    "Buuntu_fastapi-react": {
+      "files": 92,
+      "dead_code": {
+        "low": 6,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services,UI|high"
+    },
+    "Nutlope_roomGPT": {
+      "files": 34,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "OWASP_wrongsecrets": {
+      "files": 850,
+      "dead_code": {
+        "low": 22
+      },
+      "audit": {
+        "high": 2,
+        "medium": 61
+      },
+      "architecture": "Routes,Services|high"
+    },
+    "PanJiaChen_vue-element-admin": {
+      "files": 301,
+      "dead_code": {
+        "low": 6,
+        "medium": 2
+      },
+      "audit": {},
+      "architecture": "Routes,UI|high"
+    },
+    "WebGoat_WebGoat": {
+      "files": 1252,
+      "dead_code": {
+        "low": 95
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services|high"
+    },
+    "alan2207_bulletproof-react": {
+      "files": 523,
+      "dead_code": {
+        "low": 6
+      },
+      "audit": {},
+      "architecture": "Routes,UI|high"
+    },
+    "appsecco_dvna": {
+      "files": 129,
+      "dead_code": {
+        "low": 2,
+        "medium": 2
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services|high"
+    },
+    "appwrite_appwrite": {
+      "files": 11845,
+      "dead_code": {
+        "low": 748,
+        "medium": 17
+      },
+      "audit": {
+        "low": 4,
+        "medium": 2
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "bradtraversy_proshop_mern": {
+      "files": 74,
+      "dead_code": {
+        "low": 3
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,UI|high"
+    },
+    "brocoders_nestjs-boilerplate": {
+      "files": 489,
+      "dead_code": {
+        "low": 14,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services|high"
+    },
+    "calcom_cal.com": {
+      "files": 7273,
+      "dead_code": {
+        "low": 141,
+        "medium": 355
+      },
+      "audit": {
+        "low": 1
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "charmbracelet_glow": {
+      "files": 53,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "cookiecutter_cookiecutter-django": {
+      "files": 248,
+      "dead_code": {
+        "low": 16,
+        "medium": 10
+      },
+      "audit": {},
+      "architecture": "Data,Routes|medium"
+    },
+    "digininja_DVWA": {
+      "files": 233,
+      "dead_code": {
+        "high": 1,
+        "low": 8
+      },
+      "audit": {
+        "low": 1,
+        "medium": 1
+      },
+      "architecture": "Routes|medium"
+    },
+    "directus_directus": {
+      "files": 4564,
+      "dead_code": {
+        "low": 9,
+        "medium": 9
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services,UI|medium"
+    },
+    "django_djangoproject.com": {
+      "files": 593,
+      "dead_code": {
+        "low": 16,
+        "medium": 3
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services|high"
+    },
+    "documenso_documenso": {
+      "files": 2773,
+      "dead_code": {
+        "low": 15,
+        "medium": 38
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "dubinc_dub": {
+      "files": 4876,
+      "dead_code": {
+        "high": 47,
+        "low": 106,
+        "medium": 25
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "elie222_inbox-zero": {
+      "files": 4644,
+      "dead_code": {
+        "low": 33,
+        "medium": 13
+      },
+      "audit": {
+        "low": 7
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "encode_httpx": {
+      "files": 116,
+      "dead_code": {
+        "low": 2
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "encode_starlette": {
+      "files": 147,
+      "dead_code": {
+        "low": 11
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "excalidraw_excalidraw": {
+      "files": 1025,
+      "dead_code": {
+        "low": 6,
+        "medium": 2
+      },
+      "audit": {
+        "low": 4
+      },
+      "architecture": "UI|medium"
+    },
+    "expressjs_express": {
+      "files": 215,
+      "dead_code": {
+        "low": 22
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "fastapi_full-stack-fastapi-template": {
+      "files": 237,
+      "dead_code": {
+        "high": 3,
+        "low": 22,
+        "medium": 2
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services,UI|high"
+    },
+    "fastify_fastify": {
+      "files": 394,
+      "dead_code": {
+        "low": 35
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "formbricks_formbricks": {
+      "files": 5777,
+      "dead_code": {
+        "low": 117,
+        "medium": 18
+      },
+      "audit": {
+        "low": 2
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "gin-gonic_gin": {
+      "files": 130,
+      "dead_code": {},
+      "audit": {
+        "low": 1
+      },
+      "architecture": "none|low"
+    },
+    "go-chi_chi": {
+      "files": 108,
+      "dead_code": {},
+      "audit": {
+        "low": 1
+      },
+      "architecture": "none|low"
+    },
+    "gothinkster_angular-realworld-example-app": {
+      "files": 85,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "gothinkster_django-realworld-example-app": {
+      "files": 48,
+      "dead_code": {
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Data,Routes|high"
+    },
+    "gothinkster_golang-gin-realworld-example-app": {
+      "files": 38,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Data,Routes|high"
+    },
+    "gothinkster_rails-realworld-example-app": {
+      "files": 106,
+      "dead_code": {
+        "low": 1
+      },
+      "audit": {},
+      "architecture": "Data,Routes|high"
+    },
+    "gothinkster_react-redux-realworld-example-app": {
+      "files": 44,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "hagopj13_node-express-boilerplate": {
+      "files": 78,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services|high"
+    },
+    "honojs_hono": {
+      "files": 563,
+      "dead_code": {
+        "low": 17,
+        "medium": 3
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "hoppscotch_hoppscotch": {
+      "files": 2394,
+      "dead_code": {
+        "low": 26,
+        "medium": 26
+      },
+      "audit": {
+        "low": 5
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "httpie_cli": {
+      "files": 263,
+      "dead_code": {
+        "low": 10,
+        "medium": 1
+      },
+      "audit": {
+        "low": 2
+      },
+      "architecture": "none|low"
+    },
+    "ixartz_Next-js-Boilerplate": {
+      "files": 97,
+      "dead_code": {
+        "low": 7
+      },
+      "audit": {},
+      "architecture": "Data,Routes,UI|high"
+    },
+    "jazzband_django-oauth-toolkit": {
+      "files": 529,
+      "dead_code": {
+        "low": 34,
+        "medium": 1
+      },
+      "audit": {
+        "low": 5
+      },
+      "architecture": "Data,Middleware,Routes,Services|high"
+    },
+    "juice-shop_juice-shop": {
+      "files": 1165,
+      "dead_code": {
+        "low": 102
+      },
+      "audit": {
+        "high": 3
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "koajs_koa": {
+      "files": 109,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "laravel_laravel": {
+      "files": 67,
+      "dead_code": {},
+      "audit": {
+        "low": 1
+      },
+      "architecture": "Data,Routes|medium"
+    },
+    "launchbadge_realworld-axum-sqlx": {
+      "files": 24,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Routes|medium"
+    },
+    "linkwarden_linkwarden": {
+      "files": 752,
+      "dead_code": {
+        "high": 11,
+        "low": 9,
+        "medium": 5
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services,UI|high"
+    },
+    "logto-io_logto": {
+      "files": 7922,
+      "dead_code": {
+        "low": 13,
+        "medium": 280
+      },
+      "audit": {
+        "low": 5
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "lujakob_nestjs-realworld-example-app": {
+      "files": 47,
+      "dead_code": {
+        "high": 1
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services|high"
+    },
+    "maybe-finance_maybe": {
+      "files": 1603,
+      "dead_code": {
+        "low": 46,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services,UI|medium"
+    },
+    "mckaywrigley_chatbot-ui": {
+      "files": 308,
+      "dead_code": {
+        "low": 3,
+        "medium": 29
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "medusajs_nextjs-starter-medusa": {
+      "files": 219,
+      "dead_code": {
+        "high": 1,
+        "low": 1,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "mfts_papermark": {
+      "files": 1745,
+      "dead_code": {
+        "high": 65,
+        "low": 31,
+        "medium": 31
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "miguelgrinberg_microblog": {
+      "files": 73,
+      "dead_code": {
+        "low": 1
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services|high"
+    },
+    "mutoe_vue3-realworld-example-app": {
+      "files": 123,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Routes,Services,UI|high"
+    },
+    "n8n-io_n8n": {
+      "files": 31559,
+      "dead_code": {
+        "low": 3689,
+        "medium": 81
+      },
+      "audit": {
+        "low": 121
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "nestjs_typescript-starter": {
+      "files": 17,
+      "dead_code": {
+        "low": 1
+      },
+      "audit": {},
+      "architecture": "Routes,Services|high"
+    },
+    "nextauthjs_next-auth-example": {
+      "files": 46,
+      "dead_code": {
+        "high": 2
+      },
+      "audit": {},
+      "architecture": "Routes,UI|high"
+    },
+    "nsidnev_fastapi-realworld-example-app": {
+      "files": 124,
+      "dead_code": {
+        "low": 7
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services|high"
+    },
+    "open-webui_open-webui": {
+      "files": 5140,
+      "dead_code": {
+        "low": 6,
+        "medium": 5
+      },
+      "audit": {},
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "openstatusHQ_openstatus": {
+      "files": 4219,
+      "dead_code": {
+        "low": 42,
+        "medium": 71
+      },
+      "audit": {
+        "low": 26
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "outline_outline": {
+      "files": 2774,
+      "dead_code": {
+        "low": 23,
+        "medium": 7
+      },
+      "audit": {
+        "low": 1
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "pallets_click": {
+      "files": 176,
+      "dead_code": {
+        "low": 29
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "pallets_flask": {
+      "files": 231,
+      "dead_code": {
+        "low": 19
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "plausible_analytics": {
+      "files": 2070,
+      "dead_code": {
+        "high": 1,
+        "low": 21,
+        "medium": 4
+      },
+      "audit": {},
+      "architecture": "unknown|low"
+    },
+    "pmndrs_zustand": {
+      "files": 131,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Middleware|medium"
+    },
+    "psf_black": {
+      "files": 500,
+      "dead_code": {
+        "high": 7,
+        "low": 298,
+        "medium": 4
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "react-hook-form_react-hook-form": {
+      "files": 502,
+      "dead_code": {
+        "low": 84
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "remix-run_indie-stack": {
+      "files": 69,
+      "dead_code": {
+        "low": 4,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Data,UI|high"
+    },
+    "sahat_hackathon-starter": {
+      "files": 155,
+      "dead_code": {
+        "low": 5
+      },
+      "audit": {
+        "low": 2
+      },
+      "architecture": "Data,Middleware,Routes|high"
+    },
+    "saleor_saleor": {
+      "files": 4628,
+      "dead_code": {
+        "low": 147
+      },
+      "audit": {
+        "low": 2
+      },
+      "architecture": "Data,Middleware,Routes,Services|high"
+    },
+    "shadcn-ui_next-template": {
+      "files": 34,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "shadcn-ui_taxonomy": {
+      "files": 169,
+      "dead_code": {
+        "high": 4,
+        "medium": 22
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services,UI|high"
+    },
+    "sindresorhus_got": {
+      "files": 135,
+      "dead_code": {
+        "low": 58
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "spf13_viper": {
+      "files": 62,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "steven-tey_novel": {
+      "files": 96,
+      "dead_code": {
+        "high": 1,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Routes,UI|high"
+    },
+    "steven-tey_precedent": {
+      "files": 53,
+      "dead_code": {
+        "high": 3
+      },
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "strapi_strapi": {
+      "files": 6942,
+      "dead_code": {
+        "low": 310,
+        "medium": 48
+      },
+      "audit": {
+        "low": 3
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "sveltejs_realworld": {
+      "files": 59,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Routes,UI|medium"
+    },
+    "t3-oss_create-t3-app": {
+      "files": 527,
+      "dead_code": {
+        "low": 96,
+        "medium": 13
+      },
+      "audit": {},
+      "architecture": "Routes,UI|medium"
+    },
+    "taniarascia_takenote": {
+      "files": 169,
+      "dead_code": {
+        "high": 2,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Middleware,Routes,UI|high"
+    },
+    "tj_commander.js": {
+      "files": 216,
+      "dead_code": {
+        "low": 50
+      },
+      "audit": {},
+      "architecture": "none|low"
+    },
+    "tokio-rs_axum": {
+      "files": 498,
+      "dead_code": {
+        "low": 128
+      },
+      "audit": {
+        "low": 6
+      },
+      "architecture": "none|low"
+    },
+    "trpc_examples-next-prisma-starter": {
+      "files": 45,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "Data,Routes,UI|high"
+    },
+    "twentyhq_twenty": {
+      "files": 37525,
+      "dead_code": {
+        "low": 2673,
+        "medium": 837
+      },
+      "audit": {
+        "low": 27,
+        "medium": 2
+      },
+      "architecture": "Data,Middleware,Routes,Services,UI|high"
+    },
+    "umami-software_umami": {
+      "files": 1701,
+      "dead_code": {
+        "low": 146,
+        "medium": 21
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services,UI|high"
+    },
+    "vercel_ai-chatbot": {
+      "files": 175,
+      "dead_code": {
+        "high": 4,
+        "low": 3,
+        "medium": 1
+      },
+      "audit": {},
+      "architecture": "Data,Routes,Services,UI|high"
+    },
+    "vercel_commerce": {
+      "files": 76,
+      "dead_code": {},
+      "audit": {},
+      "architecture": "UI|medium"
+    },
+    "wagtail_bakerydemo": {
+      "files": 207,
+      "dead_code": {
+        "low": 5,
+        "medium": 2
+      },
+      "audit": {
+        "high": 1
+      },
+      "architecture": "Data,Routes|high"
+    }
+  }
+}
