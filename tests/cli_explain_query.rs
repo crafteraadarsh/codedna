@@ -81,13 +81,22 @@ fn project() -> tempfile::TempDir {
                  import { o } from '@/lib/orphan';\n\
                  export const s: Shape = a();\n",
             ),
-            ("src/a.ts", "import { b } from './b';\nexport const a = b;\n"),
+            (
+                "src/a.ts",
+                "import { b } from './b';\nexport const a = b;\n",
+            ),
             ("src/b.ts", "export const b = () => ({ w: 1 });\n"),
             ("src/shape.ts", "export type Shape = { w: number };\n"),
             ("src/lib/orphan.ts", "export const o = 1;\n"),
             ("src/stray.ts", "export const stray = 1;\n"),
-            ("src/c.ts", "import { d } from './d';\nexport const c = d;\n"),
-            ("src/d.ts", "import { c } from './c';\nexport const d = c;\n"),
+            (
+                "src/c.ts",
+                "import { d } from './d';\nexport const c = d;\n",
+            ),
+            (
+                "src/d.ts",
+                "import { c } from './c';\nexport const d = c;\n",
+            ),
             ("tools/gen.go", "package main\n\nfunc main() {}\n"),
         ],
     );
@@ -112,7 +121,10 @@ fn a_used_file_shows_its_root_and_the_evidence_for_each_step() {
     assert_eq!(clean(&v["root"]["file"]), "src/index.ts");
     assert_eq!(v["root"]["role"], "production");
     assert!(
-        v["root"]["reason"].as_str().unwrap().contains("entry point"),
+        v["root"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("entry point"),
         "{v}"
     );
     assert_eq!(
@@ -169,14 +181,20 @@ fn an_unreachable_file_shows_its_finding_and_what_may_still_load_it() {
         "{v}"
     );
     // The finding id explains the same file.
-    let by_id = json(dir.path(), &["explain", "dead:./src/lib/orphan.ts", "--json"]);
+    let by_id = json(
+        dir.path(),
+        &["explain", "dead:./src/lib/orphan.ts", "--json"],
+    );
     assert_eq!(by_id["dead_code"], v["dead_code"]);
     assert_eq!(by_id["id"], "dead:./src/lib/orphan.ts");
 
     // Contrast: a stray file nothing may name stays plainly unreachable.
     let stray = json(dir.path(), &["explain", "src/stray.ts", "--json"]);
     assert_eq!(stray["dead_code"]["status"], "unreachable");
-    assert!(stray["dead_code"]["conditions"].is_null() || stray["dead_code"]["conditions"] == Value::Array(vec![]));
+    assert!(
+        stray["dead_code"]["conditions"].is_null()
+            || stray["dead_code"]["conditions"] == Value::Array(vec![])
+    );
 }
 
 #[test]
@@ -224,7 +242,9 @@ fn a_manifest_entry_cites_the_manifest() {
     );
     let adapters = v["provenance"]["adapters"].as_array().unwrap();
     assert!(
-        adapters.iter().any(|a| a.as_str().unwrap().starts_with("node@")),
+        adapters
+            .iter()
+            .any(|a| a.as_str().unwrap().starts_with("node@")),
         "{v}"
     );
 }
@@ -235,10 +255,7 @@ fn a_file_whose_language_is_not_followed_is_not_called_unused() {
     let v = json(dir.path(), &["explain", "tools/gen.go", "--json"]);
     assert_eq!(v["analyzed"], false);
     assert!(v["usage"].is_null(), "{v}");
-    assert!(
-        v["assumptions"][0].as_str().unwrap().contains("Go"),
-        "{v}"
-    );
+    assert!(v["assumptions"][0].as_str().unwrap().contains("Go"), "{v}");
 }
 
 #[test]
@@ -310,8 +327,14 @@ fn queries_answer_with_evidence() {
             )
         })
         .collect();
-    assert!(found.contains(&("./missing".to_string(), 3)), "{unresolved}");
-    assert!(found.contains(&("@/lib/orphan".to_string(), 4)), "{unresolved}");
+    assert!(
+        found.contains(&("./missing".to_string(), 3)),
+        "{unresolved}"
+    );
+    assert!(
+        found.contains(&("@/lib/orphan".to_string(), 4)),
+        "{unresolved}"
+    );
 }
 
 #[test]
@@ -332,5 +355,8 @@ fn every_answer_carries_stable_provenance() {
     // A change to the code changes the snapshot.
     fs::write(dir.path().join("src/b.ts"), "export const b = () => 2;\n").unwrap();
     let three = json(dir.path(), &["explain", "src/b.ts", "--json"]);
-    assert_ne!(one["provenance"]["snapshot"], three["provenance"]["snapshot"]);
+    assert_ne!(
+        one["provenance"]["snapshot"],
+        three["provenance"]["snapshot"]
+    );
 }

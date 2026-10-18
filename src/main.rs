@@ -12,6 +12,7 @@ mod cycles;
 mod dead_code_detector;
 mod dependency_graph;
 mod diff;
+mod explain;
 mod facts;
 mod framework_detector;
 mod frameworks;

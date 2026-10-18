@@ -251,6 +251,27 @@ pub enum Commands {
         markdown: bool,
     },
 
+    /// Explain why a file is used or not, or a finding: the entry point,
+    /// the path and the dependency facts behind it, with assumptions
+    Explain {
+        /// A file (`src/a.ts`) or a finding id (`file:`, `dead:`, `cycle:`)
+        target: String,
+
+        /// Folder or Git URL to analyse
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output JSON instead of a summary
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Ask the dependency graph a question; every answer cites file, line and rule
+    Query {
+        #[command(subcommand)]
+        op: QueryOp,
+    },
+
     /// Show what a change affects: files that import it, layers, API routes and tests
     Impact {
         /// Folder inside a Git repository
@@ -318,6 +339,63 @@ pub enum Commands {
     },
 }
 
+/// Questions `codedna query` answers.
+#[derive(Subcommand, Debug)]
+pub enum QueryOp {
+    /// Dependencies that resolve to a file, and manifests that name it
+    References {
+        /// The file
+        file: String,
+        #[command(flatten)]
+        common: QueryArgs,
+    },
+    /// A file's own dependencies, resolved or not
+    Imports {
+        /// The file
+        file: String,
+        #[command(flatten)]
+        common: QueryArgs,
+    },
+    /// The shortest chain of dependencies from one file to another
+    Path {
+        /// Start file
+        from: String,
+        /// End file
+        to: String,
+        #[command(flatten)]
+        common: QueryArgs,
+    },
+    /// Every entry point, by role, with why it is one
+    Entrypoints {
+        #[command(flatten)]
+        common: QueryArgs,
+    },
+    /// Dependencies that resolve to no file, or that CodeDna cannot resolve
+    Unresolved {
+        /// Only this file's dependencies
+        #[arg(long)]
+        file: Option<String>,
+        #[command(flatten)]
+        common: QueryArgs,
+    },
+}
+
+/// Options every query takes.
+#[derive(clap::Args, Debug)]
+pub struct QueryArgs {
+    /// Folder or Git URL to analyse
+    #[arg(default_value = ".")]
+    pub path: String,
+
+    /// Output JSON instead of a summary
+    #[arg(long, default_value_t = false)]
+    pub json: bool,
+
+    /// Most facts to list
+    #[arg(long, default_value_t = crate::explain::DEFAULT_LIMIT)]
+    pub limit: usize,
+}
+
 /// How many hotspots a report lists.
 const REPORT_HOTSPOTS: usize = 10;
 
@@ -374,6 +452,23 @@ fn load_or_exit<T>(result: Result<T, String>) -> T {
         eprintln!("error: {msg}");
         std::process::exit(2);
     })
+}
+
+/// Print as pretty JSON.
+fn print_json<T: serde::Serialize>(value: &T) {
+    match serde_json::to_string_pretty(value) {
+        Ok(text) => println!("{text}"),
+        Err(e) => eprintln!("error: JSON serialisation failed: {e}"),
+    }
+}
+
+/// Print a facts answer as JSON or text.
+fn show_facts(answer: &crate::explain::FactsAnswer, json: bool) {
+    if json {
+        print_json(answer);
+    } else {
+        print!("{}", crate::explain::render_facts_text(answer));
+    }
 }
 
 /// Load a saved snapshot, or analyse a folder or repository.
@@ -759,6 +854,62 @@ pub fn run() {
         }
 
         // ── impact ────────────────────────────────────────────────────────────
+        // ── explain / query ───────────────────────────────────────────────────
+        Commands::Explain { target, path, json } => {
+            let (local_path, _guard) = resolve(&path);
+            let (result, class) = crate::analysis::analyze_detailed(&local_path);
+            let explainer = crate::explain::Explainer::new(&local_path, &result, class);
+            let answer = load_or_exit(explainer.explain(&target));
+            if json {
+                print_json(&answer);
+            } else {
+                print!("{}", crate::explain::render_text(&answer));
+            }
+        }
+
+        Commands::Query { op } => {
+            let path = match &op {
+                QueryOp::References { common, .. }
+                | QueryOp::Imports { common, .. }
+                | QueryOp::Path { common, .. }
+                | QueryOp::Entrypoints { common }
+                | QueryOp::Unresolved { common, .. } => common.path.clone(),
+            };
+            let (local_path, _guard) = resolve(&path);
+            let (result, class) = crate::analysis::analyze_detailed(&local_path);
+            let explainer = crate::explain::Explainer::new(&local_path, &result, class);
+            match op {
+                QueryOp::References { file, common } => {
+                    let a = load_or_exit(explainer.query_references(&file, common.limit));
+                    show_facts(&a, common.json);
+                }
+                QueryOp::Imports { file, common } => {
+                    let a = load_or_exit(explainer.query_imports(&file, common.limit));
+                    show_facts(&a, common.json);
+                }
+                QueryOp::Unresolved { file, common } => {
+                    let a = load_or_exit(explainer.query_unresolved(file.as_deref(), common.limit));
+                    show_facts(&a, common.json);
+                }
+                QueryOp::Path { from, to, common } => {
+                    let a = load_or_exit(explainer.query_path(&from, &to));
+                    if common.json {
+                        print_json(&a);
+                    } else {
+                        print!("{}", crate::explain::render_path_text(&a));
+                    }
+                }
+                QueryOp::Entrypoints { common } => {
+                    let a = explainer.query_entrypoints(common.limit);
+                    if common.json {
+                        print_json(&a);
+                    } else {
+                        print!("{}", crate::explain::render_entrypoints_text(&a));
+                    }
+                }
+            }
+        }
+
         Commands::Impact {
             path,
             base,

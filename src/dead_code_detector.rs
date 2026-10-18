@@ -233,6 +233,20 @@ pub struct UsageReport {
     pub files: Vec<FileUsage>,
 }
 
+/// Why a file is an entry point.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RootSource {
+    /// Its name is a known entry point name (`main.rs`, `index.ts`).
+    Name,
+    /// A test runner, the type checker, build tooling or a framework loads
+    /// files like it by convention (tests, declaration files, configs,
+    /// routes).
+    Convention,
+    /// An adapter names it, or a folder holding it: the configured entry's
+    /// path, as given to [`classify`].
+    Configured(PathBuf),
+}
+
 /// The usage of each file, and how it was reached.
 #[derive(Debug, Default)]
 pub struct Classification {
@@ -240,9 +254,34 @@ pub struct Classification {
     pub usage: HashMap<PathBuf, UsageKind>,
     /// The file each reached file was first reached from; entries have none.
     parent: HashMap<PathBuf, PathBuf>,
+    /// Every entry point, with its role and why it is one.
+    pub roots: HashMap<PathBuf, (Role, RootSource)>,
 }
 
 impl Classification {
+    /// The same classification with every path passed through `f`.
+    pub fn map_paths(self, f: impl Fn(&Path) -> PathBuf) -> Self {
+        Classification {
+            usage: self.usage.into_iter().map(|(k, v)| (f(&k), v)).collect(),
+            parent: self
+                .parent
+                .into_iter()
+                .map(|(k, v)| (f(&k), f(&v)))
+                .collect(),
+            roots: self
+                .roots
+                .into_iter()
+                .map(|(k, (role, source))| {
+                    let source = match source {
+                        RootSource::Configured(p) => RootSource::Configured(f(&p)),
+                        other => other,
+                    };
+                    (f(&k), (role, source))
+                })
+                .collect(),
+        }
+    }
+
     /// Files not reached from any entry point, sorted.
     pub fn unreachable(&self) -> Vec<PathBuf> {
         let mut dead: Vec<PathBuf> = self
@@ -616,16 +655,26 @@ pub fn classify(
         let normal = normalize(file);
         let in_next = next_roots.iter().any(|root| normal.starts_with(root));
         let named = if is_entry_point(file) {
-            Some(entry_name_role(file))
+            Some((entry_name_role(file), RootSource::Name))
         } else {
-            tooling_role(file, in_next)
+            tooling_role(file, in_next).map(|role| (role, RootSource::Convention))
         };
         let configured = normal
             .ancestors()
-            .filter_map(|a| entries.get(a).copied())
-            .min();
-        if let Some(role) = named.into_iter().chain(configured).min() {
+            .filter_map(|a| {
+                entries
+                    .get(a)
+                    .map(|role| (*role, RootSource::Configured(a.to_path_buf())))
+            })
+            .min_by_key(|(role, _)| *role);
+        // The strongest role wins; on a tie, the name or convention.
+        let root = match (named, configured) {
+            (Some(n), Some(c)) => Some(if c.0 < n.0 { c } else { n }),
+            (n, c) => n.or(c),
+        };
+        if let Some((role, source)) = root {
             by_role.entry(role).or_default().push(file);
+            out.roots.insert((*file).clone(), (role, source));
         }
     }
     let roles = |role: Role| by_role.get(&role).cloned().unwrap_or_default();
