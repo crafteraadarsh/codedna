@@ -1,0 +1,81 @@
+{
+  "about": "How labelled sets are used. Development sets may be read and tuned on. Calibration sets fix confidence thresholds and are never used to change a detector. The sealed set is measured once per release, aggregates only. A sealed or calibration set becomes a development set as soon as its detailed failures are read: record that as an exposure with details_used_for_tuning true and change its role.",
+  "roles": {
+    "development": "labels may be read in detail and detectors changed after reading them",
+    "calibration": "used only to set confidence thresholds; no detector is changed after reading it",
+    "sealed": "release test: measured once per release with --release, aggregates only"
+  },
+  "gates": {
+    "high": {
+      "min_precision": 0.95,
+      "min_lower_bound": 0.9,
+      "min_outcomes": 200,
+      "min_repositories": 20
+    }
+  },
+  "fixtures": {
+    "min_dead_code_recall": 0.8
+  },
+  "sets": [
+    {
+      "name": "third",
+      "role": "sealed",
+      "labelled_with": "0.2.10",
+      "about": "labelled with 0.2.10 before release; no detector tuned on it",
+      "exposure": [
+        {
+          "date": "2026-10-16",
+          "version": "0.2.10",
+          "purpose": "labelled; aggregates published in the 0.2.10 README",
+          "details_used_for_tuning": false
+        },
+        {
+          "date": "2026-10-18",
+          "version": "0.2.11",
+          "purpose": "while adding this protocol one label line was printed by mistake when checking the label format; nothing was changed because of it",
+          "details_used_for_tuning": false
+        }
+      ]
+    },
+    {
+      "name": "fresh",
+      "role": "development",
+      "labelled_with": "0.2.8",
+      "about": "labelled with 0.2.8; 0.2.10 fixed detectors after reading these labels",
+      "exposure": [
+        {
+          "date": "2026-10-16",
+          "version": "0.2.10",
+          "purpose": "false positives read and fixed",
+          "details_used_for_tuning": true
+        },
+        {
+          "date": "2026-10-18",
+          "version": "0.2.11",
+          "purpose": "architecture outputs re-checked against the labels (#117); verdicts updated and outputs recorded",
+          "details_used_for_tuning": true
+        }
+      ]
+    },
+    {
+      "name": "original",
+      "role": "development",
+      "labelled_with": "0.2.6",
+      "about": "labelled with 0.2.6; 0.2.7 fixed detectors after reading these labels",
+      "exposure": [
+        {
+          "date": "2026-10-16",
+          "version": "0.2.7",
+          "purpose": "false positives read and fixed",
+          "details_used_for_tuning": true
+        },
+        {
+          "date": "2026-10-18",
+          "version": "0.2.11",
+          "purpose": "architecture outputs re-checked against the labels (#117); verdicts updated and outputs recorded",
+          "details_used_for_tuning": true
+        }
+      ]
+    }
+  ]
+}

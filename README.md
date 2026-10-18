@@ -236,7 +236,7 @@ Every analysis command accepts a **local path** or a **Git URL**.
 | `codedna diff <before> [after]` | Stack, size and file changes between two snapshots, paths or URLs (`--json`, `--markdown`) |
 | `codedna json [path\|url]` | Full analysis as JSON (`--compact`, `--time`) |
 | `codedna schema` | JSON Schema of the `json` report |
-| `codedna calibration` | How often each confidence level was right on hand-checked repositories (`--json`, `--set third\|fresh\|original`, `--corpus DIR` to re-measure this build) |
+| `codedna calibration` | How often each confidence level was right on hand-checked repositories, and whether `high` passed the release gate (`--json`, `--set NAME`, `--role development\|calibration\|sealed`, `--corpus DIR` to re-measure this build, `--fixtures` for the annotated fixtures) |
 | `codedna stack [path\|url]` | Languages, frameworks, databases |
 | `codedna files [path\|url]` | Lines of code per file |
 | `codedna framework <name> [path\|url]` | Files that import a given framework |
@@ -562,7 +562,15 @@ A file belongs to the deepest package folder that holds it. "Uses" comes from th
 ```json
 {
   "schema_version": 1,
-  "analyzer": { "name": "codedna", "version": "0.2.11" },
+  "analyzer": {
+    "name": "codedna",
+    "version": "0.2.11",
+    "confidence": [
+      { "kind": "dead_code", "level": "high", "status": "insufficient_data", "set": "third", "outcomes": 9, "repositories": 6 },
+      { "kind": "audit", "level": "high", "status": "insufficient_data", "set": "third", "outcomes": 13, "repositories": 8 },
+      { "kind": "architecture", "level": "high", "status": "insufficient_data", "set": "third", "outcomes": 20, "repositories": 20 }
+    ]
+  },
   "project_type": "Backend API service",
   "total_loc": 2243,
   "comment_lines": 245,
@@ -633,7 +641,7 @@ The report is versioned. `schema_version` goes up only when a field is removed, 
 | Field | Type | Description |
 |---|---|---|
 | `schema_version` | number | Version of the report shape (currently 1) |
-| `analyzer` | object | `name` and `version` of the CodeDna build that wrote it |
+| `analyzer` | object | `name` and `version` of the CodeDna build that wrote it, and `confidence`: for each kind, whether its `high` level passed the release gate on the sealed set (`validated`, `unvalidated` or `insufficient_data`) and on how many labels |
 | `project_type` | string | High-level project classification |
 | `total_loc` | number | Lines of code, excluding comments, blank lines and lockfiles |
 | `comment_lines` | number | Comment-only lines across detected source files |
@@ -845,7 +853,21 @@ Confidence levels are measured on hand-checked results, not guessed. Precision i
 
 **Original set.** 31 other repositories, labelled with v0.2.6 (301 results): dead code high 59% (29/49), medium 54% (26/48), low 12% (12/103); audit 2/4, 9/22, 2/33; architecture 16/17, 2/10, 4/4. v0.2.7 fixed detectors after reading these labels, which raised high-confidence dead code on that set to 97% (29/30). That figure is not independent, and the fresh set shows it does not carry over to new repositories.
 
-`codedna calibration` prints all three sets with their intervals (`--set third` for one). The repositories and labels are in [`calibration/`](calibration/); clone a set and run `codedna calibration --set third --corpus DIR` to score your own build on the same labels.
+`codedna calibration` prints all three sets with their intervals (`--set fresh` for one). The repositories and labels are in [`calibration/`](calibration/); clone a set and run `codedna calibration --set fresh --corpus DIR` to score your own build on the same labels.
+
+**How the sets are used.** [`calibration/protocol.json`](calibration/protocol.json) gives each set a role and records every time its labels were read:
+
+- **development** (original, fresh): read in detail, and detectors are changed after reading them;
+- **calibration**: used only to set confidence thresholds (none yet);
+- **sealed** (third): measured once per release with `--release`, which prints aggregates only. A whole-corpus run skips it.
+
+A level is called *validated* only when `high` reaches 95% precision with both the 95% interval and a bootstrap over repositories above 90%, on at least 200 labels from 20 repositories. No level has that many labels yet, so every `high` reads "insufficient data", and each JSON report says so in `analyzer.confidence`.
+
+A measured run also gives, per kind: precision for each language (dead code) or check (audit), false positives per 1,000 files, selective precision (keeping only results at or above a level, and how many it abstains on), estimated recall once files without a finding have been sampled and labelled, and the macro average over repositories.
+
+- `--fixtures` scores the fully annotated fixtures in [`calibration/fixtures.txt`](calibration/fixtures.txt): exact dead-code recall and precision, the audit's positive controls, and whether a cached run agrees with an uncached one. `--check` fails when a gate fails.
+- `--baseline FILE` fails when a labelled result got worse than in a recorded run: a correct one dropped a level, a wrong one rose, or an architecture output changed. `--write-baseline FILE` records one. CI checks the development sets against [`calibration/baseline/development.json`](calibration/baseline/development.json).
+- `--queue FILE` writes a random sample of unlabelled results, including files with no finding, to label next.
 
 ## ⚡ Performance
 

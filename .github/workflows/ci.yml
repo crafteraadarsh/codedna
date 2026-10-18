@@ -5,6 +5,8 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  # Release check: also measures the sealed set.
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -133,3 +135,93 @@ jobs:
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile("$PWD/install.ps1", [ref]$null, [ref]$errors) | Out-Null
           if ($errors) { $errors; exit 1 }
+
+  eval-fixtures:
+    name: Evaluation (fixtures)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-cargo-release-
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Dead-code recall, positive controls, cache on and off
+        run: target/release/codedna calibration --fixtures --check
+
+  eval-development:
+    name: Evaluation (development set)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-cargo-release-
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Clone the development sets at their pinned commits
+        run: time scripts/clone-corpus.sh "$RUNNER_TEMP/corpus" calibration/corpus.json calibration/fresh/corpus.json
+
+      - name: Check against the development baseline
+        run: |
+          time target/release/codedna calibration --role development \
+            --corpus "$RUNNER_TEMP/corpus" \
+            --baseline calibration/baseline/development.json
+
+      - name: Measured confidence
+        if: always()
+        run: target/release/codedna calibration --role development --corpus "$RUNNER_TEMP/corpus"
+
+  eval-sealed:
+    name: Evaluation (sealed set, release only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Clone the sealed set
+        run: scripts/clone-corpus.sh "$RUNNER_TEMP/corpus" calibration/third/corpus.json
+
+      - name: Measure, aggregates only
+        run: target/release/codedna calibration --set third --release --corpus "$RUNNER_TEMP/corpus"

@@ -47,6 +47,10 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub struct Analyzer {
     pub name: String,
     pub version: String,
+    /// Whether each kind's `high` confidence passed the release gate on
+    /// the sealed calibration set (see `codedna calibration`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub confidence: Vec<crate::calibration::ConfidenceCheck>,
 }
 
 /// The JSON Schema of the report, as written to `schema/report.schema.json`.
@@ -61,6 +65,7 @@ impl Analyzer {
         Analyzer {
             name: "codedna".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
+            confidence: crate::calibration::confidence_checks().to_vec(),
         }
     }
 }

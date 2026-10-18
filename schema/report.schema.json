@@ -231,6 +231,13 @@
       "description": "The tool that produced a report.",
       "type": "object",
       "properties": {
+        "confidence": {
+          "description": "Whether each kind's `high` confidence passed the release gate on\nthe sealed calibration set (see `codedna calibration`).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConfidenceCheck"
+          }
+        },
         "name": {
           "type": "string"
         },
@@ -352,6 +359,48 @@
         "low",
         "medium",
         "high"
+      ]
+    },
+    "ConfidenceCheck": {
+      "description": "Whether a kind's `high` level passed the release gate on the sealed set,\nas reports carry it in `analyzer.confidence`.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "`dead_code`, `audit` or `architecture`.",
+          "type": "string"
+        },
+        "level": {
+          "description": "The level checked: `high`.",
+          "type": "string"
+        },
+        "outcomes": {
+          "description": "Correct plus incorrect labels at the level.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "repositories": {
+          "description": "Repositories they come from.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "set": {
+          "description": "The sealed set it was measured on.",
+          "type": "string"
+        },
+        "status": {
+          "description": "`validated`, `unvalidated` or `insufficient_data`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "level",
+        "status",
+        "set",
+        "outcomes",
+        "repositories"
       ]
     },
     "Coverage": {

@@ -269,6 +269,7 @@
   "kind": "architecture",
   "repo": "mfts_papermark",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI/Routes/Middleware/Services real; Data layer weak (AI model clients, misses prisma schema)"
  },
@@ -285,9 +286,10 @@
  {
   "kind": "architecture",
   "repo": "go-chi_chi",
-  "confidence": "high",
-  "verdict": "incorrect",
-  "note": "Routes layer built mostly from _examples; chi is a router library"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: Routes layer built mostly from _examples; chi is a router library"
  },
  {
   "kind": "audit",
@@ -303,6 +305,7 @@
   "kind": "architecture",
   "repo": "laravel_laravel",
   "confidence": "medium",
+  "output": "Data,Routes",
   "verdict": "correct",
   "note": "Laravel skeleton: routes/controllers and models/migrations correctly identified"
  },
@@ -558,8 +561,9 @@
   "kind": "architecture",
   "repo": "t3-oss_create-t3-app",
   "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "all layers come from cli/template/extras scaffolding templates, not the repo's own code (CLI in cli/src, Astro docs site in www); summary describes the generated app, not this project"
+  "output": "Routes,UI",
+  "verdict": "unsure",
+  "note": "re-checked after #117: now reports Routes,UI from template scaffolding; arguable; earlier: all layers come from cli/template/extras scaffolding templates, not the repo's own code (CLI in cli/src, Astro docs site in www); summary describes the generated app, not this project"
  },
  {
   "kind": "dead_code",
@@ -581,6 +585,7 @@
   "kind": "architecture",
   "repo": "steven-tey_novel",
   "confidence": "high",
+  "output": "Routes,UI",
   "verdict": "correct",
   "note": "UI components in apps/web + packages/headless and 2 API routes (generate, upload) are real; summary Frontend only reasonable"
  },
@@ -596,6 +601,7 @@
   "kind": "architecture",
   "repo": "gothinkster_rails-realworld-example-app",
   "confidence": "high",
+  "output": "Data,Routes",
   "verdict": "correct",
   "note": "app/controllers + config/routes.rb and app/models + db/migrate are the real Rails layers"
  },
@@ -603,6 +609,7 @@
   "kind": "architecture",
   "repo": "launchbadge_realworld-axum-sqlx",
   "confidence": "medium",
+  "output": "Routes",
   "verdict": "correct",
   "note": "axum handlers in src/http/* are the real route layer; SQL is inline in handlers with migrations/*.sql, so no separate data code layer"
  },
@@ -796,6 +803,7 @@
   "kind": "architecture",
   "repo": "logto-io_logto",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "core/routes, middleware, libraries/queries, schemas and console/experience UI really exist; some examples misassigned (console consts as Services, React hook as Middleware, integration-tests api as Routes); summary fine"
  },
@@ -859,6 +867,7 @@
   "kind": "architecture",
   "repo": "remix-run_indie-stack",
   "confidence": "high",
+  "output": "Data,UI",
   "verdict": "correct",
   "note": "app/routes UI and app/models + prisma Data match the Remix indie stack; summary right"
  },
@@ -914,6 +923,7 @@
   "kind": "architecture",
   "repo": "pallets_click",
   "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "click is a CLI library with flat src; no layers is right"
  },
@@ -921,6 +931,7 @@
   "kind": "architecture",
   "repo": "spf13_viper",
   "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "viper is a flat Go config library; no layers is right"
  },
@@ -1104,6 +1115,7 @@
   "kind": "architecture",
   "repo": "openstatusHQ_openstatus",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "monorepo Next.js apps + Hono server routes, packages/services, packages/db schema all real; summary fine"
  },
@@ -1184,9 +1196,10 @@
  {
   "kind": "architecture",
   "repo": "wagtail_bakerydemo",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "Services layer is empty __init__.py files, UI = wagtail_hooks while templates ignored; only Routes/Data right"
+  "confidence": "high",
+  "output": "Data,Routes",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports Data,Routes; earlier: Services layer is empty __init__.py files, UI = wagtail_hooks while templates ignored; only Routes/Data right"
  },
  {
   "kind": "dead_code",
@@ -1224,6 +1237,7 @@
   "kind": "architecture",
   "repo": "appsecco_dvna",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services",
   "verdict": "correct",
   "note": "routes/, core/authHandler middleware, core/appHandler handlers, models/ sequelize data all real"
  },
@@ -1239,6 +1253,7 @@
   "kind": "architecture",
   "repo": "lujakob_nestjs-realworld-example-app",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services",
   "verdict": "correct",
   "note": "Nest controllers, auth.middleware, services, TypeORM entities correctly identified"
  },
@@ -1402,6 +1417,7 @@
   "kind": "architecture",
   "repo": "formbricks_formbricks",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "UI/Routes/Middleware/Services/Data dirs exist and match (app/middleware, packages/jobs, packages/database); summary fits Next.js+Prisma app"
  },
@@ -1485,6 +1501,7 @@
   "kind": "architecture",
   "repo": "digininja_DVWA",
   "confidence": "medium",
+  "output": "Routes",
   "verdict": "incorrect",
   "note": "only the api sub-module tagged Routes, examples (bootstrap.php, gen_openapi.php, help.php) aren't routes; main page-per-module app ignored"
  },
@@ -1539,9 +1556,10 @@
  {
   "kind": "architecture",
   "repo": "encode_starlette",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "library framework; Data=schemas.py is OpenAPI schema gen, Routes examples odd, Middleware count inflated (13 files); layers made from names"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: library framework; Data=schemas.py is OpenAPI schema gen, Routes examples odd, Middleware count inflated (13 files); layers made from names"
  },
  {
   "kind": "dead_code",
@@ -1555,6 +1573,7 @@
   "kind": "architecture",
   "repo": "trpc_examples-next-prisma-starter",
   "confidence": "high",
+  "output": "Data,Routes,UI",
   "verdict": "correct",
   "note": "pages/components UI, server/routers + api/trpc routes, prisma data all real; Next+Prisma summary right"
  },
@@ -1718,6 +1737,7 @@
   "kind": "architecture",
   "repo": "hoppscotch_hoppscotch",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services,UI",
   "verdict": "correct",
   "note": "Vue UI, NestJS controllers/resolvers, guards, services, prisma/models all real in packages/; summary fine"
  },
@@ -1800,9 +1820,10 @@
  {
   "kind": "architecture",
   "repo": "httpie_cli",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "httpie is a CLI; 'UI'/'Routes' built from packaging hooks and man-page scripts, layers made up"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: httpie is a CLI; 'UI'/'Routes' built from packaging hooks and man-page scripts, layers made up"
  },
  {
   "kind": "dead_code",
@@ -1856,6 +1877,7 @@
   "kind": "architecture",
   "repo": "nsidnev_fastapi-realworld-example-app",
   "confidence": "high",
+  "output": "Data,Routes,Services",
   "verdict": "correct",
   "note": "app/api/routes, app/services+models/domain, app/db/repositories+schemas match real layers"
  },
@@ -1863,6 +1885,7 @@
   "kind": "architecture",
   "repo": "gothinkster_golang-gin-realworld-example-app",
   "confidence": "high",
+  "output": "Data,Routes",
   "verdict": "correct",
   "note": "gin routers.go and models.go/database.go are real routes/data; only middlewares.go omitted"
  },
@@ -2005,9 +2028,10 @@
  {
   "kind": "architecture",
   "repo": "psf_black",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "black is a CLI formatter; 'Data' layer is made up from schema.py/generate_schema.py, only blackd/middlewares.py is plausible; summary 'Monolithic' ok"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: black is a CLI formatter; 'Data' layer is made up from schema.py/generate_schema.py, only blackd/middlewares.py is plausible; summary 'Monolithic' ok"
  },
  {
   "kind": "audit",
@@ -2120,9 +2144,10 @@
  {
   "kind": "architecture",
   "repo": "tokio-rs_axum",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "axum is a framework library; 'Routes' layer is really extractor modules (extract/), not app routes; summary 'API only' misleading"
+  "confidence": "low",
+  "output": "none",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports no layers for a library; earlier: axum is a framework library; 'Routes' layer is really extractor modules (extract/), not app routes; summary 'API only' misleading"
  },
  {
   "kind": "dead_code",
@@ -2151,7 +2176,8 @@
  {
   "kind": "architecture",
   "repo": "Blazity_next-enterprise",
-  "confidence": "high",
+  "confidence": "medium",
+  "output": "UI",
   "verdict": "correct",
   "note": "UI in app/ and components/, Routes app/api/health/route.ts match the Next.js app; summary fine"
  },
@@ -2167,6 +2193,7 @@
   "kind": "architecture",
   "repo": "hagopj13_node-express-boilerplate",
   "confidence": "high",
+  "output": "Data,Middleware,Routes,Services",
   "verdict": "correct",
   "note": "routes/controllers, middlewares, services, models layers really exist; summary API -> Database fits"
  },
@@ -2314,6 +2341,7 @@
   "kind": "architecture",
   "repo": "OWASP_wrongsecrets",
   "confidence": "high",
+  "output": "Routes,Services",
   "verdict": "correct",
   "note": "20 Spring @Controller files and 3 @Service classes match listed layers; summary line vague but not wrong"
  },
@@ -2429,6 +2457,7 @@
   "kind": "architecture",
   "repo": "sindresorhus_got",
   "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "HTTP client library with no app layers; summary 'API only/Express' is wrong (Express only in tests)"
  },
@@ -2475,14 +2504,16 @@
  {
   "kind": "architecture",
   "repo": "gothinkster_django-realworld-example-app",
-  "confidence": "medium",
-  "verdict": "incorrect",
-  "note": "Routes/Data ok, but Services layer is made from AppConfig __init__.py files; serializers not recognised"
+  "confidence": "high",
+  "output": "Data,Routes",
+  "verdict": "correct",
+  "note": "re-checked after #117: now reports Data,Routes; earlier: Routes/Data ok, but Services layer is made from AppConfig __init__.py files; serializers not recognised"
  },
  {
   "kind": "architecture",
   "repo": "koajs_koa",
   "confidence": "low",
+  "output": "none",
   "verdict": "correct",
   "note": "koa is a small framework library with no layered app structure"
  }
