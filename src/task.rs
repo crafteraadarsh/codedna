@@ -99,11 +99,11 @@ pub struct TaskLimits {
     /// Task words ignored because most paths contain them.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ignored_terms: Vec<String>,
-    /// Code files over 512 KiB, matched on their path only.
+    /// Code files over 512 KiB, searched by path only (content not read).
     pub large_files: usize,
-    /// Prose, data and unrecognised files, matched on their path only.
+    /// Prose, data and unrecognised files, searched by path only (content not read).
     pub path_only_files: usize,
-    /// Code files that could not be read, matched on their path only.
+    /// Code files that could not be read, searched by path only.
     pub unreadable_files: usize,
     /// How much of the import graph was followed, when not all of it was:
     /// neighbours and tests are found through imports.
@@ -528,7 +528,7 @@ fn limit_notes(limits: &TaskLimits) -> Vec<String> {
     }
     if limits.large_files > 0 {
         notes.push(format!(
-            "{} {} over 512 KiB matched on {} path only.",
+            "{} {} over 512 KiB searched by {} path only.",
             limits.large_files,
             plural(limits.large_files, "file"),
             if limits.large_files == 1 {
@@ -540,7 +540,7 @@ fn limit_notes(limits: &TaskLimits) -> Vec<String> {
     }
     if limits.path_only_files > 0 {
         notes.push(format!(
-            "{} prose, data or unrecognised {} matched on path only.",
+            "{} prose, data or unrecognised {} searched by path only, not content.",
             limits.path_only_files,
             plural(limits.path_only_files, "file")
         ));

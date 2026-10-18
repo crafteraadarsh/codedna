@@ -15,7 +15,7 @@ If the CodeDna MCP tools are available (`get_context`, `get_stack`, ...), call `
 codedna context .
 ```
 
-This prints a short Markdown briefing: project type, stack, architecture, monorepo packages, entry points, the most imported and largest files, and a trimmed directory map. Use `--max-tokens N` to make it shorter or longer, and `--format json` for structured output. Before a specific change, add `--task "what you are about to do"` (MCP: `task`) to list the files that matter for it first, each with why it was picked.
+This prints a short Markdown briefing: project type, stack, architecture, monorepo packages, entry points, the most imported and largest files, and a trimmed directory map. Use `--max-tokens N` to make it shorter or longer, and `--format json` for structured output. Before a specific change, add `--task "what you are about to do"` (MCP: `task`) to list the files that matter for it first, each with why it was picked and the line that shows it. Its `Limits:` line (JSON `limits`) says what the list may miss: words nothing mentions, files searched by path only, and that matching is by wording, not meaning.
 
 ## Narrower questions
 
@@ -39,7 +39,7 @@ This prints a short Markdown briefing: project type, stack, architecture, monore
 | What changed between two versions | — | `codedna diff before.json .` |
 | Everything as JSON | `analyze_repo` | `codedna json . --compact` |
 
-When the user wants something to share or keep, write a report: `codedna report . -o report.md`, or `codedna report . --format html -o report.html` (open it in a browser and print to PDF).
+When the user wants something to share or keep, write a report: `codedna report . -o report.md`, or `codedna report . --format html -o report.html` (open it in a browser and print to PDF). Reports end with the assumptions behind them, and each possibly unused file shows whether it is unreachable or may still be loaded, with the `codedna explain dead:<file>` command that shows why.
 
 Before a refactor, or when asked where the risky code is, check hotspots: files that are large and changed often in Git history. Start with those, and expect them to need extra care and tests. When changing a file, check whether it is coupled to another: a pair that usually changes together often needs both edited.
 

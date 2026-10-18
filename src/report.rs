@@ -240,7 +240,7 @@ pub fn render_markdown(report: &Report) -> String {
                 md_code(&f.file),
                 f.confidence.as_str(),
                 f.status.as_str(),
-                md_text(&f.reason),
+                md_text(&sentence(&f.reason)),
                 md_code(&format!("codedna explain dead:{}", f.file))
             );
         }
@@ -560,7 +560,7 @@ pub fn render_html(report: &Report) -> String {
                 "<li><span class=\"conf {level}\">{level}</span> <code>{}</code> ({})<br><span class=\"note\">{} Check: <code>codedna explain dead:{}</code></span></li>",
                 esc(&f.file),
                 esc(f.status.as_str()),
-                esc(&f.reason),
+                esc(&sentence(&f.reason)),
                 esc(&f.file),
                 level = f.confidence.as_str(),
             );
@@ -667,6 +667,15 @@ fn cycles_note(count: usize) -> String {
         "Files in {count} group{} import each other. Type-only imports count too, so check each before refactoring.",
         if count == 1 { "" } else { "s" }
     )
+}
+
+/// End a reason with a full stop so a following sentence reads cleanly.
+fn sentence(s: &str) -> String {
+    if s.ends_with(['.', '!', '?']) {
+        s.to_string()
+    } else {
+        format!("{s}.")
+    }
 }
 
 fn dead_code_note(count: usize, summary: &str) -> String {
