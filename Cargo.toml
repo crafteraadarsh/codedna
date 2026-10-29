@@ -45,7 +45,7 @@ yaml-rust2 = "0.13"
 ureq = { version = "3", default-features = false, features = ["native-tls", "json"] }
 schemars = "1"
 oxc_allocator = "=0.154.0"
-oxc_ast = "=0.154.0"
+oxc_ast = "=0.155.0"
 oxc_ast_visit = "=0.154.0"
 oxc_parser = { version = "=0.154.0", default-features = false }
 oxc_span = "=0.154.0"
